@@ -173,19 +173,18 @@ local function handle_quality_change_notifications(quality_changes, quality_dire
             end
           end
         end
-      end
 
-      -- Always provide fallback print statements grouped by entity type
-      if assembling_count > 0 then
-        local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
-        player.print(string.format("[Quality Control] %d assembly machine%s quality %s",
-          assembling_count, assembling_count == 1 and "" or "s", direction_text))
-      end
+        if assembling_count > 0 then
+          local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
+          player.print(string.format("[Quality Control] %d assembly machine%s quality %s",
+            assembling_count, assembling_count == 1 and "" or "s", direction_text))
+        end
 
-      if furnace_count > 0 then
-        local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
-        player.print(string.format("[Quality Control] %d furnace%s quality %s",
-          furnace_count, furnace_count == 1 and "" or "s", direction_text))
+        if furnace_count > 0 then
+          local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
+          player.print(string.format("[Quality Control] %d furnace%s quality %s",
+            furnace_count, furnace_count == 1 and "" or "s", direction_text))
+        end
       end
     end
   end
