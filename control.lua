@@ -89,7 +89,7 @@ end
 --- @param machine LuaEntity The machine to potentially change.
 --- @param next_quality LuaQualityPrototype The quality to change to.
 --- @param percentage_chance number The chance of the quality change occurring.
---- @return boolean true if the machine was successfully replaced, false otherwise.
+--- @return table|nil Returns table with change info if successful: {entity=LuaEntity, old_quality=string, new_quality=string, entity_type=string}, nil otherwise.
 local function attempt_quality_change(machine, next_quality, percentage_chance)
   local random_roll = math.random()
   local chance_threshold = percentage_chance / 100
@@ -98,8 +98,10 @@ local function attempt_quality_change(machine, next_quality, percentage_chance)
     return false -- Random roll failed, no change
   end
 
-  -- Store the unit number before creating replacement (machine becomes invalid after fast_replace)
+  -- Store info before creating replacement (machine becomes invalid after fast_replace)
   local old_unit_number = machine.unit_number
+  local old_quality_name = machine.quality.name
+  local entity_type = machine.type
 
   local replacement_entity = machine.surface.create_entity {
     name = machine.name,
@@ -122,10 +124,71 @@ local function attempt_quality_change(machine, next_quality, percentage_chance)
 
     -- Remove old machine data using stored unit number
     storage.machine_data[old_unit_number] = nil
-    return true
+
+    -- Return change information
+    return {
+      entity = replacement_entity,
+      old_quality = old_quality_name,
+      new_quality = next_quality.name,
+      entity_type = entity_type
+    }
   end
 
-  return false -- Replacement failed
+  return nil -- Replacement failed
+end
+
+--- Creates alerts and print statements for quality changes
+--- @param quality_changes table Changes grouped by entity type
+--- @param quality_direction string "increase" or "decrease"
+local function handle_quality_change_notifications(quality_changes, quality_direction)
+  -- Count total changes by entity type
+  local assembling_count = #quality_changes["assembling-machine"]
+  local furnace_count = #quality_changes["furnace"]
+  local total_changes = assembling_count + furnace_count
+
+  if total_changes == 0 then
+    return -- No changes to report
+  end
+
+  -- Create individual alerts for each player (if enabled) and fallback print statements
+  for _, player in pairs(game.players) do
+    if player.valid then
+      local alerts_enabled = settings.get_player_settings(player)["quality-change-alerts-enabled"].value
+
+      if alerts_enabled then
+        -- Create individual alerts for each changed machine
+        for entity_type, changes in pairs(quality_changes) do
+          for _, change in ipairs(changes) do
+            if change.entity and change.entity.valid then
+              -- Determine alert message key
+              local message_key = "alert-message.quality-" ..
+                (quality_direction == "increase" and "upgrade" or "downgrade") ..
+                "-" .. entity_type
+
+              -- Use the machine itself as the icon (SignalID format)
+              local icon = {type = "item", name = change.entity.name, quality = change.new_quality}
+
+              -- Create the alert
+              player.add_custom_alert(change.entity, icon, {message_key}, true)
+            end
+          end
+        end
+      end
+
+      -- Always provide fallback print statements grouped by entity type
+      if assembling_count > 0 then
+        local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
+        player.print(string.format("[Quality Control] %d assembly machine%s quality %s",
+          assembling_count, assembling_count == 1 and "" or "s", direction_text))
+      end
+
+      if furnace_count > 0 then
+        local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
+        player.print(string.format("[Quality Control] %d furnace%s quality %s",
+          furnace_count, furnace_count == 1 and "" or "s", direction_text))
+      end
+    end
+  end
 end
 
 --- Iterates through all player-owned crafting machines on all surfaces and checks if their quality should be changed.
@@ -145,6 +208,12 @@ local function check_and_change_quality()
   local percentage_chance = settings.startup["percentage-chance-of-change"].value
   local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
   local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
+
+  -- Track quality changes by entity type for summary reporting
+  local quality_changes = {
+    ["assembling-machine"] = {},
+    ["furnace"] = {}
+  }
 
   for _, surface in pairs(game.surfaces) do
     local machines = surface.find_entities_filtered{
@@ -177,7 +246,11 @@ local function check_and_change_quality()
             end
 
             if current_threshold_hours > machine_data.last_checked_threshold then
-              if not attempt_quality_change(machine, next_quality, percentage_chance) then
+              local change_result = attempt_quality_change(machine, next_quality, percentage_chance)
+              if change_result then
+                -- Track the change for alerts/reporting
+                table.insert(quality_changes[change_result.entity_type], change_result)
+              else
                 machine_data.last_checked_threshold = current_threshold_hours
               end
             end
@@ -186,7 +259,11 @@ local function check_and_change_quality()
       end
     end
   end
+
+  -- Handle alerts and notifications for quality changes
+  handle_quality_change_notifications(quality_changes, quality_direction)
 end
+
 
 --- Registers the nth_tick event based on the current setting
 local function register_nth_tick_event()

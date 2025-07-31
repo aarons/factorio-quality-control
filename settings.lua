@@ -42,5 +42,12 @@ data:extend({
         min_value = 1,
         max_value = 3600,
         order = "b-0"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-alerts-enabled",
+        setting_type = "runtime-per-user",
+        default_value = true,
+        order = "c-0"
     }
 })
