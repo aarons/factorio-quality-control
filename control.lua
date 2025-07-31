@@ -49,9 +49,9 @@ local function get_next_quality(current_quality, direction)
   if not chain_data then return nil end
 
   if direction == "increase" then
-    return chain_data.next and prototypes.quality[chain_data.next] or nil
+    return chain_data.next
   else -- direction == "decrease"
-    return chain_data.previous and prototypes.quality[chain_data.previous] or nil
+    return chain_data.previous
   end
 end
 
@@ -96,8 +96,7 @@ local function check_and_change_quality()
               local chance_threshold = percentage_chance / 100
 
               if random_roll < chance_threshold then
-                -- Use fast_replace to upgrade the machine
-                local upgraded = machine.surface.create_entity {
+                local replacement_entity = machine.surface.create_entity {
                   name = machine.name,
                   position = machine.position,
                   force = machine.force,
@@ -107,8 +106,8 @@ local function check_and_change_quality()
                   spill = false
                 }
 
-                if upgraded and upgraded.valid then
-                  upgraded.products_finished = 0
+                if replacement_entity and replacement_entity.valid then
+                  replacement_entity.products_finished = 0
                 end
               end
             end
@@ -167,13 +166,6 @@ commands.add_command("inspect_machine", "Inspect machine under cursor", function
       game.print("Recipe: " .. current_recipe.name .. " (energy: " .. current_recipe.prototype.energy .. ")")
       game.print("Crafting progress: " .. (machine.crafting_progress or 0))
       game.print("Crafting speed: " .. machine.crafting_speed)
-    else
-      game.print("No active recipe set")
-      if machine.type == "furnace" then
-        game.print("Note: Furnaces auto-select recipes based on input materials")
-      else
-        game.print("Note: Assembling machines need recipes manually set")
-      end
     end
 
     -- Calculate work threshold for quality upgrade (only if recipe is present)
