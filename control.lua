@@ -6,9 +6,8 @@ It periodically scans all player-owned crafting machines and applies quality cha
 Each machine is tracked individually and only checked once per manufacturing_hours period.
 
 IMPORTANT NOTE: Manufacturing hours do not accumulate at a constant rate. Users can place speed beacons,
-productivity modules, and other modifiers that change the effective manufacturing rate. Therefore, we cannot
-predict future tick times for when to check machines. Instead, we use a threshold-based approach where we
-track the last manufacturing_hours threshold that was checked for each machine.
+productivity modules, and other modifiers that change the effective manufacturing rate. Therefore, we track
+the last manufacturing_hours threshold that was checked for each machine.
 ]]
 
 --- Cache for quality chains to avoid repeated lookups
