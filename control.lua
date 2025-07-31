@@ -28,9 +28,7 @@ local function cleanup_single_machine_data(entity)
   -- Check if this is a machine type we track
   local machine_types = {
     ["assembling-machine"] = true,
-    ["furnace"] = true,
-    ["lab"] = true,
-    ["mining-drill"] = true
+    ["furnace"] = true
   }
 
   if machine_types[entity.type] and entity.unit_number then
@@ -120,8 +118,6 @@ local function attempt_quality_change(machine, next_quality, percentage_chance)
     if replacement_entity.type == "assembling-machine" or replacement_entity.type == "furnace" then
         replacement_entity.products_finished = 0
         storage.machine_data[new_unit_number].last_checked_threshold = 0
-    elseif replacement_entity.type == "lab" or replacement_entity.type == "mining-drill" then
-        storage.machine_data[new_unit_number].active_cycles = 0
     end
 
     -- Remove old machine data using stored unit number
@@ -152,14 +148,13 @@ local function check_and_change_quality()
 
   for _, surface in pairs(game.surfaces) do
     local machines = surface.find_entities_filtered{
-      type = {"assembling-machine", "furnace", "lab", "mining-drill"},
+      type = {"assembling-machine", "furnace"},
       force = player_force
     }
 
     for _, machine in ipairs(machines) do
       if machine and machine.valid then
         local unit_number = machine.unit_number
-        local machine_type = machine.type
         local next_quality = get_next_quality(machine.quality, quality_direction)
 
         if next_quality then
@@ -168,63 +163,25 @@ local function check_and_change_quality()
           end
           local machine_data = storage.machine_data[unit_number]
 
-          if machine_type == "assembling-machine" or machine_type == "furnace" then
-            local current_recipe = machine.get_recipe()
-            if current_recipe then
-              local hours_for_this_level = manufacturing_hours_for_change * math.pow(1 + quality_level_modifier, machine.quality.level)
-              local recipe_energy = current_recipe.prototype.energy
-              local current_work_energy = machine.products_finished * recipe_energy
-              local current_manufacturing_hours = current_work_energy / 3600
-              local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
-              local current_threshold_hours = current_threshold_interval * hours_for_this_level
+          local current_recipe = machine.get_recipe()
+          if current_recipe then
+            local hours_for_this_level = manufacturing_hours_for_change * math.pow(1 + quality_level_modifier, machine.quality.level)
+            local recipe_energy = current_recipe.prototype.energy
+            local current_work_energy = machine.products_finished * recipe_energy
+            local current_manufacturing_hours = current_work_energy / 3600
+            local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
+            local current_threshold_hours = current_threshold_interval * hours_for_this_level
 
-              if not machine_data.last_checked_threshold then
+            if not machine_data.last_checked_threshold then
+              machine_data.last_checked_threshold = current_threshold_hours
+            end
+
+            if current_threshold_hours > machine_data.last_checked_threshold then
+              if not attempt_quality_change(machine, next_quality, percentage_chance) then
                 machine_data.last_checked_threshold = current_threshold_hours
               end
-
-              if current_threshold_hours > machine_data.last_checked_threshold then
-                if not attempt_quality_change(machine, next_quality, percentage_chance) then
-                  machine_data.last_checked_threshold = current_threshold_hours
-                end
-              end
             end
-          elseif machine_type == "lab" or machine_type == "mining-drill" then
-            local is_active = false
-
-            if machine_type == "lab" then
-              -- Lab is active if it's researching (has research target and input items)
-              local force = machine.force
-              if force and force.valid and force.current_research then
-                -- Check if lab has input items and energy
-                local inventory = machine.get_inventory(defines.inventory.lab_input)
-                is_active = inventory and not inventory.is_empty() and machine.energy > 0
-              end
-            elseif machine_type == "mining-drill" then
-              -- Mining drill is active if it has resources to mine and has energy
-              local mining_target = machine.mining_target
-              is_active = mining_target and mining_target.valid and machine.energy > 0 and machine.status == defines.entity_status.working
-            end
-
-            if is_active then
-              machine_data.active_cycles = (machine_data.active_cycles or 0) + 1
-
-              -- Simple threshold: labs and miners need to be active for a certain number of checks
-              -- This is equivalent to the manufacturing hours concept but for non-crafting machines
-              local hours_for_this_level = manufacturing_hours_for_change * math.pow(1 + quality_level_modifier, machine.quality.level)
-              -- Convert hours to number of active checks needed (assuming each check represents some activity)
-              -- Since check_interval_seconds represents how often we check, we can estimate cycles needed
-              local cycles_per_hour = 3600 / check_interval_seconds  -- Rough estimate of checks per hour of activity
-              local required_active_cycles = hours_for_this_level * cycles_per_hour
-
-              if machine_data.active_cycles >= required_active_cycles then
-                if attempt_quality_change(machine, next_quality, percentage_chance) then
-                  -- Reset is handled in attempt_quality_change
-                else
-                  -- If change failed, reset cycles so we don't check again immediately
-                  machine_data.active_cycles = 0
-                end
-              end
-            end
+          end
           end
         end
       end
