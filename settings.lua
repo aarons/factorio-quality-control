@@ -26,10 +26,10 @@ data:extend({
         order = "a-2"
     },
     {
-        type = "int-setting",
+        type = "double-setting",
         name = "quality-level-modifier",
         setting_type = "startup",
-        default_value = 0,
+        default_value = 0.3,
         min_value = 0,
         max_value = 1000,
         order = "a-3"

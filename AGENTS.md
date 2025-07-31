@@ -8,4 +8,4 @@ Pay attention to overly complicated solutions; we should not re-implement core f
 
 Documentation can be found by using context7:
 use context7
-library /lua-api_factorio-stable
+library context7/lua-api_factorio-stable

@@ -18,6 +18,14 @@ local function init_machine_data()
   if not storage.machine_data then
     storage.machine_data = {}
   end
+  if not storage.activity_tracker then
+    storage.activity_tracker = {
+        alpha = 0.01, -- Decay factor for the rolling average. Corresponds to an average over ~100 checks.
+        average_checks_per_tick = 0,
+        last_tick_updated = 0,
+        checks_this_tick = 0
+    }
+  end
 end
 
 --- Cleans up data for machines that no longer exist
@@ -31,7 +39,7 @@ local function cleanup_machine_data()
   -- Collect all valid machine unit numbers
   for _, surface in pairs(game.surfaces) do
     local machines = surface.find_entities_filtered{
-      type = {"assembling-machine", "furnace"},
+      type = {"assembling-machine", "furnace", "lab", "mining-drill"},
       force = player_force
     }
 
@@ -90,10 +98,78 @@ local function get_next_quality(current_quality, direction)
 
   if not chain_data then return nil end
 
+  local next_quality_name
   if direction == "increase" then
-    return chain_data.next
+    next_quality_name = chain_data.next
   else -- direction == "decrease"
-    return chain_data.previous
+    next_quality_name = chain_data.previous
+  end
+
+  if next_quality_name and quality_chains[next_quality_name] then
+    return quality_chains[next_quality_name].prototype
+  end
+
+  return nil
+end
+
+--- Attempts to change the quality of a machine based on a random roll.
+--- @param machine LuaEntity The machine to potentially change.
+--- @param next_quality LuaQualityPrototype The quality to change to.
+--- @param percentage_chance number The chance of the quality change occurring.
+--- @return boolean true if the machine was successfully replaced, false otherwise.
+local function attempt_quality_change(machine, next_quality, percentage_chance)
+  local random_roll = math.random()
+  local chance_threshold = percentage_chance / 100
+
+  if random_roll >= chance_threshold then
+    return false -- Random roll failed, no change
+  end
+
+  local replacement_entity = machine.surface.create_entity {
+    name = machine.name,
+    position = machine.position,
+    force = machine.force,
+    direction = machine.direction,
+    quality = next_quality,
+    fast_replace = true,
+    spill = false
+  }
+
+  if replacement_entity and replacement_entity.valid then
+    local new_unit_number = replacement_entity.unit_number
+    storage.machine_data[new_unit_number] = {}
+
+    if replacement_entity.type == "assembling-machine" or replacement_entity.type == "furnace" then
+        replacement_entity.products_finished = 0
+        storage.machine_data[new_unit_number].last_checked_threshold = 0
+    elseif replacement_entity.type == "lab" or replacement_entity.type == "mining-drill" then
+        storage.machine_data[new_unit_number].accumulated_work = 0
+    end
+
+    -- Remove old machine data
+    storage.machine_data[machine.unit_number] = nil
+    return true
+  end
+
+  return false -- Replacement failed
+end
+
+--- Updates the rolling average of machine checks per tick
+local function update_activity_tracker()
+  local tracker = storage.activity_tracker
+  local current_tick = game.tick
+
+  if tracker.last_tick_updated < current_tick then
+    -- Apply decay for any ticks that have passed since the last update
+    local ticks_passed = current_tick - tracker.last_tick_updated
+    tracker.average_checks_per_tick = tracker.average_checks_per_tick * ((1 - tracker.alpha) ^ ticks_passed)
+
+    -- Add the contribution from the last tick's checks
+    tracker.average_checks_per_tick = tracker.average_checks_per_tick + (tracker.checks_this_tick * tracker.alpha)
+
+    -- Reset for the new tick
+    tracker.checks_this_tick = 0
+    tracker.last_tick_updated = current_tick
   end
 end
 
@@ -106,6 +182,7 @@ local function check_and_change_quality()
 
   -- Initialize machine data if needed
   init_machine_data()
+  update_activity_tracker()
 
   -- Clean up stale machine data periodically (every ~100 checks)
   if not storage.cleanup_counter then storage.cleanup_counter = 0 end
@@ -120,74 +197,66 @@ local function check_and_change_quality()
   local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   local quality_level_modifier = settings.startup["quality-level-modifier"].value
   local percentage_chance = settings.startup["percentage-chance-of-change"].value
+  local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
+  local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
 
   for _, surface in pairs(game.surfaces) do
-    -- Search for both assembling machines and furnaces in a single call
     local machines = surface.find_entities_filtered{
-      type = {"assembling-machine", "furnace"},
+      type = {"assembling-machine", "furnace", "lab", "mining-drill"},
       force = player_force
     }
 
     for _, machine in ipairs(machines) do
       if machine and machine.valid then
-        -- Get recipe information - only process machines with valid recipes
-        local current_recipe = machine.get_recipe()
+        local unit_number = machine.unit_number
+        local machine_type = machine.type
+        local next_quality = get_next_quality(machine.quality, quality_direction)
 
-        -- Only process machines that have an active recipe
-        if current_recipe then
-          local unit_number = machine.unit_number
-          local recipe_energy = current_recipe.prototype.energy
-          local next_quality = get_next_quality(machine.quality, quality_direction)
+        if next_quality then
+          if not storage.machine_data[unit_number] then
+            storage.machine_data[unit_number] = {}
+          end
+          local machine_data = storage.machine_data[unit_number]
 
-          if next_quality then
-            local hours_for_this_level = manufacturing_hours_for_change +
-              (manufacturing_hours_for_change * quality_level_modifier * (machine.quality.level - 1))
+          if machine_type == "assembling-machine" or machine_type == "furnace" then
+            local current_recipe = machine.get_recipe()
+            if current_recipe then
+              local hours_for_this_level = manufacturing_hours_for_change +
+                (manufacturing_hours_for_change * quality_level_modifier * (machine.quality.level - 1))
+              local recipe_energy = current_recipe.prototype.energy
+              local current_work_energy = machine.products_finished * recipe_energy
+              local current_manufacturing_hours = current_work_energy / 3600
+              local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
+              local current_threshold_hours = current_threshold_interval * hours_for_this_level
 
-            -- Calculate current manufacturing hours for this machine
-            local current_work_energy = machine.products_finished * recipe_energy
-            local current_manufacturing_hours = current_work_energy / 3600
-
-            -- Calculate which threshold interval we're currently in
-            local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
-            local current_threshold_hours = current_threshold_interval * hours_for_this_level
-
-            -- Initialize machine data if this is the first time we see this machine
-            if not storage.machine_data[unit_number] then
-              storage.machine_data[unit_number] = {
-                last_checked_threshold = current_threshold_hours
-              }
-            end
-
-            local machine_data = storage.machine_data[unit_number]
-
-            -- Check if we've crossed into a new threshold interval since last check
-            if current_threshold_hours > machine_data.last_checked_threshold then
-              local random_roll = math.random()
-              local chance_threshold = percentage_chance / 100
-
-              if random_roll < chance_threshold then
-                local replacement_entity = machine.surface.create_entity {
-                  name = machine.name,
-                  position = machine.position,
-                  force = machine.force,
-                  direction = machine.direction,
-                  quality = next_quality,
-                  fast_replace = true,
-                  spill = false
-                }
-
-                if replacement_entity and replacement_entity.valid then
-                  replacement_entity.products_finished = 0
-                  -- Update tracking for the new machine (quality changed, so unit_number changed)
-                  storage.machine_data[replacement_entity.unit_number] = {
-                    last_checked_threshold = 0  -- Reset for new quality level
-                  }
-                  -- Remove old machine data
-                  storage.machine_data[unit_number] = nil
-                end
-              else
-                -- Update the machine's last checked threshold even if change failed
+              if not machine_data.last_checked_threshold then
                 machine_data.last_checked_threshold = current_threshold_hours
+              end
+
+              if current_threshold_hours > machine_data.last_checked_threshold then
+                storage.activity_tracker.checks_this_tick = storage.activity_tracker.checks_this_tick + 1
+                if not attempt_quality_change(machine, next_quality, percentage_chance) then
+                  machine_data.last_checked_threshold = current_threshold_hours
+                end
+              end
+            end
+          elseif machine_type == "lab" or machine_type == "mining-drill" then
+            local is_active = (machine_type == "lab" and machine.active) or (machine_type == "mining-drill" and machine.mining_progress > 0)
+            if is_active then
+              machine_data.active_cycles = (machine_data.active_cycles or 0) + 1
+              local avg_checks = storage.activity_tracker.average_checks_per_tick
+              if avg_checks > 0 then
+                local avg_ticks_per_quality_check = 1 / avg_checks
+                local check_cycle_threshold = avg_ticks_per_quality_check / check_interval_ticks
+
+                if machine_data.active_cycles >= check_cycle_threshold then
+                  if attempt_quality_change(machine, next_quality, percentage_chance) then
+                    -- Reset is handled in attempt_quality_change
+                  else
+                    -- If change failed, reset cycles so we don't check again immediately
+                    machine_data.active_cycles = 0
+                  end
+                end
               end
             end
           end
@@ -203,11 +272,11 @@ local function register_nth_tick_event()
   script.on_nth_tick(nil)
 
   -- Get the frequency setting in seconds and convert to ticks (60 ticks = 1 second)
-  local frequency_seconds = settings.global["upgrade-check-frequency-seconds"].value
-  local frequency_ticks = math.max(60, math.floor(frequency_seconds * 60))
+  local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
+  local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
 
   -- Register the new nth_tick event
-  script.on_nth_tick(frequency_ticks, check_and_change_quality)
+  script.on_nth_tick(check_interval_ticks, check_and_change_quality)
 end
 
 -- Initialize quality chains on first load
@@ -239,66 +308,61 @@ end)
 -- Debug command to inspect a specific machine
 commands.add_command("inspect_machine", "Inspect machine under cursor", function()
   local player = game.players[1]
-  if player and player.selected and (player.selected.type == "assembling-machine" or player.selected.type == "furnace") then
+  if player and player.selected and (player.selected.type == "assembling-machine" or player.selected.type == "furnace" or player.selected.type == "lab" or player.selected.type == "mining-drill") then
     local machine = player.selected
+    local machine_type = machine.type
     game.print("=== Machine Inspection ===")
-    game.print("Machine: " .. machine.name .. " (" .. machine.type .. ")")
+    game.print("Machine: " .. machine.name .. " (" .. machine_type .. ")")
     game.print("Quality: " .. machine.quality.name .. " (level " .. machine.quality.level .. ")")
     game.print("Unit number: " .. machine.unit_number)
-    game.print("Products finished: " .. machine.products_finished)
 
-    -- Check for recipe
-    local current_recipe = machine.get_recipe()
-    if current_recipe then
-      game.print("Recipe: " .. current_recipe.name .. " (energy: " .. current_recipe.prototype.energy .. ")")
-      game.print("Crafting progress: " .. (machine.crafting_progress or 0))
-      game.print("Crafting speed: " .. machine.crafting_speed)
-    end
-
-    -- Show machine tracking data
     init_machine_data()
     local unit_number = machine.unit_number
     local machine_data = storage.machine_data[unit_number]
 
     game.print("=== Tracking Data ===")
-    if machine_data then
-      game.print("Last checked threshold: " .. machine_data.last_checked_threshold .. " hours")
-    else
+    if not machine_data then
       game.print("No tracking data yet - will be initialized on next check")
-    end
+    else
+      if machine_type == "assembling-machine" or machine_type == "furnace" then
+        game.print("Last checked threshold: " .. (machine_data.last_checked_threshold or "N/A") .. " hours")
+        local current_recipe = machine.get_recipe()
+        if current_recipe then
+          local manufacturing_hours = settings.startup["manufacturing-hours-for-change"].value
+          local quality_modifier = settings.startup["quality-level-modifier"].value
+          local hours_for_this_level = manufacturing_hours + (manufacturing_hours * quality_modifier * (machine.quality.level - 1))
+          local recipe_energy = current_recipe.prototype.energy
+          local current_work_energy = machine.products_finished * recipe_energy
+          local current_manufacturing_hours = current_work_energy / 3600
+          local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
+          local current_threshold_hours = current_threshold_interval * hours_for_this_level
+          local next_threshold_hours = (current_threshold_interval + 1) * hours_for_this_level
 
-    -- Calculate work threshold for quality upgrade (only if recipe is present)
-    if current_recipe then
-      local quality_direction = settings.startup["quality-change-direction"].value
-      local manufacturing_hours = settings.startup["manufacturing-hours-for-change"].value
-      local quality_modifier = settings.startup["quality-level-modifier"].value
-      local hours_for_this_level = manufacturing_hours + (manufacturing_hours * quality_modifier * (machine.quality.level - 1))
-
-      local recipe_energy = current_recipe.prototype.energy
-      local current_work_energy = machine.products_finished * recipe_energy
-      local current_manufacturing_hours = current_work_energy / 3600
-      local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
-      local current_threshold_hours = current_threshold_interval * hours_for_this_level
-      local next_threshold_hours = (current_threshold_interval + 1) * hours_for_this_level
-
-      game.print("=== Quality Upgrade Calculation ===")
-      game.print("Manufacturing hours per check: " .. hours_for_this_level)
-      game.print("Current manufacturing hours: " .. string.format("%.2f", current_manufacturing_hours))
-      game.print("Current threshold: " .. current_threshold_hours .. " hours")
-      game.print("Next threshold: " .. next_threshold_hours .. " hours")
-      game.print("Progress to next threshold: " .. string.format("%.1f", ((current_manufacturing_hours - current_threshold_hours) / hours_for_this_level) * 100) .. "%")
-
-      if machine_data then
-        if current_threshold_hours > machine_data.last_checked_threshold then
-          game.print("Ready for check: YES")
+          game.print("=== Quality Upgrade Calculation ===")
+          game.print("Manufacturing hours per check: " .. hours_for_this_level)
+          game.print("Current manufacturing hours: " .. string.format("%.2f", current_manufacturing_hours))
+          game.print("Current threshold: " .. current_threshold_hours .. " hours")
+          game.print("Next threshold: " .. next_threshold_hours .. " hours")
+          game.print("Progress to next threshold: " .. string.format("%.1f", ((current_manufacturing_hours - current_threshold_hours) / hours_for_this_level) * 100) .. "%")
         else
-          game.print("Ready for check: NO")
+          game.print("Cannot calculate quality upgrade progress - no active recipe")
+        end
+      elseif machine_type == "lab" or machine_type == "mining-drill" then
+        game.print("Active cycles: " .. (machine_data.active_cycles or 0))
+        local avg_checks = storage.activity_tracker.average_checks_per_tick
+        if avg_checks > 0 then
+          local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
+          local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
+          local avg_ticks_per_quality_check = 1 / avg_checks
+          local check_cycle_threshold = avg_ticks_per_quality_check / check_interval_ticks
+          game.print("Threshold cycles for check: " .. string.format("%.2f", check_cycle_threshold))
+          game.print("Progress to next check: " .. string.format("%.1f", ((machine_data.active_cycles or 0) / check_cycle_threshold) * 100) .. "%")
+        else
+            game.print("Threshold cycles for check: N/A (no assembler/furnace activity)")
         end
       end
-    else
-      game.print("Cannot calculate quality upgrade progress - no active recipe")
     end
   else
-    game.print("No crafting machine selected")
+    game.print("No machine selected. Select an assembling-machine, furnace, lab, or mining-drill.")
   end
 end)
