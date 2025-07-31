@@ -182,7 +182,6 @@ local function check_and_change_quality()
               end
             end
           end
-          end
         end
       end
     end
