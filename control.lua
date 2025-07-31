@@ -20,33 +20,21 @@ local function init_machine_data()
   end
 end
 
---- Cleans up data for machines that no longer exist
-local function cleanup_machine_data()
+--- Cleans up data for a specific machine that was destroyed
+--- @param entity LuaEntity The entity that was destroyed
+local function cleanup_single_machine_data(entity)
   if not storage.machine_data then return end
 
-  local valid_units = {}
-  local player_force = game.forces.player
-  if not player_force then return end
+  -- Check if this is a machine type we track
+  local machine_types = {
+    ["assembling-machine"] = true,
+    ["furnace"] = true,
+    ["lab"] = true,
+    ["mining-drill"] = true
+  }
 
-  -- Collect all valid machine unit numbers
-  for _, surface in pairs(game.surfaces) do
-    local machines = surface.find_entities_filtered{
-      type = {"assembling-machine", "furnace", "lab", "mining-drill"},
-      force = player_force
-    }
-
-    for _, machine in ipairs(machines) do
-      if machine and machine.valid then
-        valid_units[machine.unit_number] = true
-      end
-    end
-  end
-
-  -- Remove data for machines that no longer exist
-  for unit_number, _ in pairs(storage.machine_data) do
-    if not valid_units[unit_number] then
-      storage.machine_data[unit_number] = nil
-    end
+  if machine_types[entity.type] and entity.unit_number then
+    storage.machine_data[entity.unit_number] = nil
   end
 end
 
@@ -159,14 +147,6 @@ local function check_and_change_quality()
   -- Initialize machine data if needed
   init_machine_data()
 
-  -- Clean up stale machine data periodically (every ~100 checks)
-  if not storage.cleanup_counter then storage.cleanup_counter = 0 end
-  storage.cleanup_counter = storage.cleanup_counter + 1
-  if storage.cleanup_counter >= 100 then
-    cleanup_machine_data()
-    storage.cleanup_counter = 0
-  end
-
   -- Cache settings once per cycle instead of per machine
   local quality_direction = settings.startup["quality-change-direction"].value
   local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
@@ -270,6 +250,19 @@ local function register_nth_tick_event()
   script.on_nth_tick(check_interval_ticks, check_and_change_quality)
 end
 
+--- Event handler for entity destruction - cleans up machine data
+local function on_entity_destroyed(event)
+  local entity = event.entity
+  if entity and entity.valid then
+    cleanup_single_machine_data(entity)
+  end
+end
+
+-- Register event handlers for entity destruction/deconstruction
+script.on_event(defines.events.on_entity_died, on_entity_destroyed)
+script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed)
+script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
+
 -- Initialize quality chains on first load
 script.on_init(function()
   build_quality_chains()
@@ -282,15 +275,8 @@ script.on_configuration_changed(function(event)
   build_quality_chains()
   init_machine_data()
   register_nth_tick_event()
-
-  -- Clear machine data when settings might have changed
   if storage.machine_data then
     storage.machine_data = {}
-  end
-
-  -- Clean up legacy activity tracker if it exists
-  if storage.activity_tracker then
-    storage.activity_tracker = nil
   end
 end)
 
