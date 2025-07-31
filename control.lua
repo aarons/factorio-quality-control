@@ -119,18 +119,37 @@ local function check_and_change_quality()
   end
 end
 
+--- Registers the nth_tick event based on the current setting
+local function register_nth_tick_event()
+  -- Clear any existing nth_tick registration
+  script.on_nth_tick(nil)
+
+  -- Get the frequency setting in seconds and convert to ticks (60 ticks = 1 second)
+  local frequency_seconds = settings.global["upgrade-check-frequency-seconds"].value
+  local frequency_ticks = math.max(60, math.floor(frequency_seconds * 60))
+
+  -- Register the new nth_tick event
+  script.on_nth_tick(frequency_ticks, check_and_change_quality)
+end
+
 -- Initialize quality chains on first load
 script.on_init(function()
   build_quality_chains()
+  register_nth_tick_event()
 end)
 
 -- Rebuild quality chains when configuration changes (mods added/removed)
 script.on_configuration_changed(function(event)
   build_quality_chains()
+  register_nth_tick_event()
 end)
 
--- Run the quality check periodically.
-script.on_nth_tick(300, check_and_change_quality)
+-- Handle runtime setting changes
+script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+  if event.setting == "upgrade-check-frequency-seconds" then
+    register_nth_tick_event()
+  end
+end)
 
 -- Debug command to inspect a specific machine
 commands.add_command("inspect_machine", "Inspect machine under cursor", function()

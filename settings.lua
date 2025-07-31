@@ -33,5 +33,14 @@ data:extend({
         min_value = 0,
         max_value = 1000,
         order = "a-3"
+    },
+    {
+        type = "double-setting",
+        name = "upgrade-check-frequency-seconds",
+        setting_type = "runtime-global",
+        default_value = 10,
+        min_value = 1,
+        max_value = 3600,
+        order = "b-0"
     }
 })
