@@ -49,5 +49,12 @@ data:extend({
         setting_type = "runtime-per-user",
         default_value = true,
         order = "c-0"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-console-messages-enabled",
+        setting_type = "runtime-per-user",
+        default_value = true,
+        order = "c-1"
     }
 })

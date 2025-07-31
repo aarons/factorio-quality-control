@@ -150,13 +150,15 @@ local function handle_quality_change_notifications(quality_changes, quality_dire
     return -- No changes to report
   end
 
-  -- Create individual alerts for each player (if enabled) and fallback print statements
+  -- Handle alerts and console messages independently for each player
   for _, player in pairs(game.players) do
     if player.valid then
-      local alerts_enabled = settings.get_player_settings(player)["quality-change-alerts-enabled"].value
+      local player_settings = settings.get_player_settings(player)
+      local alerts_enabled = player_settings["quality-change-alerts-enabled"].value
+      local console_messages_enabled = player_settings["quality-change-console-messages-enabled"].value
 
+      -- Create individual alerts for each changed machine (if enabled)
       if alerts_enabled then
-        -- Create individual alerts for each changed machine
         for entity_type, changes in pairs(quality_changes) do
           for _, change in ipairs(changes) do
             if change.entity and change.entity.valid then
@@ -173,17 +175,22 @@ local function handle_quality_change_notifications(quality_changes, quality_dire
             end
           end
         end
+      end
 
+      -- Print console messages (if enabled)
+      if console_messages_enabled then
         if assembling_count > 0 then
           local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
           player.print(string.format("[Quality Control] %d assembly machine%s quality %s",
-            assembling_count, assembling_count == 1 and "" or "s", direction_text))
+            assembling_count, assembling_count == 1 and "" or "s", direction_text),
+            {sound_path="utility/console_message", volume_modifier=0.3})
         end
 
         if furnace_count > 0 then
           local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
           player.print(string.format("[Quality Control] %d furnace%s quality %s",
-            furnace_count, furnace_count == 1 and "" or "s", direction_text))
+            furnace_count, furnace_count == 1 and "" or "s", direction_text),
+            {sound_path="utility/console_message", volume_modifier=0.3})
         end
       end
     end
