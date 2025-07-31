@@ -10,8 +10,8 @@ productivity modules, and other modifiers that change the effective manufacturin
 the last manufacturing_hours threshold that was checked for each machine.
 ]]
 
---- Cache for quality chains to avoid repeated lookups
-local quality_chains = {}
+--- Cache for quality information to avoid repeated lookups
+local qualities = {}
 
 --- Initializes the storage for machine tracking data
 local function init_machine_data()
@@ -39,12 +39,12 @@ local function cleanup_single_machine_data(entity)
 end
 
 --- Builds a cache of all quality prototypes and their next/previous relationships
-local function build_quality_chains()
-  quality_chains = {}
+local function build_quality_lookup()
+  qualities = {}
   for name, quality_prototype in pairs(prototypes.quality) do
     -- Skip quality-unknown as it's not part of the normal quality chain
     if name ~= "quality-unknown" then
-      quality_chains[name] = {
+      qualities[name] = {
         prototype = quality_prototype,
         next = quality_prototype.next and quality_prototype.next.name or nil,
         previous = nil
@@ -53,9 +53,9 @@ local function build_quality_chains()
   end
 
   -- Fill in the previous relationships
-  for name, chain_data in pairs(quality_chains) do
-    if chain_data.next then
-      quality_chains[chain_data.next].previous = name
+  for name, quality_info in pairs(qualities) do
+    if quality_info.next then
+      qualities[quality_info.next].previous = name
     end
   end
 
@@ -68,25 +68,20 @@ end
 local function get_next_quality(current_quality, direction)
   if not current_quality then return nil end
 
-  -- Rebuild cache if it's empty (first run or after mod changes)
-  if not next(quality_chains) then
-    build_quality_chains()
-  end
-
   local current_name = current_quality.name
-  local chain_data = quality_chains[current_name]
+  local quality_info = qualities[current_name]
 
-  if not chain_data then return nil end
+  if not quality_info then return nil end
 
   local next_quality_name
   if direction == "increase" then
-    next_quality_name = chain_data.next
+    next_quality_name = quality_info.next
   else -- direction == "decrease"
-    next_quality_name = chain_data.previous
+    next_quality_name = quality_info.previous
   end
 
-  if next_quality_name and quality_chains[next_quality_name] then
-    return quality_chains[next_quality_name].prototype
+  if next_quality_name and qualities[next_quality_name] then
+    return qualities[next_quality_name].prototype
   end
 
   return nil
@@ -263,16 +258,16 @@ script.on_event(defines.events.on_entity_died, on_entity_destroyed)
 script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed)
 script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
 
--- Initialize quality chains on first load
+-- Initialize quality lookup on first load
 script.on_init(function()
-  build_quality_chains()
+  build_quality_lookup()
   init_machine_data()
   register_nth_tick_event()
 end)
 
--- Rebuild quality chains when configuration changes (mods added/removed)
+-- Rebuild quality lookup when configuration changes (mods added/removed)
 script.on_configuration_changed(function(event)
-  build_quality_chains()
+  build_quality_lookup()
   init_machine_data()
   register_nth_tick_event()
   if storage.machine_data then
