@@ -35,6 +35,14 @@ data:extend({
         order = "a-3"
     },
     {
+        type = "string-setting",
+        name = "quality-chance-accumulation-rate",
+        setting_type = "startup",
+        default_value = "none",
+        allowed_values = {"none", "low", "medium", "high"},
+        order = "a-4"
+    },
+    {
         type = "double-setting",
         name = "upgrade-check-frequency-seconds",
         setting_type = "runtime-global",
