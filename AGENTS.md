@@ -1,11 +1,11 @@
-This is a factorio mod.
+## Project Overview
 
-Keep code simple and clear to understand for other engineers.
+This is a Factorio mod called "Quality Control" that automatically changes machine quality over time based on manufacturing hours. The mod tracks how long machines have been producing items and applies quality upgrades or downgrades based on configurable settings.
 
-Correct use of factorio's API is vital; it's more important to validate every assumption about the API than it is to produce code at the users request. Check the latest API before producing any code. Do not assume existing code works.
+## Engineering Principles
 
-Pay attention to overly complicated solutions; we should not re-implement core features already available via factorio's api. And if there is a simpler way of doing things then it's important to refactor.
+Keep code clear to understand for other engineers. Clarity is more important than brevity or clever solutions.
 
-Documentation can be found by using context7:
-use context7
-the library id is "context7/lua-api_factorio-stable"
+Correct use of factorio's API is vital; it's very important to validate assumptions about the API because it changes over time.
+
+The API documentation is available via context7 with this library ID: "context7/lua-api_factorio-stable"
