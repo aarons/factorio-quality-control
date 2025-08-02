@@ -20,18 +20,25 @@ local function init_machine_data()
   end
 end
 
+--- Gets or creates entity tracking data for the given unit number
+--- @param unit_number uint The unit number of the entity
+--- @return table The entity data table
+local function get_entity_info(unit_number)
+  if not storage.machine_data then
+    storage.machine_data = {}
+  end
+  
+  if not storage.machine_data[unit_number] then
+    storage.machine_data[unit_number] = {}
+  end
+  
+  return storage.machine_data[unit_number]
+end
+
 --- Cleans up data for a specific machine that was destroyed
 --- @param entity LuaEntity The entity that was destroyed
 local function cleanup_single_machine_data(entity)
-  if not storage.machine_data then return end
-
-  -- Check if this is a machine type we track
-  local machine_types = {
-    ["assembling-machine"] = true,
-    ["furnace"] = true
-  }
-
-  if machine_types[entity.type] and entity.unit_number then
+  if storage.machine_data and entity.unit_number then
     storage.machine_data[entity.unit_number] = nil
   end
 end
@@ -115,11 +122,11 @@ local function attempt_quality_change(machine, next_quality, percentage_chance)
 
   if replacement_entity and replacement_entity.valid then
     local new_unit_number = replacement_entity.unit_number
-    storage.machine_data[new_unit_number] = {}
+    local machine_data = get_entity_info(new_unit_number)
 
     if replacement_entity.type == "assembling-machine" or replacement_entity.type == "furnace" then
         replacement_entity.products_finished = 0
-        storage.machine_data[new_unit_number].last_checked_threshold = 0
+        machine_data.last_checked_threshold = 0
     end
 
     -- Remove old machine data using stored unit number
@@ -204,10 +211,7 @@ local function apply_ratio_based_quality_changes(candidate_ratio, quality_change
           for _, entity in ipairs(selected_entities) do
             if entity and entity.valid then
               local unit_number = entity.unit_number
-              if not storage.machine_data[unit_number] then
-                storage.machine_data[unit_number] = {}
-              end
-              local machine_data = storage.machine_data[unit_number]
+              local machine_data = get_entity_info(unit_number)
               
               -- Initialize chance if not present
               if not machine_data.current_chance then
@@ -363,10 +367,7 @@ local function check_and_change_quality()
         local next_quality = get_next_quality(machine.quality, quality_direction)
 
         if next_quality then
-          if not storage.machine_data[unit_number] then
-            storage.machine_data[unit_number] = {}
-          end
-          local machine_data = storage.machine_data[unit_number]
+          local machine_data = get_entity_info(unit_number)
 
           local current_recipe = machine.get_recipe()
           if current_recipe then

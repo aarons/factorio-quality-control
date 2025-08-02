@@ -9,16 +9,26 @@ Use ./package.sh to package it up into a zip file, for testing changes locally. 
 
 Consolidate Machine Data Management
 
-- Create a single get_or_create_machine_data() function to centralize data
- initialization
+- The pattern if not storage.machine_data[unit_number] then storage.machine_data[unit_number] = {} end appears multiple times
+- Create a single function to centralize data initialization
 - Simplify cleanup logic by removing redundant type checking
 - Merge initialization patterns that are currently duplicated
 
- 1. Consolidate Machine Data Management
+A clear function name would be good to use. Here are some proposals:
+- get_or_create_machine_data()
+- ensure_machine_data()
+- get_machine()
+- get_machine_info() <- minor preference for this
 
-  - Create a single ensure_machine_data(unit_number) function to reduce duplication
-  - The pattern if not storage.machine_data[unit_number] then
-  storage.machine_data[unit_number] = {} end appears multiple times
+Notes:
+- "_data" is a bit redundant, it's all data
+- "get_" is pretty clear, but traditionally used to represent read-only operations, but I'm ok with it initializing entities that don't exist yet
+- "ensure_" is ok, although "ensure_machine" isn't really enough semantic information to understand what it's doing
+- "get_machine_info()" I like this, although have troulbe articulating why
+- I'm open to other iterations on this if we can find something clear, concise, and user friendly (for future engineers)
+
+
+
 
   2. Simplify Entity Selection Logic
 
