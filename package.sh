@@ -26,7 +26,7 @@ FULL_PACKAGE_DIR="$TMP_DIR/$PACKAGE_DIR"
 mkdir -p "$FULL_PACKAGE_DIR"
 
 # Copy all files to the temporary directory, excluding .git
-rsync -av --exclude='.git' --exclude='AGENTS.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' ./ "$FULL_PACKAGE_DIR/"
+rsync -av --exclude='.git' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' ./ "$FULL_PACKAGE_DIR/"
 
 # Create the zip file
 (

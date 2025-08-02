@@ -82,8 +82,3 @@ Install the generated zip file to your local Factorio mods folder for testing.
 - Secondary entities use ratio-based selection matching primary machine candidate rate
 - Machine data cleanup on entity destruction prevents memory leaks
 - Fisher-Yates shuffle ensures fair random selection for ratio-based changes
-
-## Dependencies
-
-Required: `base`, `quality`
-Optional: `all-quality-from-start`, `unlimited-quality`, `additional-qualities`
