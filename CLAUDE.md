@@ -29,6 +29,11 @@ The API documentation is available via context7 with this library ID: "context7/
 - Handles quality chain navigation (increase/decrease directions)
 - Supports base quality levels (normal to legendary) as well as modded qualities (beyond legendary)
 
+Notes:
+- factorio does not have built in quality.next or quality.previous functions, so we have to create these functions
+- other mods can add arbitrary quality levels, so we have to dynamically build the chain on initilization
+- we ensure this mod runs after mods that add more qualities by specifying those mods as optional requirements in `info.json`
+
 **Machine Tracking System** (`control.lua:299-397`):
 - Tracks manufacturing hours per machine using `products_finished` and recipe energy
 - Uses threshold-based checking to avoid redundant quality attempts
