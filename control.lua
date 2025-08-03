@@ -66,33 +66,20 @@ local function get_previous_quality(quality_prototype)
   return previous_qualities[quality_prototype.name]
 end
 
---- Initialize the entity tracking list by scanning all surfaces once
-local function ensure_tracked_entity_table()
-  -- Only initialize if tracked_entities is empty
+--- Initialize the entity tracking table structure
+local function ensure_tracked_entity_table(force_reset)
+  -- Handle force reset by clearing everything
+  if force_reset then
+    storage.quality_control_entities = {}
+    tracked_entities = nil
+  end
+
+  -- Otherwise initialize if tracked_entities is empty
   if not tracked_entities then
     if not storage.quality_control_entities then
       storage.quality_control_entities = {}
     end
     tracked_entities = storage.quality_control_entities
-  end
-
-  -- Only scan if the table is empty (not already populated from save)
-  if not next(tracked_entities) then
-    local player_force = game.forces.player
-    if not player_force then
-      return
-    end
-
-    for _, surface in pairs(game.surfaces) do
-      local entities = surface.find_entities_filtered{
-        type = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"},
-        force = player_force
-      }
-
-      for _, entity in ipairs(entities) do
-        get_entity_info(entity) -- This will initialize the entity in tracked_entities
-      end
-    end
   end
 end
 
@@ -118,7 +105,8 @@ local function get_entity_info(entity)
     tracked_entities[entity_type][id] = {
       id = id,
       entity_type = entity_type,
-      chance_to_change = base_percentage_chance
+      chance_to_change = base_percentage_chance,
+      attempts_to_change = 0
     }
     -- Only assembling machines and furnaces track manufacturing hours
     if entity_type == "assembling-machine" or entity_type == "furnace" then
@@ -138,11 +126,24 @@ local function get_entity_info(entity)
   return tracked_entities[entity_type][id]
 end
 
---- Cleans up data for a specific entity that was destroyed
-local function remove_entity_info(entity)
+--- Scans all surfaces and populates entity data
+local function scan_and_populate_entities()
   ensure_tracked_entity_table()
-  local entity_type = entity.type
-  local id = entity.unit_number
+    for _, surface in pairs(game.surfaces) do
+    local entities = surface.find_entities_filtered{
+      type = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"},
+      force = game.player.force
+    }
+
+    for _, entity in ipairs(entities) do
+      get_entity_info(entity) -- This will initialize the entity in tracked_entities
+    end
+  end
+end
+
+--- Cleans up data for a specific entity that was destroyed
+local function remove_entity_info(entity_type, id)
+  ensure_tracked_entity_table()
   if tracked_entities[entity_type] then
     tracked_entities[entity_type][id] = nil
 
@@ -180,6 +181,7 @@ local function attempt_quality_change(entity)
   local random_roll = math.random()
 
   local entity_info = tracked_entities[entity.type][entity.unit_number]
+  entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
     -- roll failed; improve it's chance for next time and return
@@ -192,23 +194,28 @@ local function attempt_quality_change(entity)
   -- Store info before creating replacement (entity becomes invalid after fast_replace)
   local old_unit_number = entity.unit_number
 
+  -- Determine target quality based on direction setting
+  local target_quality
+  if quality_change_direction == "increase" then
+    target_quality = entity.quality.next
+  else -- decrease
+    target_quality = get_previous_quality(entity.quality)
+  end
+
   local replacement_entity = entity.surface.create_entity {
     name = entity.name,
     position = entity.position,
     force = entity.force,
     direction = entity.direction,
-    quality = entity.quality.next,
+    quality = target_quality,
     fast_replace = true,
     spill = false
   }
 
   if replacement_entity and replacement_entity.valid then
     get_entity_info(replacement_entity) -- initialize it's entry
-    -- Clean up old entity data by unit number and type
-    local old_entity_type = entity.type
-    if tracked_entities[old_entity_type] then
-      tracked_entities[old_entity_type][old_unit_number] = nil
-    end
+    -- Clean up old entity data using consistent cleanup function
+    remove_entity_info(entity.type, old_unit_number)
 
     -- Return change information
     return replacement_entity
@@ -229,11 +236,15 @@ local function check_and_change_quality()
   for _, entity_type in pairs(primary_types) do
     if tracked_entities[entity_type] then
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
+        -- Skip special keys used for array management
+        if unit_number == "_keys" or unit_number == "_key_positions" then
+          goto continue
+        end
 
-        -- Skip if entity no longer exists (cleanup will happen on next destruction event)
+        -- Skip if entity no longer exists
         local entity = game.get_entity_by_unit_number(unit_number)
         if not entity or not entity.valid then
-          tracked_entities[entity_type][unit_number] = nil
+          remove_entity_info(entity_type, unit_number)
           goto continue
         end
 
@@ -251,22 +262,21 @@ local function check_and_change_quality()
             local thresholds_passed = math.floor(available_hours / hours_needed)
 
             if thresholds_passed > 0 then
-              local current_entity = entity
-              local entity_updates = 0
+              local this_entity_changes = 0
 
               -- Attempt quality change for each threshold passed
               for i = 1, thresholds_passed do
                 changes_attempted = changes_attempted + 1
-                local change_result = attempt_quality_change(current_entity)
+                local change_result = attempt_quality_change(entity)
                 if change_result then
-                  entity_updates = entity_updates + 1
-                  current_entity = change_result
+                  this_entity_changes = this_entity_changes + 1
+                  entity = change_result
                 end
 
                 -- Select random secondary entity to attempt a change on as well
                 -- the ensures the player's entities that do work that can't be tracked easily will slowly improve as well
                 local random_type = secondary_types[math.random(#secondary_types)]
-                if tracked_entities[random_type] and #tracked_entities[random_type]._keys > 0 then
+                if tracked_entities[random_type] and tracked_entities[random_type]._keys and #tracked_entities[random_type]._keys > 0 then
                   local keys = tracked_entities[random_type]._keys
                   local random_id = keys[math.random(#keys)]
                   local random_entity = game.get_entity_by_unit_number(random_id)
@@ -279,10 +289,10 @@ local function check_and_change_quality()
                 end
               end
 
-              changes_completed = changes_completed + entity_updates
+              changes_completed = changes_completed + this_entity_changes
 
               -- If no upgrades occurred, update manufacturing hours to reflect attempted thresholds
-              if entity_updates == 0 then
+              if this_entity_changes == 0 then
                 entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
               end
             end
@@ -294,6 +304,73 @@ local function check_and_change_quality()
     end
   end
 
+end
+
+--- Displays quality control metrics for the selected entity
+local function show_entity_quality_info(player)
+  local selected_entity = player.selected
+
+  if not selected_entity or not selected_entity.valid then
+    player.print({"quality-control.no-entity-selected"})
+    return
+  end
+
+  if not tracked_types[selected_entity.type] then
+    player.print({"quality-control.entity-not-tracked", selected_entity.localised_name or selected_entity.name})
+    return
+  end
+
+  local entity_info = get_entity_info(selected_entity)
+  local is_primary_type = selected_entity.type == "assembling-machine" or selected_entity.type == "furnace"
+  local current_recipe = is_primary_type and selected_entity.get_recipe and selected_entity.get_recipe()
+
+  -- Build info message parts
+  local info_parts = {}
+
+  -- Basic entity info
+  table.insert(info_parts, {"quality-control.entity-info-header", selected_entity.localised_name or selected_entity.name, selected_entity.quality.localised_name})
+
+  -- Attempts to change
+  table.insert(info_parts, {"quality-control.attempts-to-change", entity_info.attempts_to_change})
+
+  -- Current chance of change
+  table.insert(info_parts, {"quality-control.current-chance", string.format("%.2f", entity_info.chance_to_change)})
+
+  -- Progress to next attempt (for primary types with manufacturing hours)
+  if is_primary_type and current_recipe then
+    local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ selected_entity.quality.level
+    local recipe_time = current_recipe.prototype.energy
+    local current_hours = (selected_entity.products_finished * recipe_time) / 3600
+    local previous_hours = entity_info.manufacturing_hours or 0
+    local progress_hours = current_hours - previous_hours
+    local progress_percentage = math.min(100, (progress_hours / hours_needed) * 100)
+
+    table.insert(info_parts, {"quality-control.progress-to-next", string.format("%.1f", progress_percentage)})
+    table.insert(info_parts, {"quality-control.manufacturing-hours", string.format("%.2f", current_hours), string.format("%.2f", hours_needed)})
+  end
+
+  -- Print all info
+  for _, part in ipairs(info_parts) do
+    player.print(part)
+  end
+end
+
+--- Event handler for quality control inspect shortcut
+local function on_quality_control_inspect(event)
+  local player = game.get_player(event.player_index)
+  if player then
+    show_entity_quality_info(player)
+  end
+end
+
+--- Console command to reinitialize storage
+local function reinitialize_quality_control_storage(command)
+  local player = game.get_player(command.player_index)
+  if not player then return end
+
+  ensure_tracked_entity_table(true)
+  scan_and_populate_entities()
+  player.print("Quality Control storage reinitialized. All machines have been rescanned.")
 end
 
 --- Registers the nth_tick event based on the current setting
@@ -313,7 +390,7 @@ end
 local function on_entity_destroyed(event)
   local entity = event.entity
   if entity and entity.valid then
-    remove_entity_info(entity)
+    remove_entity_info(entity.type, entity.unit_number)
   end
 end
 
@@ -332,9 +409,15 @@ script.on_event(defines.events.on_space_platform_mined_entity, on_entity_destroy
 script.on_event(defines.events.on_entity_died, on_entity_destroyed)
 script.on_event(defines.events.script_raised_destroy, on_entity_destroyed)
 
+-- Register event handler for quality control inspect shortcut
+script.on_event("quality-control-inspect-entity", on_quality_control_inspect)
+
+-- Register console command
+commands.add_command("quality-control-init", "Reinitialize Quality Control storage and rescan all machines", reinitialize_quality_control_storage)
+
 -- Initialize quality lookup on first load
 script.on_init(function()
-  ensure_tracked_entity_table()
+  scan_and_populate_entities()
   register_nth_tick_event()
 end)
 
