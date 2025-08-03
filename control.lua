@@ -102,9 +102,12 @@ local function get_entity_info(entity)
     tracked_entities[entity_type][id] = {
       id = id,
       entity_type = entity_type,
-      manufacturing_hours = 0,
       chance_to_change = base_percentage_chance
     }
+    -- Only assembling machines and furnaces track manufacturing hours
+    if entity_type == "assembling-machine" or entity_type == "furnace" then
+      tracked_entities[entity_type][id].manufacturing_hours = 0
+    end
   end
 
   -- calculate this fresh every time we lookup entity
