@@ -27,11 +27,11 @@ local function get_entity_info(unit_number)
   if not storage.quality_control_entities then
     storage.quality_control_entities = {}
   end
-  
+
   if not storage.quality_control_entities[unit_number] then
     storage.quality_control_entities[unit_number] = {}
   end
-  
+
   return storage.quality_control_entities[unit_number]
 end
 
@@ -212,12 +212,12 @@ local function apply_ratio_based_quality_changes(candidate_ratio, quality_change
             if entity and entity.valid then
               local unit_number = entity.unit_number
               local entity_data = get_entity_info(unit_number)
-              
+
               -- Initialize chance if not present
               if not entity_data.current_chance then
                 entity_data.current_chance = base_percentage_chance
               end
-              
+
               local change_result = attempt_quality_change(entity, next_quality, entity_data.current_chance)
               if change_result then
                 -- Reset chance after successful change
@@ -334,7 +334,7 @@ local function check_and_change_quality()
   local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
   local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
   local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
-  
+
   -- Convert accumulation rate setting to percentage multiplier
   local accumulation_percentage = 0
   if accumulation_rate_setting == "low" then
