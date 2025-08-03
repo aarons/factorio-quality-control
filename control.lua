@@ -2,23 +2,23 @@
 control.lua
 
 This script manages the quality of crafting machines.
-It periodically scans all player-owned crafting machines and applies quality changes based on their hours spent making items.
-Each machine is tracked individually and only checked once per manufacturing_hours period.
+It periodically scans all player-owned crafting machines and applies quality changes based on their hours spent working.
 
-IMPORTANT NOTE: Manufacturing hours do not accumulate at a constant rate. Users can place speed beacons,
-productivity modules, and other modifiers that change the effective manufacturing rate. Therefore, we track
-the last manufacturing_hours threshold that was checked for each machine.
+Why hours spent working (manufacturing_hours)?
+If we only use number of items produced then machines with fast recipes grow quickly, and slow recipes grow
+slowly, despite working for the same amount of time.
+
+We can't check "hours spent working" directly, as that's not a metric tracked by the game. But we can
+calculate it by looking at how many items were created, and dividing by the recipe's duration. This
+gives us an accurate look at how long the machine has spent working.
+
+Manufacturing hours do not accumulate at a constant rate. Users can place speed beacons,
+productivity modules, and other modifiers that change the effective manufacturing rate. This is fine, as a
+machine with upgrades (like beacons) should be impacted by quality changes faster.
 ]]
 
 --- Cache for quality information to avoid repeated lookups
 local qualities = {}
-
---- Initializes the storage for entity tracking data
-local function init_quality_control_entities()
-  if not storage.quality_control_entities then
-    storage.quality_control_entities = {}
-  end
-end
 
 --- Gets or creates entity tracking data for the given unit number
 --- @param unit_number uint The unit number of the entity
@@ -323,9 +323,6 @@ local function check_and_change_quality()
     return
   end
 
-  -- Initialize entity data if needed
-  init_quality_control_entities()
-
   -- Cache settings once per cycle instead of per machine
   local quality_direction = settings.startup["quality-change-direction"].value
   local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
@@ -464,14 +461,12 @@ script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
 -- Initialize quality lookup on first load
 script.on_init(function()
   build_quality_lookup()
-  init_quality_control_entities()
   register_nth_tick_event()
 end)
 
 -- Rebuild quality lookup when configuration changes (mods added/removed)
 script.on_configuration_changed(function(event)
   build_quality_lookup()
-  init_quality_control_entities()
   register_nth_tick_event()
   if storage.quality_control_entities then
     storage.quality_control_entities = {}
