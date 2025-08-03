@@ -19,7 +19,7 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 
 --- Setup locally scoped variables
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
-local qc_entities -- lookup table for all the entities we might change the quality of
+local tracked_entities -- lookup table for all the entities we might change the quality of
 
 --- Setup all values defined in startup settings
 local quality_change_direction = settings.startup["quality-change-direction"].value
@@ -52,18 +52,10 @@ local function get_previous_quality(quality_prototype)
   return previous_qualities[quality_prototype.name]
 end
 
-local function ensure_entity_table()
-  if not qc_entities then
-    if not storage.quality_control_entities then
-      storage.quality_control_entities = {}
-    end
-    qc_entities = storage.quality_control_entities
-  end
-end
 
 --- Gets or creates entity metrics for a specific entity
 local function get_entity_info(entity)
-  ensure_entity_table()
+  ensure_tracked_entity_table()
 
   local id = entity.unit_number
   local previous_quality = get_previous_quality(entity.quality)
@@ -71,8 +63,8 @@ local function get_entity_info(entity)
   local can_decrease = quality_change_direction == "decrease" and previous_quality
 
   -- if the unit doesn't exist, then initialize it
-  if not qc_entities[id] then
-    qc_entities[id] = {
+  if not tracked_entities[id] then
+    tracked_entities[id] = {
       id = id,
       manufacturing_hours = 0,
       chance_to_change = base_percentage_chance
@@ -80,23 +72,67 @@ local function get_entity_info(entity)
   end
 
   -- calculate this fresh every time we lookup entity
-  qc_entities[id].previous_quality = previous_quality
-  qc_entities[id].can_change_quality = can_increase or can_decrease
+  tracked_entities[id].previous_quality = previous_quality
+  tracked_entities[id].can_change_quality = can_increase or can_decrease
 
-  return qc_entities[id]
+  return tracked_entities[id]
 end
 
 --- Cleans up data for a specific entity that was destroyed
 local function remove_entity_info(entity)
-  ensure_entity_table()
-  qc_entities[entity.unit_number] = nil
+  ensure_tracked_entity_table()
+  tracked_entities[entity.unit_number] = nil
+end
+
+--- Initialize the entity tracking list by scanning all surfaces once
+local function ensure_tracked_entity_table()
+  -- Only initialize if tracked_entities is empty
+  if not tracked_entities then
+    if not storage.quality_control_entities then
+      storage.quality_control_entities = {}
+    end
+    tracked_entities = storage.quality_control_entities
+  end
+
+  -- Only scan if the table is empty (not already populated from save)
+  if not next(tracked_entities) then
+    local player_force = game.forces.player
+    if not player_force then
+      return
+    end
+
+    for _, surface in pairs(game.surfaces) do
+      local entities = surface.find_entities_filtered{
+        type = {"assembling-machine", "furnace"},
+        force = player_force
+      }
+
+      for _, entity in ipairs(entities) do
+        get_entity_info(entity) -- This will initialize the entity in tracked_entities
+      end
+    end
+  end
+end
+
+--- Checks if an entity should be tracked and adds it if so
+local function on_entity_created(event)
+  local entity = event.entity or event.created_entity
+  if not entity or not entity.valid then
+    return
+  end
+
+  -- Check if it's a type we track and is player owned
+  if (entity.type == "assembling-machine" or entity.type == "furnace") and
+     entity.force == game.forces.player then
+    get_entity_info(entity) -- This will initialize the entity in qc_entities
+  end
 end
 
 --- Attempts to change the quality of a machine based on chance
 local function attempt_quality_change(entity)
   local random_roll = math.random()
 
-  local entity_info = qc_entities[entity.unit_number]
+  local entity_info = tracked_entities[entity.unit_number]
 
   if random_roll >= (entity_info.chance_to_change / 100) then
     -- roll failed; improve it's chance for next time and return
@@ -130,52 +166,49 @@ local function attempt_quality_change(entity)
   return nil -- we attempted to replace but it failed for some reason
 end
 
---- Iterates through all player-owned crafting machines on all surfaces and checks if their quality should be changed.
+--- Iterates through all tracked entities and checks if their quality should be changed.
 local function check_and_change_quality()
-  local player_force = game.forces.player
-  if not player_force then
-    return
-  end
+  ensure_tracked_entity_table()
 
   -- Track candidates for ratio calculation
   local entities_checked = 0
   local changes_attempted = 0
   local changes_succeeded = 0
 
-  for _, surface in pairs(game.surfaces) do
-    local entities = surface.find_entities_filtered{
-      type = {"assembling-machine", "furnace"},
-      force = player_force
-    }
+  for unit_number, entity_info in pairs(tracked_entities) do
+    local entity = game.get_entity_by_unit_number(unit_number)
 
-    for _, entity in ipairs(entities) do
-      -- if it's at max quality, then do nothing
-      local entity_info = get_entity_info(entity)
+    -- Skip if entity no longer exists (cleanup will happen on next destruction event)
+    if not entity or not entity.valid then
+      tracked_entities[unit_number] = nil
+      goto continue
+    end
 
-      if entity_info.can_change_quality then
-        entities_checked = entities_checked + 1
-        local current_recipe = entity.get_recipe()
-        if current_recipe then
-          local hours_needed = manufacturing_hours_for_change * (1 + qaulity_increase_cost) ^ entity.quality.level
-          local recipe_time = current_recipe.prototype.energy
-          local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
-          local previous_hours = entity_info.manufacturing_hours
+    if entity_info.can_change_quality then
+      entities_checked = entities_checked + 1
+      local current_recipe = entity.get_recipe()
+      if current_recipe then
+        local hours_needed = manufacturing_hours_for_change * (1 + qaulity_increase_cost) ^ entity.quality.level
+        local recipe_time = current_recipe.prototype.energy
+        local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
+        local previous_hours = entity_info.manufacturing_hours
 
-          -- Check if we've crossed a new threshold (time for another attempt)
-          if (previous_hours - current_hours) > hours_needed then
-            changes_attempted = changes_attempted + 1
-            local change_result = attempt_quality_change(entity)
-            if change_result then
-              changes_succeeded = changes_succeeded + 1
-            else
-              -- update that we attempted a change on this threshold
-              -- once another 'hours_needed' is accumulated we will try again
-              entity_info.manufacturing_hours = current_hours
-            end
+        -- Check if we've crossed a new threshold (time for another attempt)
+        if (previous_hours - current_hours) > hours_needed then
+          changes_attempted = changes_attempted + 1
+          local change_result = attempt_quality_change(entity)
+          if change_result then
+            changes_succeeded = changes_succeeded + 1
+          else
+            -- update that we attempted a change on this threshold
+            -- once another 'hours_needed' is accumulated we will try again
+            entity_info.manufacturing_hours = current_hours
           end
         end
       end
     end
+
+    ::continue::
   end
 
 end
@@ -201,13 +234,24 @@ local function on_entity_destroyed(event)
   end
 end
 
+-- Register event handlers for entity creation
+script.on_event(defines.events.on_built_entity, on_entity_created)
+script.on_event(defines.events.on_robot_built_entity, on_entity_created)
+script.on_event(defines.events.on_space_platform_built_entity, on_entity_created)
+script.on_event(defines.events.script_raised_built, on_entity_created)
+script.on_event(defines.events.script_raised_revive, on_entity_created)
+script.on_event(defines.events.on_entity_cloned, on_entity_created)
+
 -- Register event handlers for entity destruction/deconstruction
-script.on_event(defines.events.on_entity_died, on_entity_destroyed)
 script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed)
 script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
+script.on_event(defines.events.on_space_platform_mined_entity, on_entity_destroyed)
+script.on_event(defines.events.on_entity_died, on_entity_destroyed)
+script.on_event(defines.events.script_raised_destroy, on_entity_destroyed)
 
 -- Initialize quality lookup on first load
 script.on_init(function()
+  ensure_tracked_entity_table()
   register_nth_tick_event()
 end)
 
