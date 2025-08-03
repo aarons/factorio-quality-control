@@ -201,7 +201,7 @@ local function check_and_change_quality()
   -- Track candidates for ratio calculation
   local entities_checked = 0
   local changes_attempted = 0
-  local changes_succeeded = 0
+  local changes_completed = 0
 
   -- Only process assembling-machines and furnaces for quality upgrades
   local entity_types_to_process = {"assembling-machine", "furnace"}
@@ -226,16 +226,29 @@ local function check_and_change_quality()
             local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
             local previous_hours = entity_info.manufacturing_hours
 
-            -- Check if we've crossed a new threshold (time for another attempt)
-            if (previous_hours - current_hours) > hours_needed then
-              changes_attempted = changes_attempted + 1
-              local change_result = attempt_quality_change(entity)
-              if change_result then
-                changes_succeeded = changes_succeeded + 1
-              else
-                -- update that we attempted a change on this threshold
-                -- once another 'hours_needed' is accumulated we will try again
-                entity_info.manufacturing_hours = current_hours
+            -- Calculate how many thresholds have been passed since last check
+            local available_hours = current_hours - previous_hours
+            local thresholds_passed = math.floor(available_hours / hours_needed)
+
+            if thresholds_passed > 0 then
+              local current_entity = entity
+              local entity_updates = 0
+
+              -- Attempt quality change for each threshold passed
+              for i = 1, thresholds_passed do
+                changes_attempted = changes_attempted + 1
+                local change_result = attempt_quality_change(current_entity)
+                if change_result then
+                  entity_updates = entity_updates + 1
+                  current_entity = change_result
+                end
+              end
+
+              changes_completed = changes_completed + entity_updates
+
+              -- If no upgrades occurred, update manufacturing hours to reflect attempted thresholds
+              if entity_updates == 0 then
+                entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
               end
             end
           end
