@@ -21,6 +21,20 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
 local tracked_entities -- lookup table for all the entities we might change the quality of
 
+--- Entity types
+local primary_types = {"assembling-machine", "furnace"}
+local secondary_types = {"mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
+local tracked_types = {
+  ["assembling-machine"] = true,
+  ["furnace"] = true,
+  ["mining-drill"] = true,
+  ["lab"] = true,
+  ["inserter"] = true,
+  ["pump"] = true,
+  ["radar"] = true,
+  ["roboport"] = true
+}
+
 --- Setup all values defined in startup settings
 local quality_change_direction = settings.startup["quality-change-direction"].value
 local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
@@ -156,17 +170,6 @@ local function on_entity_created(event)
   end
 
   -- Check if it's a type we track and is player owned
-  local tracked_types = {
-    ["assembling-machine"] = true,
-    ["furnace"] = true,
-    ["mining-drill"] = true,
-    ["lab"] = true,
-    ["inserter"] = true,
-    ["pump"] = true,
-    ["radar"] = true,
-    ["roboport"] = true
-  }
-
   if tracked_types[entity.type] and entity.force == game.forces.player then
     get_entity_info(entity) -- This will initialize the entity in tracked_entities
   end
@@ -223,13 +226,7 @@ local function check_and_change_quality()
   local changes_attempted = 0
   local changes_completed = 0
 
-  -- Only process assembling-machines and furnaces for quality upgrades
-  local entity_types_to_process = {"assembling-machine", "furnace"}
-
-  -- Secondary entity types for random selection
-  local secondary_types = {"mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
-
-  for _, entity_type in pairs(entity_types_to_process) do
+  for _, entity_type in pairs(primary_types) do
     if tracked_entities[entity_type] then
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
 
