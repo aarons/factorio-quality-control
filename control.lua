@@ -95,6 +95,8 @@ local function get_entity_info(entity)
   -- ensure the entity type table exists
   if not tracked_entities[entity_type] then
     tracked_entities[entity_type] = {}
+    tracked_entities[entity_type]._keys = {} -- Array for O(1) random access
+    tracked_entities[entity_type]._key_positions = {} -- Reverse mapping: key -> position in _keys array
   end
 
   -- if the unit doesn't exist, then initialize it
@@ -108,6 +110,11 @@ local function get_entity_info(entity)
     if entity_type == "assembling-machine" or entity_type == "furnace" then
       tracked_entities[entity_type][id].manufacturing_hours = 0
     end
+    -- Add to keys array for efficient random access
+    local keys = tracked_entities[entity_type]._keys
+    local key_positions = tracked_entities[entity_type]._key_positions
+    table.insert(keys, id)
+    key_positions[id] = #keys
   end
 
   -- calculate this fresh every time we lookup entity
@@ -124,6 +131,19 @@ local function remove_entity_info(entity)
   local id = entity.unit_number
   if tracked_entities[entity_type] then
     tracked_entities[entity_type][id] = nil
+
+    -- Remove from keys array using swap-with-last technique for O(1) removal
+    local keys = tracked_entities[entity_type]._keys
+    local key_positions = tracked_entities[entity_type]._key_positions
+    local position = key_positions[id]
+
+    if position then
+      local last_key = keys[#keys]
+      keys[position] = last_key -- Move last element to removed position
+      key_positions[last_key] = position -- Update position mapping for moved element
+      keys[#keys] = nil -- Remove last element
+      key_positions[id] = nil -- Remove position mapping for deleted element
+    end
   end
 end
 
@@ -206,6 +226,9 @@ local function check_and_change_quality()
   -- Only process assembling-machines and furnaces for quality upgrades
   local entity_types_to_process = {"assembling-machine", "furnace"}
 
+  -- Secondary entity types for random selection
+  local secondary_types = {"mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
+
   for _, entity_type in pairs(entity_types_to_process) do
     if tracked_entities[entity_type] then
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
@@ -241,6 +264,21 @@ local function check_and_change_quality()
                 if change_result then
                   entity_updates = entity_updates + 1
                   current_entity = change_result
+                end
+
+                -- Select random secondary entity to attempt a change on as well
+                -- the ensures the player's entities that do work that can't be tracked easily will slowly improve as well
+                local random_type = secondary_types[math.random(#secondary_types)]
+                if tracked_entities[random_type] and #tracked_entities[random_type]._keys > 0 then
+                  local keys = tracked_entities[random_type]._keys
+                  local random_id = keys[math.random(#keys)]
+                  local random_entity = game.get_entity_by_unit_number(random_id)
+                  if random_entity and random_entity.valid then
+                    local random_result = attempt_quality_change(random_entity)
+                    if random_result then
+                      changes_completed = changes_completed + 1
+                    end
+                  end
                 end
               end
 
