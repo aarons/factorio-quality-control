@@ -176,9 +176,9 @@ local function check_and_change_quality()
   local changes_succeeded = 0
 
   for unit_number, entity_info in pairs(tracked_entities) do
-    local entity = game.get_entity_by_unit_number(unit_number)
 
     -- Skip if entity no longer exists (cleanup will happen on next destruction event)
+    local entity = game.get_entity_by_unit_number(unit_number)
     if not entity or not entity.valid then
       tracked_entities[unit_number] = nil
       goto continue
@@ -257,6 +257,12 @@ end)
 
 -- Rebuild quality lookup when configuration changes (mods added/removed)
 script.on_configuration_changed(function(event)
+  -- Reset quality lookup cache
+  previous_qualities = {}
+
+  -- Reset tracked entities data
+  storage.quality_control_entities = {}
+
   register_nth_tick_event()
 end)
 
