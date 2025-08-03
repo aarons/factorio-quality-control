@@ -52,38 +52,6 @@ local function get_previous_quality(quality_prototype)
   return previous_qualities[quality_prototype.name]
 end
 
-
---- Gets or creates entity metrics for a specific entity
-local function get_entity_info(entity)
-  ensure_tracked_entity_table()
-
-  local id = entity.unit_number
-  local previous_quality = get_previous_quality(entity.quality)
-  local can_increase = quality_change_direction == "increase" and entity.quality.next
-  local can_decrease = quality_change_direction == "decrease" and previous_quality
-
-  -- if the unit doesn't exist, then initialize it
-  if not tracked_entities[id] then
-    tracked_entities[id] = {
-      id = id,
-      manufacturing_hours = 0,
-      chance_to_change = base_percentage_chance
-    }
-  end
-
-  -- calculate this fresh every time we lookup entity
-  tracked_entities[id].previous_quality = previous_quality
-  tracked_entities[id].can_change_quality = can_increase or can_decrease
-
-  return tracked_entities[id]
-end
-
---- Cleans up data for a specific entity that was destroyed
-local function remove_entity_info(entity)
-  ensure_tracked_entity_table()
-  tracked_entities[entity.unit_number] = nil
-end
-
 --- Initialize the entity tracking list by scanning all surfaces once
 local function ensure_tracked_entity_table()
   -- Only initialize if tracked_entities is empty
@@ -103,7 +71,7 @@ local function ensure_tracked_entity_table()
 
     for _, surface in pairs(game.surfaces) do
       local entities = surface.find_entities_filtered{
-        type = {"assembling-machine", "furnace"},
+        type = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"},
         force = player_force
       }
 
@@ -114,6 +82,49 @@ local function ensure_tracked_entity_table()
   end
 end
 
+--- Gets or creates entity metrics for a specific entity
+local function get_entity_info(entity)
+  ensure_tracked_entity_table()
+
+  local id = entity.unit_number
+  local entity_type = entity.type
+  local previous_quality = get_previous_quality(entity.quality)
+  local can_increase = quality_change_direction == "increase" and entity.quality.next
+  local can_decrease = quality_change_direction == "decrease" and previous_quality
+
+  -- ensure the entity type table exists
+  if not tracked_entities[entity_type] then
+    tracked_entities[entity_type] = {}
+  end
+
+  -- if the unit doesn't exist, then initialize it
+  if not tracked_entities[entity_type][id] then
+    tracked_entities[entity_type][id] = {
+      id = id,
+      entity_type = entity_type,
+      manufacturing_hours = 0,
+      chance_to_change = base_percentage_chance
+    }
+  end
+
+  -- calculate this fresh every time we lookup entity
+  tracked_entities[entity_type][id].previous_quality = previous_quality
+  tracked_entities[entity_type][id].can_change_quality = can_increase or can_decrease
+
+  return tracked_entities[entity_type][id]
+end
+
+--- Cleans up data for a specific entity that was destroyed
+local function remove_entity_info(entity)
+  ensure_tracked_entity_table()
+  local entity_type = entity.type
+  local id = entity.unit_number
+  if tracked_entities[entity_type] then
+    tracked_entities[entity_type][id] = nil
+  end
+end
+
+
 --- Checks if an entity should be tracked and adds it if so
 local function on_entity_created(event)
   local entity = event.entity or event.created_entity
@@ -122,9 +133,19 @@ local function on_entity_created(event)
   end
 
   -- Check if it's a type we track and is player owned
-  if (entity.type == "assembling-machine" or entity.type == "furnace") and
-     entity.force == game.forces.player then
-    get_entity_info(entity) -- This will initialize the entity in qc_entities
+  local tracked_types = {
+    ["assembling-machine"] = true,
+    ["furnace"] = true,
+    ["mining-drill"] = true,
+    ["lab"] = true,
+    ["inserter"] = true,
+    ["pump"] = true,
+    ["radar"] = true,
+    ["roboport"] = true
+  }
+
+  if tracked_types[entity.type] and entity.force == game.forces.player then
+    get_entity_info(entity) -- This will initialize the entity in tracked_entities
   end
 end
 
@@ -132,7 +153,7 @@ end
 local function attempt_quality_change(entity)
   local random_roll = math.random()
 
-  local entity_info = tracked_entities[entity.unit_number]
+  local entity_info = tracked_entities[entity.type][entity.unit_number]
 
   if random_roll >= (entity_info.chance_to_change / 100) then
     -- roll failed; improve it's chance for next time and return
@@ -156,8 +177,12 @@ local function attempt_quality_change(entity)
   }
 
   if replacement_entity and replacement_entity.valid then
-    get_entity_info(replacement_entity.unit_number) -- initialize it's entry
-    remove_entity_info(old_unit_number)
+    get_entity_info(replacement_entity) -- initialize it's entry
+    -- Clean up old entity data by unit number and type
+    local old_entity_type = entity.type
+    if tracked_entities[old_entity_type] then
+      tracked_entities[old_entity_type][old_unit_number] = nil
+    end
 
     -- Return change information
     return replacement_entity
@@ -175,40 +200,47 @@ local function check_and_change_quality()
   local changes_attempted = 0
   local changes_succeeded = 0
 
-  for unit_number, entity_info in pairs(tracked_entities) do
+  -- Only process assembling-machines and furnaces for quality upgrades
+  local entity_types_to_process = {"assembling-machine", "furnace"}
 
-    -- Skip if entity no longer exists (cleanup will happen on next destruction event)
-    local entity = game.get_entity_by_unit_number(unit_number)
-    if not entity or not entity.valid then
-      tracked_entities[unit_number] = nil
-      goto continue
-    end
+  for _, entity_type in pairs(entity_types_to_process) do
+    if tracked_entities[entity_type] then
+      for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
 
-    if entity_info.can_change_quality then
-      entities_checked = entities_checked + 1
-      local current_recipe = entity.get_recipe()
-      if current_recipe then
-        local hours_needed = manufacturing_hours_for_change * (1 + qaulity_increase_cost) ^ entity.quality.level
-        local recipe_time = current_recipe.prototype.energy
-        local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
-        local previous_hours = entity_info.manufacturing_hours
+        -- Skip if entity no longer exists (cleanup will happen on next destruction event)
+        local entity = game.get_entity_by_unit_number(unit_number)
+        if not entity or not entity.valid then
+          tracked_entities[entity_type][unit_number] = nil
+          goto continue
+        end
 
-        -- Check if we've crossed a new threshold (time for another attempt)
-        if (previous_hours - current_hours) > hours_needed then
-          changes_attempted = changes_attempted + 1
-          local change_result = attempt_quality_change(entity)
-          if change_result then
-            changes_succeeded = changes_succeeded + 1
-          else
-            -- update that we attempted a change on this threshold
-            -- once another 'hours_needed' is accumulated we will try again
-            entity_info.manufacturing_hours = current_hours
+        if entity_info.can_change_quality then
+          entities_checked = entities_checked + 1
+          local current_recipe = entity.get_recipe()
+          if current_recipe then
+            local hours_needed = manufacturing_hours_for_change * (1 + qaulity_increase_cost) ^ entity.quality.level
+            local recipe_time = current_recipe.prototype.energy
+            local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
+            local previous_hours = entity_info.manufacturing_hours
+
+            -- Check if we've crossed a new threshold (time for another attempt)
+            if (previous_hours - current_hours) > hours_needed then
+              changes_attempted = changes_attempted + 1
+              local change_result = attempt_quality_change(entity)
+              if change_result then
+                changes_succeeded = changes_succeeded + 1
+              else
+                -- update that we attempted a change on this threshold
+                -- once another 'hours_needed' is accumulated we will try again
+                entity_info.manufacturing_hours = current_hours
+              end
+            end
           end
         end
+
+        ::continue::
       end
     end
-
-    ::continue::
   end
 
 end
