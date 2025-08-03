@@ -17,137 +17,120 @@ productivity modules, and other modifiers that change the effective manufacturin
 machine with upgrades (like beacons) should be impacted by quality changes faster.
 ]]
 
---- Cache for quality information to avoid repeated lookups
-local qualities = {}
+--- Setup locally scoped variables
+local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
+local qc_entities -- lookup table for all the entities we might change the quality of
 
---- Gets or creates entity tracking data for the given unit number
---- @param unit_number uint The unit number of the entity
---- @return table The entity data table
-local function get_entity_info(unit_number)
-  if not storage.quality_control_entities then
-    storage.quality_control_entities = {}
+--- Setup all values defined in startup settings
+local quality_change_direction = settings.startup["quality-change-direction"].value
+local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
+local qaulity_increase_cost = settings.startup["qaulity-increase-cost"].value
+local base_percentage_chance = settings.startup["percentage-chance-of-change"].value
+local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
+local accumulation_percentage = 0
+
+if accumulation_rate_setting == "low" then
+  accumulation_percentage = 20
+elseif accumulation_rate_setting == "medium" then
+  accumulation_percentage = 50
+elseif accumulation_rate_setting == "high" then
+  accumulation_percentage = 100
+end
+
+local function get_previous_quality(quality_prototype)
+  if not quality_prototype then return nil end
+
+  -- check if we need to build the lookup table
+  if not next(previous_qualities) then
+    for name, prototype in pairs(prototypes.quality) do  -- renamed to avoid collision
+      if name ~= "quality-unknown" and prototype.next then
+        previous_qualities[prototype.next.name] = prototype
+      end
+    end
   end
 
-  if not storage.quality_control_entities[unit_number] then
-    storage.quality_control_entities[unit_number] = {}
+  return previous_qualities[quality_prototype.name]
+end
+
+local function ensure_entity_table()
+  if not qc_entities then
+    if not storage.quality_control_entities then
+      storage.quality_control_entities = {}
+    end
+    qc_entities = storage.quality_control_entities
+  end
+end
+
+--- Gets or creates entity metrics for a specific entity
+local function get_entity_info(entity)
+  ensure_entity_table()
+
+  local id = entity.unit_number
+  local previous_quality = get_previous_quality(entity.quality)
+  local can_increase = quality_change_direction == "increase" and entity.quality.next
+  local can_decrease = quality_change_direction == "decrease" and previous_quality
+
+  -- if the unit doesn't exist, then initialize it
+  if not qc_entities[id] then
+    qc_entities[id] = {
+      id = id,
+      manufacturing_hours = 0,
+      chance_to_change = base_percentage_chance
+    }
   end
 
-  return storage.quality_control_entities[unit_number]
+  -- calculate this fresh every time we lookup entity
+  qc_entities[id].previous_quality = previous_quality
+  qc_entities[id].can_change_quality = can_increase or can_decrease
+
+  return qc_entities[id]
 end
 
 --- Cleans up data for a specific entity that was destroyed
---- @param entity LuaEntity The entity that was destroyed
-local function cleanup_single_entity_data(entity)
-  if storage.quality_control_entities and entity.unit_number then
-    storage.quality_control_entities[entity.unit_number] = nil
-  end
+local function remove_entity_info(entity)
+  ensure_entity_table()
+  qc_entities[entity.unit_number] = nil
 end
 
---- Builds a cache of all quality prototypes and their next/previous relationships
-local function build_quality_lookup()
-  qualities = {}
-  for name, quality_prototype in pairs(prototypes.quality) do
-    -- Skip quality-unknown as it's not part of the normal quality chain
-    if name ~= "quality-unknown" then
-      qualities[name] = {
-        prototype = quality_prototype,
-        next = quality_prototype.next and quality_prototype.next.name or nil,
-        previous = nil
-      }
-    end
-  end
-
-  -- Fill in the previous relationships
-  for name, quality_info in pairs(qualities) do
-    if quality_info.next then
-      qualities[quality_info.next].previous = name
-    end
-  end
-
-end
-
---- Gets the next quality in the specified direction
---- @param current_quality LuaQualityPrototype
---- @param direction string "increase" or "decrease"
---- @return LuaQualityPrototype|nil
-local function get_next_quality(current_quality, direction)
-  if not current_quality then return nil end
-
-  local current_name = current_quality.name
-  local quality_info = qualities[current_name]
-
-  if not quality_info then return nil end
-
-  local next_quality_name
-  if direction == "increase" then
-    next_quality_name = quality_info.next
-  else -- direction == "decrease"
-    next_quality_name = quality_info.previous
-  end
-
-  if next_quality_name and qualities[next_quality_name] then
-    return qualities[next_quality_name].prototype
-  end
-
-  return nil
-end
-
---- Attempts to change the quality of a machine based on a random roll.
---- @param machine LuaEntity The machine to potentially change.
---- @param next_quality LuaQualityPrototype The quality to change to.
---- @param percentage_chance number The chance of the quality change occurring.
---- @return table|nil Returns table with change info if successful: {entity=LuaEntity, old_quality=string, new_quality=string, entity_type=string}, nil otherwise.
-local function attempt_quality_change(machine, next_quality, percentage_chance)
+--- Attempts to change the quality of a machine based on chance
+local function attempt_quality_change(entity)
   local random_roll = math.random()
-  local chance_threshold = percentage_chance / 100
 
-  if random_roll >= chance_threshold then
-    return false -- Random roll failed, no change
+  local entity_info = qc_entities[entity.unit_number]
+
+  if random_roll >= (entity_info.chance_to_change / 100) then
+    -- roll failed; improve it's chance for next time and return
+    if accumulation_percentage > 0 then
+      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * accumulation_percentage / 100)
+    end
+    return
   end
 
-  -- Store info before creating replacement (machine becomes invalid after fast_replace)
-  local old_unit_number = machine.unit_number
-  local old_quality_name = machine.quality.name
-  local entity_type = machine.type
+  -- Store info before creating replacement (entity becomes invalid after fast_replace)
+  local old_unit_number = entity.unit_number
 
-  local replacement_entity = machine.surface.create_entity {
-    name = machine.name,
-    position = machine.position,
-    force = machine.force,
-    direction = machine.direction,
-    quality = next_quality,
+  local replacement_entity = entity.surface.create_entity {
+    name = entity.name,
+    position = entity.position,
+    force = entity.force,
+    direction = entity.direction,
+    quality = entity.quality.next,
     fast_replace = true,
     spill = false
   }
 
   if replacement_entity and replacement_entity.valid then
-    local new_unit_number = replacement_entity.unit_number
-    local entity_data = get_entity_info(new_unit_number)
-
-    if replacement_entity.type == "assembling-machine" or replacement_entity.type == "furnace" then
-        replacement_entity.products_finished = 0
-        entity_data.last_checked_threshold = 0
-    end
-
-    -- Remove old entity data using stored unit number
-    storage.quality_control_entities[old_unit_number] = nil
+    get_entity_info(replacement_entity.unit_number) -- initialize it's entry
+    remove_entity_info(old_unit_number)
 
     -- Return change information
-    return {
-      entity = replacement_entity,
-      old_quality = old_quality_name,
-      new_quality = next_quality.name,
-      entity_type = entity_type
-    }
+    return replacement_entity
   end
 
-  return nil -- Replacement failed
+  return nil -- we attempted to replace but it failed for some reason
 end
 
---- Randomly selects a specified number of entities from a list using Fisher-Yates shuffle
---- @param entities table List of entities to select from
---- @param count number Number of entities to select
---- @return table Selected entities
+-- TODO: we should remove this, it's too complex and not needed
 local function randomly_select_entities(entities, count)
   if count <= 0 then
     return {}
@@ -175,12 +158,7 @@ local function randomly_select_entities(entities, count)
   return selected
 end
 
---- Applies ratio-based quality changes to additional entity types (labs, miners, inserters, etc.)
---- @param candidate_ratio number The ratio of machines that became candidates (0.0 to 1.0)
---- @param quality_changes table Existing quality changes table to add to
---- @param next_quality LuaQualityPrototype The quality to change to
---- @param percentage_chance number The chance of quality change occurring
---- @param player_force LuaForce The player's force
+-- this can be simplified I suspect
 local function apply_ratio_based_quality_changes(candidate_ratio, quality_changes, next_quality, base_percentage_chance, accumulation_percentage, player_force)
   if candidate_ratio <= 0 then
     return -- No candidates, nothing to do
@@ -211,17 +189,17 @@ local function apply_ratio_based_quality_changes(candidate_ratio, quality_change
           for _, entity in ipairs(selected_entities) do
             if entity and entity.valid then
               local unit_number = entity.unit_number
-              local entity_data = get_entity_info(unit_number)
+              local entity_info = get_entity_info(unit_number)
 
               -- Initialize chance if not present
-              if not entity_data.current_chance then
-                entity_data.current_chance = base_percentage_chance
+              if not entity_info.current_chance then
+                entity_info.current_chance = base_percentage_chance
               end
 
-              local change_result = attempt_quality_change(entity, next_quality, entity_data.current_chance)
+              local change_result = attempt_quality_change(entity, next_quality, entity_info.current_chance)
               if change_result then
                 -- Reset chance after successful change
-                entity_data.current_chance = base_percentage_chance
+                entity_info.current_chance = base_percentage_chance
                 -- Initialize the entity type array if it doesn't exist
                 if not quality_changes[entity_type] then
                   quality_changes[entity_type] = {}
@@ -229,7 +207,7 @@ local function apply_ratio_based_quality_changes(candidate_ratio, quality_change
                 table.insert(quality_changes[entity_type], change_result)
               else
                 -- Increment chance after failed attempt
-                entity_data.current_chance = entity_data.current_chance + (base_percentage_chance * accumulation_percentage / 100)
+                entity_info.current_chance = entity_info.current_chance + (base_percentage_chance * accumulation_percentage / 100)
               end
             end
           end
@@ -240,9 +218,7 @@ local function apply_ratio_based_quality_changes(candidate_ratio, quality_change
 end
 
 --- Creates alerts and print statements for quality changes
---- @param quality_changes table Changes grouped by entity type
---- @param quality_direction string "increase" or "decrease"
-local function handle_quality_change_notifications(quality_changes, quality_direction)
+local function change_notifications(quality_changes, quality_change_direction)
   -- Count total changes by entity type
   local total_changes = 0
   local entity_type_counts = {}
@@ -260,6 +236,7 @@ local function handle_quality_change_notifications(quality_changes, quality_dire
     return -- No changes to report
   end
 
+  -- we are only modifying the current players forces, so no need to look through all the players
   -- Handle alerts and console messages independently for each player
   for _, player in pairs(game.players) do
     if player.valid then
@@ -274,7 +251,7 @@ local function handle_quality_change_notifications(quality_changes, quality_dire
             if change.entity and change.entity.valid then
               -- Determine alert message key
               local message_key = "alert-message.quality-" ..
-                (quality_direction == "increase" and "upgrade" or "downgrade") ..
+                (quality_change_direction == "increase" and "upgrade" or "downgrade") ..
                 "-" .. entity_type
 
               -- Use the entity itself as the icon (SignalID format)
@@ -289,7 +266,7 @@ local function handle_quality_change_notifications(quality_changes, quality_dire
 
       -- Print console messages (if enabled)
       if console_messages_enabled then
-        local direction_text = quality_direction == "increase" and "upgraded" or "downgraded"
+        local direction_text = quality_change_direction == "increase" and "upgraded" or "downgraded"
 
         -- Define user-friendly names for entity types
         local entity_type_names = {
@@ -323,83 +300,40 @@ local function check_and_change_quality()
     return
   end
 
-  -- Cache settings once per cycle instead of per machine
-  local quality_direction = settings.startup["quality-change-direction"].value
-  local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
-  local quality_level_modifier = settings.startup["quality-level-modifier"].value
-  local base_percentage_chance = settings.startup["percentage-chance-of-change"].value
-  local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
-  local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
-  local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
-
-  -- Convert accumulation rate setting to percentage multiplier
-  local accumulation_percentage = 0
-  if accumulation_rate_setting == "low" then
-    accumulation_percentage = 20
-  elseif accumulation_rate_setting == "medium" then
-    accumulation_percentage = 50
-  elseif accumulation_rate_setting == "high" then
-    accumulation_percentage = 100
-  end
-
-  -- Track quality changes by entity type for summary reporting
-  local quality_changes = {
-    ["assembling-machine"] = {},
-    ["furnace"] = {}
-  }
-
   -- Track candidates for ratio calculation
-  local total_machines_tracked = 0
-  local candidates_attempted = 0
+  local entities_checked = 0
+  local changes_attempted = 0
+  local changes_succeeded = 0
 
   for _, surface in pairs(game.surfaces) do
-    local machines = surface.find_entities_filtered{
+    local entities = surface.find_entities_filtered{
       type = {"assembling-machine", "furnace"},
       force = player_force
     }
 
-    for _, machine in ipairs(machines) do
-      if machine and machine.valid then
-        local unit_number = machine.unit_number
-        local next_quality = get_next_quality(machine.quality, quality_direction)
+    for _, entity in ipairs(entities) do
+      -- if it's at max quality, then do nothing
+      local entity_info = get_entity_info(entity)
 
-        if next_quality then
-          local entity_data = get_entity_info(unit_number)
+      if entity_info.can_change_quality then
+        entities_checked = entities_checked + 1
+        local current_recipe = entity.get_recipe()
+        if current_recipe then
+          local hours_needed = manufacturing_hours_for_change * (1 + qaulity_increase_cost) ^ entity.quality.level
+          local recipe_time = current_recipe.prototype.energy
+          local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
+          local previous_hours = entity_info.manufacturing_hours
 
-          local current_recipe = machine.get_recipe()
-          if current_recipe then
-            total_machines_tracked = total_machines_tracked + 1
-
-            local hours_for_this_level = manufacturing_hours_for_change * math.pow(1 + quality_level_modifier, machine.quality.level)
-            local recipe_energy = current_recipe.prototype.energy
-            local current_work_energy = machine.products_finished * recipe_energy
-            local current_manufacturing_hours = current_work_energy / 3600
-            local current_threshold_interval = math.floor(current_manufacturing_hours / hours_for_this_level)
-            local current_threshold_hours = current_threshold_interval * hours_for_this_level
-
-            -- Initialize entity data if not present
-            if not entity_data.last_checked_threshold then
-              entity_data.last_checked_threshold = current_threshold_hours
-              -- Initialize chance based on past attempts (for existing machines when mod updates)
-              local past_attempts = current_threshold_interval
-              entity_data.current_chance = base_percentage_chance + (past_attempts * base_percentage_chance * accumulation_percentage / 100)
-            end
-
-            -- Check if we've crossed a new threshold (time for another attempt)
-            if current_threshold_hours > entity_data.last_checked_threshold then
-              candidates_attempted = candidates_attempted + 1
-              local change_result = attempt_quality_change(machine, next_quality, entity_data.current_chance)
-              if change_result then
-                -- Reset chance after successful change
-                entity_data.current_chance = base_percentage_chance
-                entity_data.last_checked_threshold = 0 -- Reset for new quality level
-                -- Track the change for alerts/reporting
-                table.insert(quality_changes[change_result.entity_type], change_result)
-              else
-                -- Increment chance after failed attempt
-                entity_data.current_chance = entity_data.current_chance + (base_percentage_chance * accumulation_percentage / 100)
-                entity_data.last_checked_threshold = current_threshold_hours
-              end
+          -- Check if we've crossed a new threshold (time for another attempt)
+          if (previous_hours - current_hours) > hours_needed then
+            changes_attempted = changes_attempted + 1
+            local change_result = attempt_quality_change(entity)
+            if change_result then
+              changes_succeeded = changes_succeeded + 1
+            else
+              -- update that we attempted a change on this threshold
+              -- once another 'hours_needed' is accumulated we will try again
+              entity_info.manufacturing_hours = current_hours
             end
           end
         end
@@ -407,28 +341,30 @@ local function check_and_change_quality()
     end
   end
 
-  -- Calculate candidate ratio for additional entity types
-  local candidate_ratio = 0
-  if total_machines_tracked > 0 then
-    candidate_ratio = candidates_attempted / total_machines_tracked
-  end
+  -- -- Calculate candidate ratio for additional entity types
+  -- local candidate_ratio = 0
+  -- if entities_checked > 0 then
+  --   candidate_ratio = changes_attempted / entities_checked
+  -- end
 
-  -- Apply ratio-based quality changes to additional entity types
-  if candidate_ratio > 0 then
-    local next_quality = nil
-    -- Get the next quality for additional entities (same direction as machines)
-    local normal_quality = prototypes.quality["quality-normal"]
-    if normal_quality then
-      next_quality = get_next_quality(normal_quality, quality_direction)
-    end
+  -- -- Apply ratio-based quality changes to additional entity types
+  -- if candidate_ratio > 0 then
+  --   local next_quality = nil
+  --   -- Get the next quality for additional entities (same direction as entitys)
+  --   local normal_quality = prototypes.quality["quality-normal"]
+  --   if normal_quality then
+  --     next_quality = get_next_quality(normal_quality, quality_change_direction)
+  --   end
 
-    if next_quality then
-      apply_ratio_based_quality_changes(candidate_ratio, quality_changes, next_quality, base_percentage_chance, accumulation_percentage, player_force)
-    end
-  end
+  --   if next_quality then
+  --     apply_ratio_based_quality_changes(candidate_ratio, quality_changes, next_quality, base_percentage_chance, accumulation_percentage, player_force)
+  --   end
+  -- end
 
   -- Handle alerts and notifications for quality changes
-  handle_quality_change_notifications(quality_changes, quality_direction)
+  -- if changes_succeeded > 0 then
+    -- change_notifications(changes_succeeded)
+  -- end
 end
 
 
@@ -449,7 +385,7 @@ end
 local function on_entity_destroyed(event)
   local entity = event.entity
   if entity and entity.valid then
-    cleanup_single_entity_data(entity)
+    remove_entity_info(entity)
   end
 end
 
@@ -460,17 +396,12 @@ script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
 
 -- Initialize quality lookup on first load
 script.on_init(function()
-  build_quality_lookup()
   register_nth_tick_event()
 end)
 
 -- Rebuild quality lookup when configuration changes (mods added/removed)
 script.on_configuration_changed(function(event)
-  build_quality_lookup()
   register_nth_tick_event()
-  if storage.quality_control_entities then
-    storage.quality_control_entities = {}
-  end
 end)
 
 -- Handle runtime setting changes
