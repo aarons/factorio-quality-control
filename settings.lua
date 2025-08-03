@@ -27,7 +27,7 @@ data:extend({
     },
     {
         type = "double-setting",
-        name = "qaulity-increases-cost",
+        name = "quality-increase-cost",
         setting_type = "startup",
         default_value = 0.3,
         min_value = 0,

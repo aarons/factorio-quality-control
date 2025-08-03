@@ -38,7 +38,7 @@ local tracked_types = {
 --- Setup all values defined in startup settings
 local quality_change_direction = settings.startup["quality-change-direction"].value
 local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
-local qaulity_increase_cost = settings.startup["qaulity-increase-cost"].value
+local quality_increase_cost = settings.startup["quality-increase-cost"].value
 local base_percentage_chance = settings.startup["percentage-chance-of-change"].value
 local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
 local accumulation_percentage = 0
@@ -241,7 +241,7 @@ local function check_and_change_quality()
           entities_checked = entities_checked + 1
           local current_recipe = entity.get_recipe()
           if current_recipe then
-            local hours_needed = manufacturing_hours_for_change * (1 + qaulity_increase_cost) ^ entity.quality.level
+            local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
             local recipe_time = current_recipe.prototype.energy
             local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
             local previous_hours = entity_info.manufacturing_hours
