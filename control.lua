@@ -119,7 +119,7 @@ local function get_entity_info(entity)
     key_positions[id] = #keys
   end
 
-  -- calculate this fresh every time we lookup entity
+  -- calculate this fresh every time we lookup entity via get_entity_info
   tracked_entities[entity_type][id].previous_quality = previous_quality
   tracked_entities[entity_type][id].can_change_quality = can_increase or can_decrease
 
@@ -132,7 +132,7 @@ local function scan_and_populate_entities()
     for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
       type = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"},
-      force = game.player.force
+      force = game.forces.player
     }
 
     for _, entity in ipairs(entities) do
@@ -228,20 +228,17 @@ end
 local function check_and_change_quality()
   ensure_tracked_entity_table()
 
-  -- Track candidates for ratio calculation
   local entities_checked = 0
   local changes_attempted = 0
   local changes_completed = 0
+  local total_secondary_attempts = 0
 
+  -- Primary entities loop
   for _, entity_type in pairs(primary_types) do
     if tracked_entities[entity_type] then
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
-        -- Skip special keys used for array management
-        if unit_number == "_keys" or unit_number == "_key_positions" then
-          goto continue
-        end
+        if unit_number == "_keys" or unit_number == "_key_positions" then goto continue end
 
-        -- Skip if entity no longer exists
         local entity = game.get_entity_by_unit_number(unit_number)
         if not entity or not entity.valid then
           remove_entity_info(entity_type, unit_number)
@@ -254,56 +251,63 @@ local function check_and_change_quality()
           if current_recipe then
             local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
             local recipe_time = current_recipe.prototype.energy
-            local current_hours = (entity.products_finished * recipe_time) / 3600 -- total hours machine has been working, ex. 37.5
-            local previous_hours = entity_info.manufacturing_hours
+            local current_hours = (entity.products_finished * recipe_time) / 3600
+            local previous_hours = entity_info.manufacturing_hours or 0
 
-            -- Calculate how many thresholds have been passed since last check
             local available_hours = current_hours - previous_hours
             local thresholds_passed = math.floor(available_hours / hours_needed)
 
             if thresholds_passed > 0 then
-              local this_entity_changes = 0
+              total_secondary_attempts = total_secondary_attempts + thresholds_passed
+              local successful_change = false
 
-              -- Attempt quality change for each threshold passed
               for i = 1, thresholds_passed do
                 changes_attempted = changes_attempted + 1
                 local change_result = attempt_quality_change(entity)
                 if change_result then
-                  this_entity_changes = this_entity_changes + 1
-                  entity = change_result
-                end
-
-                -- Select random secondary entity to attempt a change on as well
-                -- the ensures the player's entities that do work that can't be tracked easily will slowly improve as well
-                local random_type = secondary_types[math.random(#secondary_types)]
-                if tracked_entities[random_type] and tracked_entities[random_type]._keys and #tracked_entities[random_type]._keys > 0 then
-                  local keys = tracked_entities[random_type]._keys
-                  local random_id = keys[math.random(#keys)]
-                  local random_entity = game.get_entity_by_unit_number(random_id)
-                  if random_entity and random_entity.valid then
-                    local random_result = attempt_quality_change(random_entity)
-                    if random_result then
-                      changes_completed = changes_completed + 1
-                    end
-                  end
+                  changes_completed = changes_completed + 1
+                  successful_change = true
+                  break -- Stop trying after a success
                 end
               end
 
-              changes_completed = changes_completed + this_entity_changes
-
-              -- If no upgrades occurred, update manufacturing hours to reflect attempted thresholds
-              if this_entity_changes == 0 then
+              -- If no change was made, update the manufacturing hours floor
+              if not successful_change then
                 entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
               end
             end
           end
         end
-
         ::continue::
       end
     end
   end
 
+  -- Secondary entities loop
+  if total_secondary_attempts > 0 then
+    for i = 1, total_secondary_attempts do
+      local random_type = secondary_types[math.random(#secondary_types)]
+      if tracked_entities[random_type] and tracked_entities[random_type]._keys and #tracked_entities[random_type]._keys > 0 then
+        local keys = tracked_entities[random_type]._keys
+        local random_id = keys[math.random(#keys)]
+        local random_entity = game.get_entity_by_unit_number(random_id)
+
+        if random_entity and random_entity.valid and get_entity_info(random_entity).can_change_quality then
+          changes_attempted = changes_attempted + 1
+          local random_result = attempt_quality_change(random_entity)
+          if random_result then
+            changes_completed = changes_completed + 1
+          end
+        end
+      end
+    end
+  end
+
+  -- Debug output
+  game.print("Quality Control Tick: " ..
+    "Entities Checked: " .. tostring(entities_checked) ..
+    ", Changes Attempted: " .. tostring(changes_attempted) ..
+    ", Changes Completed: " .. tostring(changes_completed))
 end
 
 --- Displays quality control metrics for the selected entity
@@ -427,7 +431,8 @@ script.on_configuration_changed(function(event)
   previous_qualities = {}
 
   -- Reset tracked entities data
-  storage.quality_control_entities = {}
+  ensure_tracked_entity_table(true)
+  scan_and_populate_entities()
 
   register_nth_tick_event()
 end)
