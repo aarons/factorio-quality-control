@@ -90,8 +90,8 @@ local function get_entity_info(entity)
   local id = entity.unit_number
   local entity_type = entity.type
   local previous_quality = get_previous_quality(entity.quality)
-  local can_increase = quality_change_direction == "increase" and entity.quality.next
-  local can_decrease = quality_change_direction == "decrease" and previous_quality
+  local can_increase = quality_change_direction == "increase" and entity.quality.next ~= nil
+  local can_decrease = quality_change_direction == "decrease" and previous_quality ~= nil
 
   -- ensure the entity type table exists
   if not tracked_entities[entity_type] then
@@ -105,6 +105,9 @@ local function get_entity_info(entity)
     tracked_entities[entity_type][id] = {
       id = id,
       entity_type = entity_type,
+      name = entity.name,
+      surface_index = entity.surface.index,
+      position = entity.position,
       chance_to_change = base_percentage_chance,
       attempts_to_change = 0
     }
@@ -123,13 +126,14 @@ local function get_entity_info(entity)
   tracked_entities[entity_type][id].previous_quality = previous_quality
   tracked_entities[entity_type][id].can_change_quality = can_increase or can_decrease
 
+
   return tracked_entities[entity_type][id]
 end
 
 --- Scans all surfaces and populates entity data
 local function scan_and_populate_entities()
   ensure_tracked_entity_table()
-    for _, surface in pairs(game.surfaces) do
+  for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
       type = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"},
       force = game.forces.player
@@ -193,6 +197,7 @@ local function attempt_quality_change(entity)
 
   -- Store info before creating replacement (entity becomes invalid after fast_replace)
   local old_unit_number = entity.unit_number
+  local old_entity_type = entity.type
 
   -- Determine target quality based on direction setting
   local target_quality
@@ -215,7 +220,7 @@ local function attempt_quality_change(entity)
   if replacement_entity and replacement_entity.valid then
     get_entity_info(replacement_entity) -- initialize it's entry
     -- Clean up old entity data using consistent cleanup function
-    remove_entity_info(entity.type, old_unit_number)
+    remove_entity_info(old_entity_type, old_unit_number)
 
     -- Return change information
     return replacement_entity
@@ -233,14 +238,17 @@ local function check_and_change_quality()
   local changes_completed = 0
   local total_secondary_attempts = 0
 
+
   -- Primary entities loop
   for _, entity_type in pairs(primary_types) do
     if tracked_entities[entity_type] then
+
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
         if unit_number == "_keys" or unit_number == "_key_positions" then goto continue end
 
-        local entity = game.get_entity_by_unit_number(unit_number)
-        if not entity or not entity.valid then
+        local surface = game.surfaces[entity_info.surface_index]
+        local entity = surface and surface.find_entity(entity_info.name, entity_info.position)
+        if not entity or not entity.valid or entity.unit_number ~= unit_number then
           remove_entity_info(entity_type, unit_number)
           goto continue
         end
@@ -303,11 +311,11 @@ local function check_and_change_quality()
     end
   end
 
-  -- Debug output
-  game.print("Quality Control Tick: " ..
-    "Entities Checked: " .. tostring(entities_checked) ..
-    ", Changes Attempted: " .. tostring(changes_attempted) ..
-    ", Changes Completed: " .. tostring(changes_completed))
+  -- -- Debug output
+  -- game.print("Quality Control Tick: " ..
+  --   "Entities Checked: " .. tostring(entities_checked) ..
+  --   ", Changes Attempted: " .. tostring(changes_attempted) ..
+  --   ", Changes Completed: " .. tostring(changes_completed))
 end
 
 --- Displays quality control metrics for the selected entity
