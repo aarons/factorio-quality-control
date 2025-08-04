@@ -32,13 +32,14 @@ end
 --- Entity types
 local primary_types = {"assembling-machine", "furnace"}
 local secondary_types = {"mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
-local all_tracked_types = {table.unpack(primary_types), table.unpack(secondary_types)}
+-- LUA's approach to concat/construct two tables together is frustrating; for now just hard code this
+local all_tracked_types = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
 
 -- Construct is_tracked_type lookup table from the base arrays
 -- Has O(1) access time, for quick checks if an entity is a type that we are tracking
 local is_tracked_type = {}
-for _, type in ipairs(all_tracked_types) do
-  is_tracked_type[type] = true
+for _, entity_type in ipairs(all_tracked_types) do
+  is_tracked_type[entity_type] = true
 end
 
 --- Setup all values defined in startup settings
@@ -390,15 +391,23 @@ local function show_entity_quality_info(player)
     return
   end
 
+  debug("Checking entity type: " .. selected_entity.type)
+  debug("is_tracked_type lookup result: " .. tostring(is_tracked_type[selected_entity.type]))
+
   if not is_tracked_type[selected_entity.type] then
+    player.print("selected_entity.type: " .. selected_entity.type)
+    player.print("is_tracked_type table contents:")
+    for key, value in pairs(is_tracked_type) do
+      player.print("  " .. key .. " = " .. tostring(value))
+    end
     player.print({"quality-control.entity-not-tracked", selected_entity.localised_name or selected_entity.name})
     return
   end
 
   local entity_info = get_entity_info(selected_entity)
   local is_primary_type = false
-  for _, type in ipairs(primary_types) do
-    if selected_entity.type == type then
+  for _, entity_type in ipairs(primary_types) do
+    if selected_entity.type == entity_type then
       is_primary_type = true
       break
     end
