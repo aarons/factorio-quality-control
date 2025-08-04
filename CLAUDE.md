@@ -25,6 +25,6 @@ IMPORTANT: The API documentation is available via context7 with this library ID:
 ### Development Cycle
 
 - Read the entire control.lua file for logic or debugging purposes; it's small and can be fully understood easily.
-- After making changes, the engineer will manage testing and validation.
+- After finishing changes run `./package.sh` to install the mod so that the engineer can validate
 
 

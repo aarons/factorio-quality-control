@@ -18,8 +18,16 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 ]]
 
 --- Setup locally scoped variables
+local debug = true -- Set to true to enable debug logging
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
 local tracked_entities -- lookup table for all the entities we might change the quality of
+
+--- Helper function for debug logging
+local function debug(message)
+  if debug then
+    log("debug: " .. message)
+  end
+end
 
 --- Entity types
 local primary_types = {"assembling-machine", "furnace"}
@@ -52,6 +60,7 @@ elseif accumulation_rate_setting == "high" then
 end
 
 local function get_previous_quality(quality_prototype)
+  debug("get_previous_quality called")
   if not quality_prototype then return nil end
 
   -- check if we need to build the lookup table
@@ -68,6 +77,7 @@ end
 
 --- Initialize the entity tracking table structure
 local function ensure_tracked_entity_table(force_reset)
+  debug("ensure_tracked_entity_table called with force_reset=" .. tostring(force_reset))
   -- Handle force reset by clearing everything
   if force_reset then
     storage.quality_control_entities = {}
@@ -85,7 +95,7 @@ end
 
 --- Gets or creates entity metrics for a specific entity
 local function get_entity_info(entity)
-  ensure_tracked_entity_table()
+  debug("get_entity_info called for entity type: " .. (entity.type or "unknown"))
 
   local id = entity.unit_number
   local entity_type = entity.type
@@ -103,11 +113,7 @@ local function get_entity_info(entity)
   -- if the unit doesn't exist, then initialize it
   if not tracked_entities[entity_type][id] then
     tracked_entities[entity_type][id] = {
-      id = id,
-      entity_type = entity_type,
-      name = entity.name,
-      surface_index = entity.surface.index,
-      position = entity.position,
+      entity = entity,
       chance_to_change = base_percentage_chance,
       attempts_to_change = 0
     }
@@ -120,6 +126,9 @@ local function get_entity_info(entity)
     local key_positions = tracked_entities[entity_type]._key_positions
     table.insert(keys, id)
     key_positions[id] = #keys
+  else
+    -- Update the entity reference in case it changed due to quality upgrade
+    tracked_entities[entity_type][id].entity = entity
   end
 
   -- calculate this fresh every time we lookup entity via get_entity_info
@@ -132,7 +141,7 @@ end
 
 --- Scans all surfaces and populates entity data
 local function scan_and_populate_entities()
-  ensure_tracked_entity_table()
+  debug("scan_and_populate_entities called")
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
       type = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"},
@@ -147,7 +156,7 @@ end
 
 --- Cleans up data for a specific entity that was destroyed
 local function remove_entity_info(entity_type, id)
-  ensure_tracked_entity_table()
+  -- debug("remove_entity_info called for entity_type: " .. entity_type .. ", id: " .. tostring(id))
   if tracked_entities[entity_type] then
     tracked_entities[entity_type][id] = nil
 
@@ -169,22 +178,34 @@ end
 
 --- Checks if an entity should be tracked and adds it if so
 local function on_entity_created(event)
+  debug("on_entity_created called")
   local entity = event.entity or event.created_entity
-  if not entity or not entity.valid then
-    return
-  end
 
   -- Check if it's a type we track and is player owned
   if tracked_types[entity.type] and entity.force == game.forces.player then
-    get_entity_info(entity) -- This will initialize the entity in tracked_entities
+    get_entity_info(entity)
+  end
+end
+
+--- Shows entity-specific quality change alert to the player
+local function show_entity_quality_alert(entity, change_type)
+  debug("show_entity_quality_alert called")
+  local player = game.players[1] -- In single player, this is the player
+  if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
+    local action = change_type == "increase" and "upgraded" or "downgraded"
+    local message = action .. " quality to " .. entity.quality.name
+
+    player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = entity.quality.name}, message, true)
   end
 end
 
 --- Attempts to change the quality of a machine based on chance
 local function attempt_quality_change(entity)
-  local random_roll = math.random()
+  debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
 
-  local entity_info = tracked_entities[entity.type][entity.unit_number]
+  local random_roll = math.random()
+  local entity_info = tracked_entities[entity.type] and tracked_entities[entity.type][entity.unit_number]
+
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
@@ -192,7 +213,7 @@ local function attempt_quality_change(entity)
     if accumulation_percentage > 0 then
       entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * accumulation_percentage / 100)
     end
-    return
+    return nil
   end
 
   -- Store info before creating replacement (entity becomes invalid after fast_replace)
@@ -214,30 +235,81 @@ local function attempt_quality_change(entity)
     direction = entity.direction,
     quality = target_quality,
     fast_replace = true,
-    spill = false
+    spill = false,
+    raise_built=true,
   }
 
+  debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
-    get_entity_info(replacement_entity) -- initialize it's entry
-    -- Clean up old entity data using consistent cleanup function
+    -- don't need to get_entity_info with the new one as the on_creation trigger should handle it
+    -- may need to hook the script on create, but I don't think so
     remove_entity_info(old_entity_type, old_unit_number)
 
-    -- Return change information
-    return replacement_entity
+    -- Show entity-specific alert if successful
+    show_entity_quality_alert(replacement_entity, quality_change_direction)
+
+    -- Return change information including whether it was upgraded or downgraded
+    return {
+      entity = replacement_entity,
+      change_type = quality_change_direction,
+      entity_type = old_entity_type
+    }
   end
 
-  return nil -- we attempted to replace but it failed for some reason
+  return nil -- we attempted to replace but it failed
 end
+
+
+
+--- Shows quality change notifications based on user settings
+local function show_quality_notifications(changes_by_type)
+  debug("show_quality_notifications called")
+  -- Show aggregate console alerts if enabled
+  local player = game.players[1]
+  if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
+    local messages = {}
+
+    for key, count in pairs(changes_by_type) do
+      local entity_type, change_type = key:match("([^_]+)_(.+)")
+      local entity_name = entity_type:gsub("-", " ")
+      local action = change_type == "increase" and "upgraded" or "downgraded"
+      local plural = count > 1 and "s" or ""
+
+      table.insert(messages, count .. " " .. entity_name .. plural .. " " .. action)
+    end
+
+    if #messages > 0 then
+      player.print(table.concat(messages, "\n"))
+    end
+  end
+end
+
+--- Console command to reinitialize storage
+local function reinitialize_quality_control_storage(command)
+  debug("reinitialize_quality_control_storage called")
+
+  ensure_tracked_entity_table(true)
+  scan_and_populate_entities()
+
+  -- Only print message if called from console command (with player context)
+  if command and command.player_index then
+    local player = game.get_player(command.player_index)
+    if player then
+      player.print("Quality Control storage reinitialized. All machines have been rescanned.")
+    end
+  end
+end
+
 
 --- Iterates through all tracked entities and checks if their quality should be changed.
 local function check_and_change_quality()
-  ensure_tracked_entity_table()
+  debug("check_and_change_quality called")
 
-  local entities_checked = 0
-  local changes_attempted = 0
-  local changes_completed = 0
   local total_secondary_attempts = 0
+  local total_invalid_entites = 0
 
+  -- Track changes for notifications
+  local changes_by_type = {} -- For aggregate alerts
 
   -- Primary entities loop
   for _, entity_type in pairs(primary_types) do
@@ -245,16 +317,15 @@ local function check_and_change_quality()
 
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
         if unit_number == "_keys" or unit_number == "_key_positions" then goto continue end
-
-        local surface = game.surfaces[entity_info.surface_index]
-        local entity = surface and surface.find_entity(entity_info.name, entity_info.position)
-        if not entity or not entity.valid or entity.unit_number ~= unit_number then
+        local entity = entity_info.entity
+        if not entity or not entity.valid then
+          debug("entity invalid or unit number changed: valid=" .. tostring(entity and entity.valid) .. ", unit_numbers: " .. tostring(entity and entity.unit_number) .. " vs " .. tostring(unit_number))
           remove_entity_info(entity_type, unit_number)
+          total_invalid_entites = total_invalid_entites + 1
           goto continue
         end
 
         if entity_info.can_change_quality then
-          entities_checked = entities_checked + 1
           local current_recipe = entity.get_recipe()
           if current_recipe then
             local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
@@ -270,11 +341,14 @@ local function check_and_change_quality()
               local successful_change = false
 
               for i = 1, thresholds_passed do
-                changes_attempted = changes_attempted + 1
                 local change_result = attempt_quality_change(entity)
                 if change_result then
-                  changes_completed = changes_completed + 1
                   successful_change = true
+
+                  -- Track the change for notifications
+                  local key = change_result.entity_type .. "_" .. change_result.change_type
+                  changes_by_type[key] = (changes_by_type[key] or 0) + 1
+
                   break -- Stop trying after a success
                 end
               end
@@ -298,28 +372,48 @@ local function check_and_change_quality()
       if tracked_entities[random_type] and tracked_entities[random_type]._keys and #tracked_entities[random_type]._keys > 0 then
         local keys = tracked_entities[random_type]._keys
         local random_id = keys[math.random(#keys)]
-        local random_entity = game.get_entity_by_unit_number(random_id)
+        local entity_info = tracked_entities[random_type][random_id]
 
-        if random_entity and random_entity.valid and get_entity_info(random_entity).can_change_quality then
-          changes_attempted = changes_attempted + 1
-          local random_result = attempt_quality_change(random_entity)
-          if random_result then
-            changes_completed = changes_completed + 1
+        if entity_info then
+          local random_entity = entity_info.entity
+          if random_entity and random_entity.valid and random_entity.unit_number == random_id then
+            -- Update the entity_info to ensure fresh calculations
+            entity_info = get_entity_info(random_entity)
+            if entity_info.can_change_quality then
+              local random_result = attempt_quality_change(random_entity)
+              if random_result then
+                -- Track the change for notifications
+                local key = random_result.entity_type .. "_" .. random_result.change_type
+                changes_by_type[key] = (changes_by_type[key] or 0) + 1
+              end
+            end
+          else
+            -- Clean up invalid entity
+            remove_entity_info(random_type, random_id)
           end
         end
       end
     end
   end
 
-  -- -- Debug output
-  -- game.print("Quality Control Tick: " ..
-  --   "Entities Checked: " .. tostring(entities_checked) ..
-  --   ", Changes Attempted: " .. tostring(changes_attempted) ..
-  --   ", Changes Completed: " .. tostring(changes_completed))
+  -- Show notifications if any changes occurred
+  if next(changes_by_type) then
+    show_quality_notifications(changes_by_type)
+  end
+
+  -- See if we should re-initilize storage.
+  -- If error rate is high then something has gone wonky with tracked_entities; likely a mod change or migration from older version
+  if (total_secondary_attempts == 0 and total_invalid_entites > 3) or
+     (storage.tracked_entities and #storage.tracked_entities < #storage.tracked_types * 3) then
+    debug("Total invalid entities was high: " .. total_invalid_entites)
+    debug("Maybe there was a migration from an old version, re-initialize storage")
+    reinitialize_quality_control_storage()
+  end
 end
 
 --- Displays quality control metrics for the selected entity
 local function show_entity_quality_info(player)
+  debug("show_entity_quality_info called")
   local selected_entity = player.selected
 
   if not selected_entity or not selected_entity.valid then
@@ -369,37 +463,27 @@ end
 
 --- Event handler for quality control inspect shortcut
 local function on_quality_control_inspect(event)
+  debug("on_quality_control_inspect called")
   local player = game.get_player(event.player_index)
   if player then
     show_entity_quality_info(player)
   end
 end
 
---- Console command to reinitialize storage
-local function reinitialize_quality_control_storage(command)
-  local player = game.get_player(command.player_index)
-  if not player then return end
-
-  ensure_tracked_entity_table(true)
-  scan_and_populate_entities()
-  player.print("Quality Control storage reinitialized. All machines have been rescanned.")
-end
-
 --- Registers the nth_tick event based on the current setting
 local function register_nth_tick_event()
-  -- Clear any existing nth_tick registration
-  script.on_nth_tick(nil)
-
+  debug("register_nth_tick_event called")
   -- Get the frequency setting in seconds and convert to ticks (60 ticks = 1 second)
   local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
   local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
 
-  -- Register the new nth_tick event
+  -- Register the new nth_tick event (this will replace any existing handler for this specific tick interval)
   script.on_nth_tick(check_interval_ticks, check_and_change_quality)
 end
 
 --- Event handler for entity destruction - cleans up entity data
 local function on_entity_destroyed(event)
+  debug("on_entity_destroyed called")
   local entity = event.entity
   if entity and entity.valid then
     remove_entity_info(entity.type, entity.unit_number)
@@ -427,28 +511,32 @@ script.on_event("quality-control-inspect-entity", on_quality_control_inspect)
 -- Register console command
 commands.add_command("quality-control-init", "Reinitialize Quality Control storage and rescan all machines", reinitialize_quality_control_storage)
 
--- Initialize quality lookup on first load
+-- Initialize quality lookup on a new game
 script.on_init(function()
+  debug("script.on_init called")
+  ensure_tracked_entity_table()
   scan_and_populate_entities()
   register_nth_tick_event()
 end)
 
 -- Rebuild quality lookup when configuration changes (mods added/removed)
 script.on_configuration_changed(function(event)
-  -- Reset quality lookup cache
-  previous_qualities = {}
-
+  debug("script.on_configuration_changed called")
   -- Reset tracked entities data
-  ensure_tracked_entity_table(true)
-  scan_and_populate_entities()
-
+  reinitialize_quality_control_storage()
   register_nth_tick_event()
 end)
 
 -- Handle runtime setting changes
 script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+  debug("script.on_runtime_mod_setting_changed called for setting: " .. event.setting)
   if event.setting == "upgrade-check-frequency-seconds" then
     register_nth_tick_event()
   end
 end)
 
+script.on_load(function()
+  debug("script.on_load called")
+  register_nth_tick_event() -- register handler when loading a game
+  ensure_tracked_entity_table() -- this should be present but just in case
+end)

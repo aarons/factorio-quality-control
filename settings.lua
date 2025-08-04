@@ -53,16 +53,16 @@ data:extend({
     },
     {
         type = "bool-setting",
-        name = "quality-change-alerts-enabled",
+        name = "quality-change-aggregate-alerts-enabled",
         setting_type = "runtime-per-user",
         default_value = true,
         order = "c-0"
     },
     {
         type = "bool-setting",
-        name = "quality-change-console-messages-enabled",
+        name = "quality-change-entity-alerts-enabled",
         setting_type = "runtime-per-user",
-        default_value = true,
+        default_value = false,
         order = "c-1"
     }
 })
