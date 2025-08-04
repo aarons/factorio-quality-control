@@ -335,27 +335,28 @@ local function check_and_change_quality()
   end
 
   -- Calculate ratios for secondary entities
+  -- This determines, on average, how many changes were attempted as a proportion of the assembly machines or furnaces
+  -- Then we apply the same proportion of attempted changes to other secondary entity types
   local assembling_ratio = assembling_count > 0 and (assembling_attempts / assembling_count) or 0
   local furnace_ratio = furnace_count > 0 and (furnace_attempts / furnace_count) or 0
   local secondary_ratio = math.max(assembling_ratio, furnace_ratio)
 
-  -- Secondary entities loop - proportional attempts
+  -- Secondary entities
   if secondary_ratio > 0 then
     for _, entity_type in pairs(secondary_types) do
       for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
         if entity_info.can_change_quality then
           local entity = entity_info.entity
+
           if not entity or not entity.valid then
             remove_entity_info(entity_type, unit_number)
             total_invalid_entites = total_invalid_entites + 1
             goto continue_secondary
           end
 
-          -- Use ratio to determine if this entity should get an attempt
           if math.random() < secondary_ratio then
             local change_result = attempt_quality_change(entity)
             if change_result then
-              -- Track the change for notifications
               quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
             end
           end
@@ -371,7 +372,7 @@ local function check_and_change_quality()
   end
 
   -- See if we should re-initilize storage.
-  -- If error rate is high then something has gone wonky with tracked_entities; likely a mod change or migration from older version
+  -- If error rate is high then something has gone wonky with tracked_entities; likely a mod change or migration from older data model during development
   if (assembling_attempts + furnace_attempts == 0 and total_invalid_entites > 3) then
     debug("Total invalid entities was high: " .. total_invalid_entites)
     debug("Or there are fewer than expected entities tracked. re-initializing storage")
@@ -395,7 +396,13 @@ local function show_entity_quality_info(player)
   end
 
   local entity_info = get_entity_info(selected_entity)
-  local is_primary_type = selected_entity.type == "assembling-machine" or selected_entity.type == "furnace"
+  local is_primary_type = false
+  for _, type in ipairs(primary_types) do
+    if selected_entity.type == type then
+      is_primary_type = true
+      break
+    end
+  end
   local current_recipe = is_primary_type and selected_entity.get_recipe and selected_entity.get_recipe()
 
   -- Build info message parts
@@ -419,8 +426,8 @@ local function show_entity_quality_info(player)
     local progress_hours = current_hours - previous_hours
     local progress_percentage = math.min(100, (progress_hours / hours_needed) * 100)
 
-    table.insert(info_parts, {"quality-control.progress-to-next", string.format("%.1f", progress_percentage)})
     table.insert(info_parts, {"quality-control.manufacturing-hours", string.format("%.2f", current_hours), string.format("%.2f", hours_needed)})
+    table.insert(info_parts, {"quality-control.progress-to-next", string.format("%.1f", progress_percentage)})
   end
 
   -- Print all info
