@@ -73,13 +73,17 @@ end
 
 --- Initialize the entity tracking table structure
 local function ensure_tracked_entity_table(force_reset)
-  -- debug("ensure_tracked_entity_table called with force_reset=" .. tostring(force_reset))
+  -- Fast path: if tracked_entities exists and no force reset, return immediately
+  if tracked_entities and not force_reset then
+    return
+  end
+
   -- Handle force reset by clearing everything
   if force_reset then
     tracked_entities = nil
   end
 
-  -- Otherwise initialize if tracked_entities is empty
+  -- Initialize if tracked_entities is empty
   if not tracked_entities then
     if not storage.quality_control_entities then
       storage.quality_control_entities = {}
@@ -88,7 +92,9 @@ local function ensure_tracked_entity_table(force_reset)
 
     -- Ensure all entity type tables exist
     for _, entity_type in ipairs(all_tracked_types) do
+      if not tracked_entities[entity_type] then
         tracked_entities[entity_type] = {}
+      end
     end
   end
 end
@@ -137,7 +143,10 @@ end
 
 --- Cleans up data for a specific entity that was destroyed
 local function remove_entity_info(entity_type, id)
-  tracked_entities[entity_type][id] = nil
+  if is_tracked_type[entity_type] then
+    ensure_tracked_entity_table()
+    tracked_entities[entity_type][id] = nil
+  end
 end
 
 --- Checks if an entity should be tracked and adds it if so
@@ -258,6 +267,7 @@ end
 --- Iterates through all tracked entities and checks if their quality should be changed.
 local function check_and_change_quality()
   debug("check_and_change_quality called")
+  ensure_tracked_entity_table()
 
   local total_invalid_entites = 0
 
