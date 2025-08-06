@@ -10,9 +10,13 @@ This is a Factorio mod called "Quality Control" that automatically changes machi
 
 Keep code clear to understand for other engineers. Clarity is more important than brevity or clever solutions.
 
+## Documentation
+
+Always use api-docs-answer agent to answer questions about the API and library.
+
 Correct use of factorio's API is vital; it's very important to validate assumptions about the API because it changes over time.
 
-IMPORTANT: The API documentation is available via context7 with this library ID: "context7/lua-api_factorio-stable"
+IMPORTANT: Use api-docs-answer! Do not use context7 directly as it's output is often too verbose. Some context to share with api-docs-answer is that the factorio library ID is "context7/lua-api_factorio-stable"
 
 ## Architecture
 

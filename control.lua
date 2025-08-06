@@ -41,10 +41,11 @@ local entity_type_config = {
   primary = {
     "assembling-machine",
     "furnace",
-    "rocket-silo",
-    "agricultural-tower"
+    "rocket-silo"
   },
   secondary = {
+    -- Production entities (non-crafting machines)
+    "agricultural-tower",
     -- Logistics and production support
     "mining-drill", "lab", "inserter", "pump", "radar", "roboport",
     -- Belt system
