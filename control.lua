@@ -19,6 +19,7 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 
 --- Setup locally scoped variables
 local debug = false -- Set to true to enable debug logging
+local performance_test = false -- Used to help validate performance tweaks
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
 local tracked_entities -- lookup table for all the entities we might change the quality of
 
@@ -29,18 +30,73 @@ local function debug(message)
   end
 end
 
---- Entity types
-local primary_types = {"assembling-machine", "furnace"}
-local secondary_types = {"mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
--- LUA's approach to concat/construct two tables together is frustrating; for now just hard code this
-local all_tracked_types = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
-
--- Construct is_tracked_type lookup table from the base arrays
--- Has O(1) access time, for quick checks if an entity is a type that we are tracking
+--- Entity types - dynamically built from user settings
+local primary_types = {}
+local secondary_types = {}
+local all_tracked_types = {}
 local is_tracked_type = {}
-for _, entity_type in ipairs(all_tracked_types) do
-  is_tracked_type[entity_type] = true
+
+--- Entity type configuration tables
+local entity_type_config = {
+  primary = {
+    "assembling-machine",
+    "furnace",
+    "rocket-silo",
+    "agricultural-tower"
+  },
+  secondary = {
+    -- Logistics and production support
+    "mining-drill", "lab", "inserter", "pump", "radar", "roboport",
+    -- Belt system
+    "transport-belt", "underground-belt", "splitter", "loader",
+    -- Power infrastructure
+    "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
+    -- Storage and logistics
+    "container", "logistic-container", "storage-tank",
+    -- Pipes and fluid handling
+    "pipe", "pipe-to-ground", "offshore-pump",
+    -- Defense structures
+    "turret", "artillery-turret", "wall", "gate",
+    -- Network and control
+    "beacon", "arithmetic-combinator", "decider-combinator", "constant-combinator", "power-switch", "programmable-speaker",
+    -- Other buildable entities
+    "lamp",
+    -- Space Age entities
+    "lightning-rod", "asteroid-collector", "thruster", "cargo-landing-pad"
+  }
+}
+
+--- Initialize entity types based on settings
+local function initialize_entity_types()
+  -- Clear existing tables
+  primary_types = {}
+  secondary_types = {}
+  all_tracked_types = {}
+  is_tracked_type = {}
+  
+  -- Process primary types
+  for _, entity_type in ipairs(entity_type_config.primary) do
+    local setting_name = "enable-" .. entity_type
+    if settings.startup[setting_name] and settings.startup[setting_name].value then
+      table.insert(primary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+      is_tracked_type[entity_type] = true
+    end
+  end
+  
+  -- Process secondary types
+  for _, entity_type in ipairs(entity_type_config.secondary) do
+    local setting_name = "enable-" .. entity_type
+    if settings.startup[setting_name] and settings.startup[setting_name].value then
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+      is_tracked_type[entity_type] = true
+    end
+  end
 end
+
+-- Initialize entity types on startup
+initialize_entity_types()
 
 --- Setup all values defined in startup settings
 local quality_change_direction = settings.startup["quality-change-direction"].value
@@ -90,7 +146,7 @@ local function ensure_tracked_entity_table(force_reset)
     end
     tracked_entities = storage.quality_control_entities
 
-    -- Ensure all entity type tables exist
+    -- Ensure all entity type tables exist (only for enabled types)
     for _, entity_type in ipairs(all_tracked_types) do
       if not tracked_entities[entity_type] then
         tracked_entities[entity_type] = {}
@@ -105,6 +161,17 @@ local function get_entity_info(entity)
 
   local id = entity.unit_number
   local entity_type = entity.type
+  
+  -- Skip if this entity type is not enabled
+  if not is_tracked_type[entity_type] then
+    return nil
+  end
+  
+  -- Ensure the entity type table exists in tracked_entities
+  if not tracked_entities[entity_type] then
+    tracked_entities[entity_type] = {}
+  end
+  
   local previous_quality = get_previous_quality(entity.quality)
   local can_increase = quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = quality_change_direction == "decrease" and previous_quality ~= nil
@@ -117,8 +184,9 @@ local function get_entity_info(entity)
       attempts_to_change = 0,
       can_change_quality = can_increase or can_decrease
     }
-    -- Only assembling machines and furnaces track manufacturing hours
-    if entity_type == "assembling-machine" or entity_type == "furnace" then
+    -- Only primary entity types track manufacturing hours  
+    if entity_type == "assembling-machine" or entity_type == "furnace" or 
+       entity_type == "rocket-silo" or entity_type == "agricultural-tower" then
       tracked_entities[entity_type][id].manufacturing_hours = 0
     end
   end
@@ -129,6 +197,12 @@ end
 --- Scans all surfaces and populates entity data
 local function scan_and_populate_entities()
   debug("scan_and_populate_entities called")
+  -- Skip if no entity types are enabled
+  if #all_tracked_types == 0 then
+    debug("No entity types enabled, skipping scan")
+    return
+  end
+  
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
       type = all_tracked_types,
@@ -156,7 +230,7 @@ local function on_entity_created(event)
 
   -- Check if it's a type we track and is player owned
   if is_tracked_type[entity.type] and entity.force == game.forces.player then
-    get_entity_info(entity)
+    get_entity_info(entity)  -- Will return nil if type is disabled, which is fine
   end
 end
 
@@ -267,6 +341,13 @@ end
 --- Iterates through all tracked entities and checks if their quality should be changed.
 local function check_and_change_quality()
   debug("check_and_change_quality called")
+  
+  -- Skip if no entity types are enabled
+  if #all_tracked_types == 0 then
+    debug("No entity types enabled, skipping quality check")
+    return
+  end
+  
   ensure_tracked_entity_table()
 
   local total_invalid_entites = 0
@@ -275,10 +356,8 @@ local function check_and_change_quality()
   local quality_changes = {} -- For aggregate alerts
 
   -- Track primary entity attempts and counts for ratio calculation
-  local assembling_attempts = 0
-  local assembling_count = 0
-  local furnace_attempts = 0
-  local furnace_count = 0
+  local primary_attempts = 0
+  local primary_count = 0
 
   -- Primary entities loop
   for _, entity_type in pairs(primary_types) do
@@ -294,11 +373,7 @@ local function check_and_change_quality()
         end
 
         -- Count entities for ratio calculation
-        if entity_type == "assembling-machine" then
-          assembling_count = assembling_count + 1
-        elseif entity_type == "furnace" then
-          furnace_count = furnace_count + 1
-        end
+        primary_count = primary_count + 1
 
         if entity_info.can_change_quality then
           local current_recipe = entity.get_recipe()
@@ -313,11 +388,7 @@ local function check_and_change_quality()
 
             if thresholds_passed > 0 then
               -- Track attempts for ratio calculation
-              if entity_type == "assembling-machine" then
-                assembling_attempts = assembling_attempts + thresholds_passed
-              elseif entity_type == "furnace" then
-                furnace_attempts = furnace_attempts + thresholds_passed
-              end
+              primary_attempts = primary_attempts + thresholds_passed
 
               local successful_change = false
 
@@ -346,33 +417,33 @@ local function check_and_change_quality()
   end
 
   -- Calculate ratios for secondary entities
-  -- This determines, on average, how many changes were attempted as a proportion of the assembly machines or furnaces
-  -- Then we apply the same proportion of attempted changes to other secondary entity types
-  local assembling_ratio = assembling_count > 0 and (assembling_attempts / assembling_count) or 0
-  local furnace_ratio = furnace_count > 0 and (furnace_attempts / furnace_count) or 0
-  local secondary_ratio = math.max(assembling_ratio, furnace_ratio)
+  -- This determines, on average, how many changes were attempted as a proportion of primary entities
+  -- Then we apply the same proportion of attempted changes to secondary entity types
+  local secondary_ratio = primary_count > 0 and (primary_attempts / primary_count) or 0
 
   -- Secondary entities
   if secondary_ratio > 0 then
     for _, entity_type in pairs(secondary_types) do
-      for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
-        if entity_info.can_change_quality then
-          local entity = entity_info.entity
+      if tracked_entities[entity_type] then  -- Check if this entity type has data
+        for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
+          if entity_info.can_change_quality then
+            local entity = entity_info.entity
 
-          if not entity or not entity.valid then
-            remove_entity_info(entity_type, unit_number)
-            total_invalid_entites = total_invalid_entites + 1
-            goto continue_secondary
-          end
+            if not entity or not entity.valid then
+              remove_entity_info(entity_type, unit_number)
+              total_invalid_entites = total_invalid_entites + 1
+              goto continue_secondary
+            end
 
-          if math.random() < secondary_ratio then
-            local change_result = attempt_quality_change(entity)
-            if change_result then
-              quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+            if math.random() < secondary_ratio then
+              local change_result = attempt_quality_change(entity)
+              if change_result then
+                quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+              end
             end
           end
+          ::continue_secondary::
         end
-        ::continue_secondary::
       end
     end
   end
@@ -384,7 +455,7 @@ local function check_and_change_quality()
 
   -- See if we should re-initilize storage.
   -- If error rate is high then something has gone wonky with tracked_entities; likely a mod change or migration from older data model during development
-  if (assembling_attempts + furnace_attempts == 0 and total_invalid_entites > 3) then
+  if (primary_attempts == 0 and total_invalid_entites > 3) then
     debug("Total invalid entities was high: " .. total_invalid_entites)
     debug("Or there are fewer than expected entities tracked. re-initializing storage")
     reinitialize_quality_control_storage()
@@ -415,6 +486,12 @@ local function show_entity_quality_info(player)
   end
 
   local entity_info = get_entity_info(selected_entity)
+
+  -- Check if entity info is nil (entity type is disabled)
+  if not entity_info then
+    player.print({"quality-control.entity-type-disabled", selected_entity.localised_name or selected_entity.name})
+    return
+  end
   local is_primary_type = false
   for _, entity_type in ipairs(primary_types) do
     if selected_entity.type == entity_type then
