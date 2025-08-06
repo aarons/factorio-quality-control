@@ -12,11 +12,11 @@ Keep code clear to understand for other engineers. Clarity is more important tha
 
 ## Documentation
 
-Always use api-docs-answer agent to answer questions about the API and library.
+Always use answer-agent questions about how the API works or to search answers online about anything you need to know on developing factorio mods.
 
 Correct use of factorio's API is vital; it's very important to validate assumptions about the API because it changes over time.
 
-IMPORTANT: Use api-docs-answer! Do not use context7 directly as it's output is often too verbose. Some context to share with api-docs-answer is that the factorio library ID is "context7/lua-api_factorio-stable"
+IMPORTANT: Use answer-agent for looking up information! Do not use context7 directly as it's output is often too verbose. Some context to share with answer-agent is that the factorio library ID is "context7/lua-api_factorio-stable"
 
 ## Architecture
 
