@@ -18,14 +18,24 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 ]]
 
 --- Setup locally scoped variables
-local debug = false -- Set to true to enable debug logging
-local performance_test = false -- Used to help validate performance tweaks
+local debug_enabled = false -- Set to true to enable debug logging
+local performance_test = true -- Used to help validate performance tweaks
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
 local tracked_entities -- lookup table for all the entities we might change the quality of
 
+-- Batch processing state
+local batch_state = {
+  current_surface_index = 1,
+  current_type_index = 1,
+  is_processing_secondary = false,
+  entities_processed_this_batch = 0,
+  current_entities = nil, -- Current batch of entities from find_entities_filtered
+  current_entity_index = 1
+}
+
 --- Helper function for debug logging
 local function debug(message)
-  if debug then
+  if debug_enabled then
     log("debug: " .. message)
   end
 end
@@ -74,7 +84,7 @@ local function initialize_entity_types()
   secondary_types = {}
   all_tracked_types = {}
   is_tracked_type = {}
-  
+
   -- Process primary types
   for _, entity_type in ipairs(entity_type_config.primary) do
     local setting_name = "enable-" .. entity_type
@@ -84,7 +94,7 @@ local function initialize_entity_types()
       is_tracked_type[entity_type] = true
     end
   end
-  
+
   -- Process secondary types
   for _, entity_type in ipairs(entity_type_config.secondary) do
     local setting_name = "enable-" .. entity_type
@@ -158,7 +168,7 @@ local function get_next_quality(current_quality)
     -- Always downgrade
     return get_previous_quality(current_quality)
   end
-  
+
   -- Fallback to upgrade (shouldn't happen)
   return current_quality.next
 end
@@ -193,21 +203,21 @@ end
 
 --- Gets or creates entity metrics for a specific entity
 local function get_entity_info(entity)
-  debug("get_entity_info called for entity type: " .. (entity.type or "unknown"))
+  -- debug("get_entity_info called for entity type: " .. (entity.type or "unknown"))
 
   local id = entity.unit_number
   local entity_type = entity.type
-  
+
   -- Skip if this entity type is not enabled
   if not is_tracked_type[entity_type] then
     return nil
   end
-  
+
   -- Ensure the entity type table exists in tracked_entities
   if not tracked_entities[entity_type] then
     tracked_entities[entity_type] = {}
   end
-  
+
   local previous_quality = get_previous_quality(entity.quality)
   local can_increase = entity.quality.next ~= nil
   local can_decrease = previous_quality ~= nil
@@ -220,9 +230,9 @@ local function get_entity_info(entity)
       attempts_to_change = 0,
       can_change_quality = can_increase or can_decrease
     }
-    -- Only primary entity types track manufacturing hours  
-    if entity_type == "assembling-machine" or entity_type == "furnace" or 
-       entity_type == "rocket-silo" or entity_type == "agricultural-tower" then
+    -- Only primary entity types track manufacturing hours
+    if entity_type == "assembling-machine" or entity_type == "furnace" or
+       entity_type == "rocket-silo" then
       tracked_entities[entity_type][id].manufacturing_hours = 0
     end
   end
@@ -230,26 +240,6 @@ local function get_entity_info(entity)
   return tracked_entities[entity_type][id]
 end
 
---- Scans all surfaces and populates entity data
-local function scan_and_populate_entities()
-  debug("scan_and_populate_entities called")
-  -- Skip if no entity types are enabled
-  if #all_tracked_types == 0 then
-    debug("No entity types enabled, skipping scan")
-    return
-  end
-  
-  for _, surface in pairs(game.surfaces) do
-    local entities = surface.find_entities_filtered{
-      type = all_tracked_types,
-      force = game.forces.player
-    }
-
-    for _, entity in ipairs(entities) do
-      get_entity_info(entity) -- This will initialize the entity in tracked_entities
-    end
-  end
-end
 
 --- Cleans up data for a specific entity that was destroyed
 local function remove_entity_info(entity_type, id)
@@ -259,20 +249,10 @@ local function remove_entity_info(entity_type, id)
   end
 end
 
---- Checks if an entity should be tracked and adds it if so
-local function on_entity_created(event)
-  debug("on_entity_created called")
-  local entity = event.entity or event.created_entity
-
-  -- Check if it's a type we track and is player owned
-  if is_tracked_type[entity.type] and entity.force == game.forces.player then
-    get_entity_info(entity)  -- Will return nil if type is disabled, which is fine
-  end
-end
 
 --- Shows entity-specific quality change alert to the player
 local function show_entity_quality_alert(entity, old_quality)
-  debug("show_entity_quality_alert called")
+  -- debug("show_entity_quality_alert called")
   local player = game.players[1] -- In single player, this is the player
   if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
     local action = entity.quality.level > old_quality.level and "upgraded" or "downgraded"
@@ -284,11 +264,14 @@ end
 
 --- Attempts to change the quality of a machine based on chance
 local function attempt_quality_change(entity)
-  debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
+  -- debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
+
+  local entity_info = get_entity_info(entity)
+  if not entity_info then
+    return nil
+  end
 
   local random_roll = math.random()
-  local entity_info = tracked_entities[entity.type][entity.unit_number]
-
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
@@ -306,7 +289,7 @@ local function attempt_quality_change(entity)
 
   -- Determine target quality based on difficulty setting
   local target_quality = get_next_quality(entity.quality)
-  
+
   -- Skip if target quality is nil (at boundary of quality chain)
   if not target_quality then
     return nil
@@ -323,7 +306,7 @@ local function attempt_quality_change(entity)
     raise_built=true,
   }
 
-  debug("replacement_entity valid: " .. tostring(replacement_entity))
+  -- debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
     remove_entity_info(old_entity_type, old_unit_number)
     show_entity_quality_alert(replacement_entity, old_quality)
@@ -343,7 +326,7 @@ end
 
 --- Shows quality change notifications based on user settings
 local function show_quality_notifications(quality_changes)
-  debug("show_quality_notifications called")
+  -- debug("show_quality_notifications called")
   -- Show aggregate console alerts if enabled
   local player = game.players[1]
   if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
@@ -377,162 +360,240 @@ end
 
 --- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
-  debug("reinitialize_quality_control_storage called")
+  -- debug("reinitialize_quality_control_storage called")
 
   ensure_tracked_entity_table(true)
-  scan_and_populate_entities()
 
   -- Only print message if called from console command (with player context)
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
-      player.print("Quality Control storage reinitialized. All machines have been rescanned.")
+      player.print("Quality Control storage reinitialized.")
     end
   end
 end
 
 
---- Iterates through all tracked entities and checks if their quality should be changed.
+-- Global state for batch processing
+local batch_processing_state = {
+  primary_attempts = 0,
+  primary_count = 0,
+  quality_changes = {},
+  cycle_complete = false
+}
+
+--- Gets the next batch of entities to process, limited to max_entities
+local function get_next_entity_batch(max_entities)
+  local surfaces = {}
+  for _, surface in pairs(game.surfaces) do
+    table.insert(surfaces, surface)
+  end
+
+  -- If we need fresh entities or finished current batch
+  if not batch_state.current_entities or batch_state.current_entity_index > #batch_state.current_entities then
+    -- Get the appropriate entity type list
+    local type_list = batch_state.is_processing_secondary and secondary_types or primary_types
+
+    -- Check if we need to move to next type or surface
+    if batch_state.current_type_index > #type_list then
+      -- Move to next processing phase or surface
+      if not batch_state.is_processing_secondary then
+        -- Switch to secondary types
+        batch_state.is_processing_secondary = true
+        batch_state.current_type_index = 1
+        -- Don't reset surface index - continue on same surface
+        type_list = secondary_types
+      else
+        -- Move to next surface
+        batch_state.current_surface_index = batch_state.current_surface_index + 1
+        batch_state.current_type_index = 1
+        batch_state.is_processing_secondary = false
+
+        -- Check if we've processed all surfaces
+        if batch_state.current_surface_index > #surfaces then
+          -- Complete cycle, reset state
+          batch_state.current_surface_index = 1
+          batch_state.current_type_index = 1
+          batch_state.is_processing_secondary = false
+          batch_processing_state.cycle_complete = true
+          return nil -- Signal cycle completion
+        end
+        type_list = primary_types
+      end
+    end
+
+    -- Skip if no types to process
+    if #type_list == 0 then
+      return nil
+    end
+
+    local current_surface = surfaces[batch_state.current_surface_index]
+    local current_type = type_list[batch_state.current_type_index]
+
+    -- Find entities of current type on current surface
+    local entity_count = current_surface.count_entities_filtered{
+      type = current_type,
+      force = game.forces.player
+    }
+    debug("Found " .. entity_count .. " entities of type '" .. current_type .. "' on surface '" .. current_surface.name .. "'")
+
+    batch_state.current_entities = current_surface.find_entities_filtered{
+      type = current_type,
+      force = game.forces.player
+    }
+
+    batch_state.current_entity_index = 1
+    batch_state.current_type_index = batch_state.current_type_index + 1
+  end
+
+  -- Extract batch of entities up to max_entities
+  local batch = {}
+  local remaining = max_entities
+
+  while remaining > 0 and batch_state.current_entities and batch_state.current_entity_index <= #batch_state.current_entities do
+    table.insert(batch, batch_state.current_entities[batch_state.current_entity_index])
+    batch_state.current_entity_index = batch_state.current_entity_index + 1
+    remaining = remaining - 1
+  end
+
+  return batch
+end
+
+--- Process a batch of entities for quality changes
+local function process_entity_batch(entities)
+  ensure_tracked_entity_table()
+
+  for _, entity in ipairs(entities) do
+    if not entity or not entity.valid then
+      goto continue
+    end
+
+    local entity_info = get_entity_info(entity)
+    if not entity_info or not entity_info.can_change_quality then
+      goto continue
+    end
+
+    local entity_type = entity.type
+    local is_primary = false
+
+    -- Check if this is a primary type
+    for _, primary_type in ipairs(primary_types) do
+      if entity_type == primary_type then
+        is_primary = true
+        break
+      end
+    end
+
+    if is_primary then
+      -- Process primary entity with manufacturing hours logic
+      batch_processing_state.primary_count = batch_processing_state.primary_count + 1
+
+      local current_recipe = entity.get_recipe and entity.get_recipe()
+      if current_recipe then
+        local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
+        local recipe_time = current_recipe.prototype.energy
+        local current_hours = (entity.products_finished * recipe_time) / 3600
+        local previous_hours = entity_info.manufacturing_hours or 0
+
+        local available_hours = current_hours - previous_hours
+        local thresholds_passed = math.floor(available_hours / hours_needed)
+
+        if thresholds_passed > 0 then
+          batch_processing_state.primary_attempts = batch_processing_state.primary_attempts + thresholds_passed
+
+          local successful_change = false
+          for _ = 1, thresholds_passed do
+            local change_result = attempt_quality_change(entity)
+            if change_result then
+              successful_change = true
+
+              -- Track the change for notifications
+              if not batch_processing_state.quality_changes[change_result.entity.name] then
+                batch_processing_state.quality_changes[change_result.entity.name] = {upgrades = 0, downgrades = 0}
+              end
+              if change_result.new_quality_level > change_result.old_quality_level then
+                batch_processing_state.quality_changes[change_result.entity.name].upgrades = batch_processing_state.quality_changes[change_result.entity.name].upgrades + 1
+              else
+                batch_processing_state.quality_changes[change_result.entity.name].downgrades = batch_processing_state.quality_changes[change_result.entity.name].downgrades + 1
+              end
+
+              break -- Stop trying after a success
+            end
+          end
+
+          -- If no change was made, update the manufacturing hours floor
+          if not successful_change then
+            entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
+          end
+        end
+      end
+    else
+      -- Process secondary entity with ratio-based logic
+      local secondary_ratio = batch_processing_state.primary_count > 0 and (batch_processing_state.primary_attempts / batch_processing_state.primary_count) or 0
+
+      if secondary_ratio > 0 and math.random() < secondary_ratio then
+        local change_result = attempt_quality_change(entity)
+        if change_result then
+          if not batch_processing_state.quality_changes[change_result.entity.name] then
+            batch_processing_state.quality_changes[change_result.entity.name] = {upgrades = 0, downgrades = 0}
+          end
+          if change_result.new_quality_level > change_result.old_quality_level then
+            batch_processing_state.quality_changes[change_result.entity.name].upgrades = batch_processing_state.quality_changes[change_result.entity.name].upgrades + 1
+          else
+            batch_processing_state.quality_changes[change_result.entity.name].downgrades = batch_processing_state.quality_changes[change_result.entity.name].downgrades + 1
+          end
+        end
+      end
+    end
+
+    ::continue::
+  end
+end
+
+--- Main batch processing function called on nth_tick
 local function check_and_change_quality()
-  debug("check_and_change_quality called")
-  
+  -- debug("check_and_change_quality called")
+
   -- Skip if no entity types are enabled
   if #all_tracked_types == 0 then
     debug("No entity types enabled, skipping quality check")
     return
   end
-  
-  ensure_tracked_entity_table()
 
-  local total_invalid_entites = 0
-
-  -- Track changes for notifications
-  local quality_changes = {} -- For aggregate alerts
-
-  -- Track primary entity attempts and counts for ratio calculation
-  local primary_attempts = 0
-  local primary_count = 0
-
-  -- Primary entities loop
-  for _, entity_type in pairs(primary_types) do
-    if tracked_entities[entity_type] then
-
-      for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
-        local entity = entity_info.entity
-        if not entity or not entity.valid then
-          debug("entity invalid or unit number changed: valid=" .. tostring(entity and entity.valid) .. ", unit_numbers: " .. tostring(entity and entity.unit_number) .. " vs " .. tostring(unit_number))
-          remove_entity_info(entity_type, unit_number)
-          total_invalid_entites = total_invalid_entites + 1
-          goto continue
-        end
-
-        -- Count entities for ratio calculation
-        primary_count = primary_count + 1
-
-        if entity_info.can_change_quality then
-          local current_recipe = entity.get_recipe()
-          if current_recipe then
-            local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
-            local recipe_time = current_recipe.prototype.energy
-            local current_hours = (entity.products_finished * recipe_time) / 3600
-            local previous_hours = entity_info.manufacturing_hours or 0
-
-            local available_hours = current_hours - previous_hours
-            local thresholds_passed = math.floor(available_hours / hours_needed)
-
-            if thresholds_passed > 0 then
-              -- Track attempts for ratio calculation
-              primary_attempts = primary_attempts + thresholds_passed
-
-              local successful_change = false
-
-              for i = 1, thresholds_passed do
-                local change_result = attempt_quality_change(entity)
-                if change_result then
-                  successful_change = true
-
-                  -- Track the change for notifications
-                  if not quality_changes[change_result.entity.name] then
-                    quality_changes[change_result.entity.name] = {upgrades = 0, downgrades = 0}
-                  end
-                  if change_result.new_quality_level > change_result.old_quality_level then
-                    quality_changes[change_result.entity.name].upgrades = quality_changes[change_result.entity.name].upgrades + 1
-                  else
-                    quality_changes[change_result.entity.name].downgrades = quality_changes[change_result.entity.name].downgrades + 1
-                  end
-
-                  break -- Stop trying after a success
-                end
-              end
-
-              -- If no change was made, update the manufacturing hours floor
-              if not successful_change then
-                entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
-              end
-            end
-          end
-        end
-        ::continue::
-      end
+  -- Reset state at start of new cycle
+  if batch_processing_state.cycle_complete then
+    -- Show notifications from previous cycle
+    if next(batch_processing_state.quality_changes) then
+      show_quality_notifications(batch_processing_state.quality_changes)
     end
+
+    debug("Cycle complete - processed " .. batch_state.entities_processed_this_batch .. " total entities")
+
+    -- Reset for new cycle
+    batch_processing_state.primary_attempts = 0
+    batch_processing_state.primary_count = 0
+    batch_processing_state.quality_changes = {}
+    batch_processing_state.cycle_complete = false
+    batch_state.entities_processed_this_batch = 0
+
+    debug("Starting new batch processing cycle")
   end
 
-  -- Calculate ratios for secondary entities
-  -- This determines, on average, how many changes were attempted as a proportion of primary entities
-  -- Then we apply the same proportion of attempted changes to secondary entity types
-  local secondary_ratio = primary_count > 0 and (primary_attempts / primary_count) or 0
+  -- Get and process next batch (max 1000 entities)
+  local batch = get_next_entity_batch(1000)
+  if batch and #batch > 0 then
+    batch_state.entities_processed_this_batch = batch_state.entities_processed_this_batch + #batch
+    debug("Processing batch: " .. #batch .. " entities (total: " .. batch_state.entities_processed_this_batch .. ")")
 
-  -- Secondary entities
-  if secondary_ratio > 0 then
-    for _, entity_type in pairs(secondary_types) do
-      if tracked_entities[entity_type] then  -- Check if this entity type has data
-        for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
-          if entity_info.can_change_quality then
-            local entity = entity_info.entity
-
-            if not entity or not entity.valid then
-              remove_entity_info(entity_type, unit_number)
-              total_invalid_entites = total_invalid_entites + 1
-              goto continue_secondary
-            end
-
-            if math.random() < secondary_ratio then
-              local change_result = attempt_quality_change(entity)
-              if change_result then
-                if not quality_changes[change_result.entity.name] then
-                  quality_changes[change_result.entity.name] = {upgrades = 0, downgrades = 0}
-                end
-                if change_result.new_quality_level > change_result.old_quality_level then
-                  quality_changes[change_result.entity.name].upgrades = quality_changes[change_result.entity.name].upgrades + 1
-                else
-                  quality_changes[change_result.entity.name].downgrades = quality_changes[change_result.entity.name].downgrades + 1
-                end
-              end
-            end
-          end
-          ::continue_secondary::
-        end
-      end
-    end
-  end
-
-  -- Show notifications if any changes occurred
-  if next(quality_changes) then
-    show_quality_notifications(quality_changes)
-  end
-
-  -- See if we should re-initilize storage.
-  -- If error rate is high then something has gone wonky with tracked_entities; likely a mod change or migration from older data model during development
-  if (primary_attempts == 0 and total_invalid_entites > 3) then
-    debug("Total invalid entities was high: " .. total_invalid_entites)
-    debug("Or there are fewer than expected entities tracked. re-initializing storage")
-    reinitialize_quality_control_storage()
+    process_entity_batch(batch)
+  elseif not batch then
+    debug("No more entities in batch - cycle completing")
   end
 end
 
 --- Displays quality control metrics for the selected entity
 local function show_entity_quality_info(player)
-  debug("show_entity_quality_info called")
+  -- debug("show_entity_quality_info called")
   local selected_entity = player.selected
 
   if not selected_entity or not selected_entity.valid then
@@ -602,7 +663,7 @@ end
 
 --- Event handler for quality control inspect shortcut
 local function on_quality_control_inspect(event)
-  debug("on_quality_control_inspect called")
+  -- debug("on_quality_control_inspect called")
   local player = game.get_player(event.player_index)
   if player then
     show_entity_quality_info(player)
@@ -611,9 +672,9 @@ end
 
 --- Registers the nth_tick event based on the current setting
 local function register_nth_tick_event()
-  debug("register_nth_tick_event called")
+  -- debug("register_nth_tick_event called")
   local check_interval_ticks
-  
+
   -- Override to 1 tick when performance testing
   if performance_test then
     check_interval_ticks = 1
@@ -629,20 +690,13 @@ end
 
 --- Event handler for entity destruction - cleans up entity data
 local function on_entity_destroyed(event)
-  debug("on_entity_destroyed called")
+  -- debug("on_entity_destroyed called")
   local entity = event.entity
   if entity and entity.valid then
     remove_entity_info(entity.type, entity.unit_number)
   end
 end
 
--- Register event handlers for entity creation
-script.on_event(defines.events.on_built_entity, on_entity_created)
-script.on_event(defines.events.on_robot_built_entity, on_entity_created)
-script.on_event(defines.events.on_space_platform_built_entity, on_entity_created)
-script.on_event(defines.events.script_raised_built, on_entity_created)
-script.on_event(defines.events.script_raised_revive, on_entity_created)
-script.on_event(defines.events.on_entity_cloned, on_entity_created)
 
 -- Register event handlers for entity destruction/deconstruction
 script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed)
@@ -661,7 +715,6 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 script.on_init(function()
   debug("script.on_init called")
   ensure_tracked_entity_table()
-  scan_and_populate_entities()
   register_nth_tick_event()
 end)
 
