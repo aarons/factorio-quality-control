@@ -612,9 +612,16 @@ end
 --- Registers the nth_tick event based on the current setting
 local function register_nth_tick_event()
   debug("register_nth_tick_event called")
-  -- Get the frequency setting in seconds and convert to ticks (60 ticks = 1 second)
-  local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
-  local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
+  local check_interval_ticks
+  
+  -- Override to 1 tick when performance testing
+  if performance_test then
+    check_interval_ticks = 1
+  else
+    -- Get the frequency setting in seconds and convert to ticks (60 ticks = 1 second)
+    local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
+    check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
+  end
 
   -- Register the new nth_tick event (this will replace any existing handler for this specific tick interval)
   script.on_nth_tick(check_interval_ticks, check_and_change_quality)
