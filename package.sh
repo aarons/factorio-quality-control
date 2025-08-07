@@ -32,8 +32,8 @@ PACKAGE_DIR="$MOD_NAME"_"$MOD_VERSION"
 FULL_PACKAGE_DIR="$TMP_DIR/$PACKAGE_DIR"
 mkdir -p "$FULL_PACKAGE_DIR"
 
-# Copy all files to the temporary directory, excluding .git
-rsync -av --exclude='.git' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' --exclude='.claude*' ./ "$FULL_PACKAGE_DIR/"
+# Copy all files to the temporary directory, excluding .git and development files
+rsync -av --exclude='.git' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' --exclude='.claude*' --exclude='calculators/' ./ "$FULL_PACKAGE_DIR/"
 
 # Create the zip file
 (

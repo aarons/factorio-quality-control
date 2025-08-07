@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factorio Quality Control Calculator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+        
+        .controls {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .controls h2 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .setting-group {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .setting-group label {
+            font-weight: 600;
+            color: #2c3e50;
+            min-width: 150px;
+        }
+        
+        .input-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .slider {
+            width: 300px;
+            height: 8px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+        }
+        
+        .slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3498db;
+            cursor: pointer;
+            border: none;
+        }
+        
+        .number-input {
+            width: 80px;
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #2c3e50;
+            text-align: center;
+        }
+        
+        .number-input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .input-suffix {
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 30px;
+        }
+        
+        .example-card {
+            background: white;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .example-card h3 {
+            margin-top: 0;
+            color: #2c3e50;
+            border-bottom: 2px solid #e74c3c;
+            padding-bottom: 10px;
+            font-size: 1.3em;
+        }
+        
+        .mid-game h3 { border-bottom-color: #f39c12; }
+        .late-game h3 { border-bottom-color: #27ae60; }
+        
+        .machine-setup {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        
+        .machine-setup strong {
+            color: #2c3e50;
+        }
+        
+        .timing-results {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .timing-results .highlight {
+            font-weight: bold;
+            color: #2980b9;
+            font-size: 1.1em;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding: 20px;
+            color: #666;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Factorio Quality Control Calculator</h1>
+        <p>See how different settings impact your machine quality changes across game progression</p>
+    </div>
+
+    <div class="controls">
+        <h2>Settings</h2>
+        <div class="setting-group">
+            <label for="chanceInput">Chance of Change:</label>
+            <div class="input-container">
+                <input type="range" id="chanceSlider" class="slider" min="0.0001" max="100" step="0.0001" value="1">
+                <input type="number" id="chanceInput" class="number-input" min="0.0001" max="100" step="0.0001" value="1">
+                <span class="input-suffix">%</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="examples">
+        <div class="example-card early-game">
+            <h3>Early Game</h3>
+            <div class="machine-setup">
+                <strong>Common Assembler 1</strong><br>
+                Speed: 0.5
+            </div>
+            <div class="timing-results" id="early1-timing">
+                <div>Chance every <span class="highlight" id="early1-interval">2.0 hours</span></div>
+                <div>Average change after <span class="highlight" id="early1-average">138 hours</span></div>
+            </div>
+
+            <div class="machine-setup">
+                <strong>Common Assembler 3</strong><br>
+                Speed: 1.25
+            </div>
+            <div class="timing-results" id="early3-timing">
+                <div>Chance every <span class="highlight" id="early3-interval">48 minutes</span></div>
+                <div>Average change after <span class="highlight" id="early3-average">55 hours</span></div>
+            </div>
+        </div>
+
+        <div class="example-card mid-game">
+            <h3>Mid Game</h3>
+            <div class="machine-setup">
+                <strong>Common Assembler 3</strong><br>
+                4x Speed 2 modules (+120%)<br>
+                2x beacons with Speed 2 modules<br>
+                Final speed: 4.34
+            </div>
+            <div class="timing-results" id="mid-timing">
+                <div>Chance every <span class="highlight" id="mid-interval">14 minutes</span></div>
+                <div>Average change after <span class="highlight" id="mid-average">16 hours</span></div>
+            </div>
+        </div>
+
+        <div class="example-card late-game">
+            <h3>Late Game</h3>
+            <div class="machine-setup">
+                <strong>Epic Foundry</strong><br>
+                4x Rare Speed 3 modules<br>
+                4x rare beacons with Speed 3 modules<br>
+                Final speed: 78.1
+            </div>
+            <div class="timing-results" id="late-timing">
+                <div>Chance every <span class="highlight" id="late-interval">46 seconds</span></div>
+                <div>Average change after <span class="highlight" id="late-average">53 minutes</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>This calculator is based on the Factorio Quality Control mod. Values are calculated using the expected number of attempts (69 for 1% chance) and machine speeds including modules and beacon effects.</p>
+    </div>
+
+    <script>
+        // Machine configurations
+        const machines = {
+            assembler1: { speed: 0.5 },
+            assembler3: { speed: 1.25 },
+            assembler3Mid: { speed: 4.34 }, // From calc_mid_game.py with corrected Speed 2 bonus (30%)
+            epicFoundry: { speed: 78.1 }   // From calc_late_game.py
+        };
+
+        function calculateExpectedAttempts(chancePercent) {
+            // For 50% probability of success: -ln(0.5) / ln(1 - p)
+            // This gives the number of attempts for 50% chance of at least one success
+            // For 1% chance, this gives approximately 69 attempts
+            const p = chancePercent / 100;
+            return Math.log(0.5) / Math.log(1 - p);
+        }
+
+        function formatTime(hours) {
+            // Handle negative values (shouldn't happen, but just in case)
+            if (hours < 0) hours = Math.abs(hours);
+            
+            if (hours < 1) {
+                const minutes = Math.round(hours * 60);
+                if (minutes === 1) return "1 minute";
+                return `${minutes} minutes`;
+            }
+            
+            if (hours < 3) {
+                // For hours less than 3, show hours and minutes: "1 hour 33 minutes"
+                const wholeHours = Math.floor(hours);
+                const minutes = Math.round((hours - wholeHours) * 60);
+                
+                if (minutes === 0) {
+                    return wholeHours === 1 ? "1 hour" : `${wholeHours} hours`;
+                } else {
+                    const hourText = wholeHours === 1 ? "1 hour" : `${wholeHours} hours`;
+                    const minuteText = minutes === 1 ? "1 minute" : `${minutes} minutes`;
+                    return `${hourText} ${minuteText}`;
+                }
+            }
+            
+            if (hours < 10) {
+                // For hours 3-10, show 1 decimal: "7.3 hours"
+                const rounded = Math.round(hours * 10) / 10;
+                return `${rounded} hours`;
+            }
+            
+            // For hours 10+, show no decimals: "22 hours", "138 hours"
+            return `${Math.round(hours)} hours`;
+        }
+
+        function formatInterval(hours) {
+            if (hours < 1) {
+                const minutes = hours * 60;
+                if (minutes < 1) {
+                    const seconds = Math.round(minutes * 60);
+                    return seconds === 1 ? "1 second" : `${seconds} seconds`;
+                }
+                const roundedMinutes = Math.round(minutes);
+                return roundedMinutes === 1 ? "1 minute" : `${roundedMinutes} minutes`;
+            }
+            
+            const roundedHours = Math.round(hours * 10) / 10;
+            return roundedHours === 1 ? "1 hour" : `${roundedHours} hours`;
+        }
+
+        function updateTimingDisplay(containerId, interval, chancePercent) {
+            const container = document.getElementById(containerId);
+            
+            if (chancePercent === 100) {
+                // At 100%, show single line
+                container.innerHTML = `<div>Will change quality every <span class="highlight">${formatInterval(interval)}</span> of gameplay</div>`;
+            } else {
+                // Normal display for < 100%
+                const expectedAttempts = calculateExpectedAttempts(chancePercent);
+                // Average time must be at least the interval (you need at least one attempt)
+                const averageTime = Math.max(interval, expectedAttempts * interval);
+                
+                // Display the same format for all containers
+                container.innerHTML = `
+                    <div>Chance every <span class="highlight">${formatInterval(interval)}</span></div>
+                    <div>Average change after <span class="highlight">${formatTime(averageTime)}</span></div>
+                `;
+            }
+        }
+
+        function updateCalculations() {
+            const chancePercent = parseFloat(document.getElementById('chanceInput').value);
+            
+            // Validate input
+            if (isNaN(chancePercent) || chancePercent < 0.0001 || chancePercent > 100) {
+                return;
+            }
+
+            // Early Game - Assembler 1
+            const early1Interval = 1 / machines.assembler1.speed;
+            updateTimingDisplay('early1-timing', early1Interval, chancePercent);
+
+            // Early Game - Assembler 3
+            const early3Interval = 1 / machines.assembler3.speed;
+            updateTimingDisplay('early3-timing', early3Interval, chancePercent);
+
+            // Mid Game - Assembler 3 with modules and beacons
+            const midInterval = 1 / machines.assembler3Mid.speed;
+            updateTimingDisplay('mid-timing', midInterval, chancePercent);
+
+            // Late Game - Epic Foundry
+            const lateInterval = 1 / machines.epicFoundry.speed;
+            updateTimingDisplay('late-timing', lateInterval, chancePercent);
+        }
+
+        // Set up event listeners for both slider and input
+        const slider = document.getElementById('chanceSlider');
+        const input = document.getElementById('chanceInput');
+        
+        slider.addEventListener('input', function() {
+            input.value = slider.value;
+            updateCalculations();
+        });
+        
+        input.addEventListener('input', function() {
+            const value = parseFloat(input.value);
+            if (!isNaN(value) && value >= 0.0001 && value <= 100) {
+                slider.value = value;
+                updateCalculations();
+            }
+        });
+
+        // Initial calculation
+        updateCalculations();
+    </script>
+</body>
+</html>

@@ -100,7 +100,7 @@ end
 initialize_entity_types()
 
 --- Setup all values defined in startup settings
-local quality_change_direction = settings.startup["quality-change-direction"].value
+local difficulty = settings.startup["difficulty"].value
 local manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
 local quality_increase_cost = settings.startup["quality-increase-cost"].value
 local base_percentage_chance = settings.startup["percentage-chance-of-change"].value
@@ -126,6 +126,41 @@ local function get_previous_quality(quality_prototype)
   end
 
   return previous_qualities[quality_prototype.name]
+end
+
+--- Determines the next quality based on difficulty setting
+local function get_next_quality(current_quality)
+  if difficulty == "common" then
+    -- Always upgrade
+    return current_quality.next
+  elseif difficulty == "uncommon" then
+    -- 75% upgrade, 25% downgrade
+    if math.random() <= 0.75 then
+      return current_quality.next
+    else
+      return get_previous_quality(current_quality)
+    end
+  elseif difficulty == "rare" then
+    -- 50/50 upgrade or downgrade
+    if math.random() <= 0.5 then
+      return current_quality.next
+    else
+      return get_previous_quality(current_quality)
+    end
+  elseif difficulty == "epic" then
+    -- 25% upgrade, 75% downgrade
+    if math.random() <= 0.25 then
+      return current_quality.next
+    else
+      return get_previous_quality(current_quality)
+    end
+  elseif difficulty == "legendary" then
+    -- Always downgrade
+    return get_previous_quality(current_quality)
+  end
+  
+  -- Fallback to upgrade (shouldn't happen)
+  return current_quality.next
 end
 
 --- Initialize the entity tracking table structure
@@ -174,8 +209,8 @@ local function get_entity_info(entity)
   end
   
   local previous_quality = get_previous_quality(entity.quality)
-  local can_increase = quality_change_direction == "increase" and entity.quality.next ~= nil
-  local can_decrease = quality_change_direction == "decrease" and previous_quality ~= nil
+  local can_increase = entity.quality.next ~= nil
+  local can_decrease = previous_quality ~= nil
 
   -- if the unit doesn't exist, then initialize it
   if not tracked_entities[entity_type][id] then
@@ -236,11 +271,11 @@ local function on_entity_created(event)
 end
 
 --- Shows entity-specific quality change alert to the player
-local function show_entity_quality_alert(entity, change_type)
+local function show_entity_quality_alert(entity, old_quality)
   debug("show_entity_quality_alert called")
   local player = game.players[1] -- In single player, this is the player
   if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
-    local action = change_type == "increase" and "upgraded" or "downgraded"
+    local action = entity.quality.level > old_quality.level and "upgraded" or "downgraded"
     local message = action .. " quality to " .. entity.quality.name
 
     player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = entity.quality.name}, message, true)
@@ -267,13 +302,14 @@ local function attempt_quality_change(entity)
   -- Store info before creating replacement (entity becomes invalid after fast_replace)
   local old_unit_number = entity.unit_number
   local old_entity_type = entity.type
+  local old_quality = entity.quality
 
-  -- Determine target quality based on direction setting
-  local target_quality
-  if quality_change_direction == "increase" then
-    target_quality = entity.quality.next
-  else -- decrease
-    target_quality = get_previous_quality(entity.quality)
+  -- Determine target quality based on difficulty setting
+  local target_quality = get_next_quality(entity.quality)
+  
+  -- Skip if target quality is nil (at boundary of quality chain)
+  if not target_quality then
+    return nil
   end
 
   local replacement_entity = entity.surface.create_entity {
@@ -290,10 +326,14 @@ local function attempt_quality_change(entity)
   debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
     remove_entity_info(old_entity_type, old_unit_number)
-    show_entity_quality_alert(replacement_entity, quality_change_direction)
+    show_entity_quality_alert(replacement_entity, old_quality)
 
-    -- Return the replacement entity
-    return replacement_entity
+    -- Return the replacement entity and quality information
+    return {
+      entity = replacement_entity,
+      old_quality_level = old_quality.level,
+      new_quality_level = replacement_entity.quality.level
+    }
   end
 
   return nil -- we attempted to replace but it failed
@@ -307,17 +347,30 @@ local function show_quality_notifications(quality_changes)
   -- Show aggregate console alerts if enabled
   local player = game.players[1]
   if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
-    local messages = {}
+    local upgrade_messages = {}
+    local downgrade_messages = {}
 
-    for entity_name, count in pairs(quality_changes) do
-      local action = quality_change_direction == "increase" and "upgraded" or "downgraded"
-      local plural = count > 1 and "s" or ""
-
-      table.insert(messages, count .. " " .. entity_name .. plural .. " " .. action)
+    for entity_name, changes in pairs(quality_changes) do
+      if changes.upgrades > 0 then
+        local plural = changes.upgrades > 1 and "s" or ""
+        table.insert(upgrade_messages, changes.upgrades .. " " .. entity_name .. plural .. " upgraded")
+      end
+      if changes.downgrades > 0 then
+        local plural = changes.downgrades > 1 and "s" or ""
+        table.insert(downgrade_messages, changes.downgrades .. " " .. entity_name .. plural .. " downgraded")
+      end
     end
 
-    if #messages > 0 then
-      player.print("Quality Control Updates:\n" .. table.concat(messages, "\n"))
+    local all_messages = {}
+    for _, msg in ipairs(upgrade_messages) do
+      table.insert(all_messages, msg)
+    end
+    for _, msg in ipairs(downgrade_messages) do
+      table.insert(all_messages, msg)
+    end
+
+    if #all_messages > 0 then
+      player.print("Quality Control Updates:\n" .. table.concat(all_messages, "\n"))
     end
   end
 end
@@ -399,7 +452,14 @@ local function check_and_change_quality()
                   successful_change = true
 
                   -- Track the change for notifications
-                  quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+                  if not quality_changes[change_result.entity.name] then
+                    quality_changes[change_result.entity.name] = {upgrades = 0, downgrades = 0}
+                  end
+                  if change_result.new_quality_level > change_result.old_quality_level then
+                    quality_changes[change_result.entity.name].upgrades = quality_changes[change_result.entity.name].upgrades + 1
+                  else
+                    quality_changes[change_result.entity.name].downgrades = quality_changes[change_result.entity.name].downgrades + 1
+                  end
 
                   break -- Stop trying after a success
                 end
@@ -439,7 +499,14 @@ local function check_and_change_quality()
             if math.random() < secondary_ratio then
               local change_result = attempt_quality_change(entity)
               if change_result then
-                quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+                if not quality_changes[change_result.entity.name] then
+                  quality_changes[change_result.entity.name] = {upgrades = 0, downgrades = 0}
+                end
+                if change_result.new_quality_level > change_result.old_quality_level then
+                  quality_changes[change_result.entity.name].upgrades = quality_changes[change_result.entity.name].upgrades + 1
+                else
+                  quality_changes[change_result.entity.name].downgrades = quality_changes[change_result.entity.name].downgrades + 1
+                end
               end
             end
           end

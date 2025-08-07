@@ -2,19 +2,19 @@ data:extend({
     -- General quality control settings
     {
         type = "string-setting",
-        name = "quality-change-direction",
+        name = "difficulty",
         setting_type = "startup",
-        default_value = "increase",
-        allowed_values = {"increase", "decrease"},
+        default_value = "common",
+        allowed_values = {"common", "uncommon", "rare", "epic", "legendary"},
         order = "a-0"
     },
     {
         type = "double-setting",
         name = "manufacturing-hours-for-change",
         setting_type = "startup",
-        default_value = 5,
-        min_value = 0.001,
-        max_value = 1000,
+        default_value = 1,
+        min_value = 0.01,
+        max_value = 100,
         order = "a-1"
     },
     {
@@ -56,14 +56,14 @@ data:extend({
         type = "bool-setting",
         name = "quality-change-aggregate-alerts-enabled",
         setting_type = "runtime-per-user",
-        default_value = true,
+        default_value = false,
         order = "b-1"
     },
     {
         type = "bool-setting",
         name = "quality-change-entity-alerts-enabled",
         setting_type = "runtime-per-user",
-        default_value = false,
+        default_value = true,
         order = "b-2"
     },
     -- Primary entity types
