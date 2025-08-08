@@ -30,10 +30,47 @@ local function debug(message)
 end
 
 --- Entity types
-local primary_types = {"assembling-machine", "furnace"}
-local secondary_types = {"mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
+local primary_types = {"assembling-machine", "furnace", "rocket-silo"}
+local secondary_types = {
+  -- Production entities (non-crafting machines)
+  "agricultural-tower",
+  -- Logistics and production support
+  "mining-drill", "lab", "inserter", "pump", "radar", "roboport",
+  -- Belt system
+  -- "transport-belt", "underground-belt", "splitter", "loader",
+  -- Power infrastructure
+  "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
+  -- Storage and logistics
+  -- "container", "logistic-container", "storage-tank",
+  -- Pipes and fluid handling
+  -- "pipe", "pipe-to-ground",
+  "offshore-pump",
+  -- Defense structures
+  "turret", "artillery-turret", "wall", "gate",
+  -- Network and control
+  "beacon", "arithmetic-combinator", "decider-combinator", "constant-combinator", "power-switch", "programmable-speaker",
+  -- Other buildable entities
+  "lamp",
+  -- Space Age entities
+  "lightning-rod", "asteroid-collector", "thruster", "cargo-landing-pad"
+}
 -- LUA's approach to concat/construct two tables together is frustrating; for now just hard code this
-local all_tracked_types = {"assembling-machine", "furnace", "mining-drill", "lab", "inserter", "pump", "radar", "roboport"}
+local all_tracked_types = {
+  -- Primary types
+  "assembling-machine", "furnace", "rocket-silo",
+  -- Secondary types
+  "agricultural-tower",
+  "mining-drill", "lab", "inserter", "pump", "radar", "roboport",
+  -- "transport-belt", "underground-belt", "splitter", "loader",
+  "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
+  -- "container", "logistic-container", "storage-tank",
+  -- "pipe", "pipe-to-ground",
+  "offshore-pump",
+  "turret", "artillery-turret", "wall", "gate",
+  "beacon", "arithmetic-combinator", "decider-combinator", "constant-combinator", "power-switch", "programmable-speaker",
+  "lamp",
+  "lightning-rod", "asteroid-collector", "thruster", "cargo-landing-pad"
+}
 
 -- Construct is_tracked_type lookup table from the base arrays
 -- Has O(1) access time, for quick checks if an entity is a type that we are tracking
