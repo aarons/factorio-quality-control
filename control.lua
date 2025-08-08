@@ -18,7 +18,7 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 ]]
 
 --- Setup locally scoped variables
-local debug_enabled = false -- Set to true to enable debug logging
+local debug_enabled = true -- Set to true to enable debug logging
 local performance_test = true -- Used to help validate performance tweaks
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
 local tracked_entities -- lookup table for all the entities we might change the quality of
@@ -30,7 +30,26 @@ local batch_state = {
   is_processing_secondary = false,
   entities_processed_this_batch = 0,
   current_entities = nil, -- Current batch of entities from find_entities_filtered
-  current_entity_index = 1
+  current_entity_index = 1,
+  -- Cached entity discovery
+  cached_primary_entities = {},
+  cached_secondary_entities = {},
+  cache_valid = false,
+  current_cached_type_index = 1,
+  current_cached_entity_index = 1
+}
+
+-- Adaptive batch processing state
+local adaptive_batch_state = {
+  current_batch_size = 75, -- Conservative starting size
+  min_batch_size = 10,
+  max_batch_size = 2000,
+  adjustment_cooldown = 0, -- Ticks remaining before next adjustment
+  cooldown_duration = 300, -- 5 seconds at 60 ticks/second
+  baseline_profiler = nil, -- Baseline performance measurement
+  recent_profilers = {}, -- Recent profiler measurements for trend analysis
+  max_profiler_samples = 5,
+  adjustment_factor = 1.25 -- 25% increase/decrease per adjustment
 }
 
 --- Helper function for debug logging
@@ -358,11 +377,131 @@ local function show_quality_notifications(quality_changes)
   end
 end
 
+--- Update cached entity discovery for current surface
+local function update_entity_cache()
+  local surfaces = {}
+  for _, surface in pairs(game.surfaces) do
+    table.insert(surfaces, surface)
+  end
+
+  if batch_state.current_surface_index > #surfaces then
+    return false -- No more surfaces
+  end
+
+  local current_surface = surfaces[batch_state.current_surface_index]
+
+  -- Clear previous cache
+  batch_state.cached_primary_entities = {}
+  batch_state.cached_secondary_entities = {}
+
+  -- Cache primary entities if any are enabled
+  if #primary_types > 0 then
+    batch_state.cached_primary_entities = current_surface.find_entities_filtered{
+      type = primary_types,
+      force = game.forces.player
+    }
+  end
+
+  -- Cache secondary entities if any are enabled
+  if #secondary_types > 0 then
+    batch_state.cached_secondary_entities = current_surface.find_entities_filtered{
+      type = secondary_types,
+      force = game.forces.player
+    }
+  end
+
+  batch_state.cache_valid = true
+  batch_state.current_cached_type_index = 1
+  batch_state.current_cached_entity_index = 1
+
+  debug("Cached " .. #batch_state.cached_primary_entities .. " primary and " .. #batch_state.cached_secondary_entities .. " secondary entities for surface '" .. current_surface.name .. "'")
+  return true
+end
+
+--- Compare current performance with baseline and adjust batch size if needed
+local function update_adaptive_batch_size(current_profiler, batch_size)
+  -- Decrease cooldown
+  if adaptive_batch_state.adjustment_cooldown > 0 then
+    adaptive_batch_state.adjustment_cooldown = adaptive_batch_state.adjustment_cooldown - 1
+    return
+  end
+
+  -- Store profiler for trend analysis
+  table.insert(adaptive_batch_state.recent_profilers, {
+    profiler = current_profiler,
+    batch_size = batch_size
+  })
+
+  -- Keep only recent samples
+  if #adaptive_batch_state.recent_profilers > adaptive_batch_state.max_profiler_samples then
+    table.remove(adaptive_batch_state.recent_profilers, 1)
+  end
+
+  -- Need baseline and at least 2 samples to compare
+  if not adaptive_batch_state.baseline_profiler or #adaptive_batch_state.recent_profilers < 2 then
+    if not adaptive_batch_state.baseline_profiler then
+      adaptive_batch_state.baseline_profiler = current_profiler
+      debug("Established baseline profiler")
+    end
+    return
+  end
+
+  -- Analyze performance trend using profiler string representations
+  -- (This is a heuristic - shorter representations often indicate better performance)
+  local recent_sample = adaptive_batch_state.recent_profilers[#adaptive_batch_state.recent_profilers]
+  local previous_sample = adaptive_batch_state.recent_profilers[#adaptive_batch_state.recent_profilers - 1]
+
+  local current_performance = #tostring(recent_sample.profiler)
+  local previous_performance = #tostring(previous_sample.profiler)
+  local baseline_performance = #tostring(adaptive_batch_state.baseline_profiler)
+
+  local old_batch_size = adaptive_batch_state.current_batch_size
+  local performance_improving = current_performance <= baseline_performance
+
+  -- Adjust batch size based on performance trend
+  if performance_improving and current_performance <= previous_performance then
+    -- Performance is good or improving, try increasing batch size
+    adaptive_batch_state.current_batch_size = math.min(
+      adaptive_batch_state.max_batch_size,
+      math.floor(adaptive_batch_state.current_batch_size * adaptive_batch_state.adjustment_factor)
+    )
+    debug("Performance improving - increasing batch size")
+  elseif current_performance > baseline_performance * 1.2 then
+    -- Performance significantly worse than baseline, decrease batch size
+    adaptive_batch_state.current_batch_size = math.max(
+      adaptive_batch_state.min_batch_size,
+      math.floor(adaptive_batch_state.current_batch_size / adaptive_batch_state.adjustment_factor)
+    )
+    debug("Performance degrading - decreasing batch size")
+  end
+
+  -- Set cooldown and update baseline if batch size was adjusted
+  if adaptive_batch_state.current_batch_size ~= old_batch_size then
+    adaptive_batch_state.adjustment_cooldown = adaptive_batch_state.cooldown_duration
+    adaptive_batch_state.baseline_profiler = current_profiler
+    debug("Batch size adjusted from " .. old_batch_size .. " to " .. adaptive_batch_state.current_batch_size)
+  end
+end
+
+--- Reset adaptive batch processing state
+local function reset_adaptive_batch_state()
+  adaptive_batch_state.current_batch_size = 75
+  adaptive_batch_state.adjustment_cooldown = 0
+  adaptive_batch_state.baseline_profiler = nil
+  adaptive_batch_state.recent_profilers = {}
+  batch_state.cache_valid = false
+  batch_state.current_surface_index = 1
+  batch_state.is_processing_secondary = false
+  batch_state.current_cached_type_index = 1
+  batch_state.current_cached_entity_index = 1
+end
+
 --- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
   -- debug("reinitialize_quality_control_storage called")
 
   ensure_tracked_entity_table(true)
+  reset_adaptive_batch_state()
 
   -- Only print message if called from console command (with player context)
   if command and command.player_index then
@@ -382,78 +521,59 @@ local batch_processing_state = {
   cycle_complete = false
 }
 
---- Gets the next batch of entities to process, limited to max_entities
+--- Gets the next batch of entities to process, using cached entity discovery
 local function get_next_entity_batch(max_entities)
   local surfaces = {}
   for _, surface in pairs(game.surfaces) do
     table.insert(surfaces, surface)
   end
 
-  -- If we need fresh entities or finished current batch
-  if not batch_state.current_entities or batch_state.current_entity_index > #batch_state.current_entities then
-    -- Get the appropriate entity type list
-    local type_list = batch_state.is_processing_secondary and secondary_types or primary_types
-
-    -- Check if we need to move to next type or surface
-    if batch_state.current_type_index > #type_list then
-      -- Move to next processing phase or surface
-      if not batch_state.is_processing_secondary then
-        -- Switch to secondary types
-        batch_state.is_processing_secondary = true
-        batch_state.current_type_index = 1
-        -- Don't reset surface index - continue on same surface
-        type_list = secondary_types
-      else
-        -- Move to next surface
-        batch_state.current_surface_index = batch_state.current_surface_index + 1
-        batch_state.current_type_index = 1
-        batch_state.is_processing_secondary = false
-
-        -- Check if we've processed all surfaces
-        if batch_state.current_surface_index > #surfaces then
-          -- Complete cycle, reset state
-          batch_state.current_surface_index = 1
-          batch_state.current_type_index = 1
-          batch_state.is_processing_secondary = false
-          batch_processing_state.cycle_complete = true
-          return nil -- Signal cycle completion
-        end
-        type_list = primary_types
-      end
-    end
-
-    -- Skip if no types to process
-    if #type_list == 0 then
+  -- If cache is not valid, update it first (this happens at start of cycle)
+  if not batch_state.cache_valid then
+    if not update_entity_cache() then
+      -- No more surfaces, complete cycle
+      batch_state.current_surface_index = 1
+      batch_processing_state.cycle_complete = true
       return nil
     end
+    -- After cache update, skip processing this tick to avoid lag
+    return {}
+  end
 
-    local current_surface = surfaces[batch_state.current_surface_index]
-    local current_type = type_list[batch_state.current_type_index]
-
-    -- Find entities of current type on current surface
-    local entity_count = current_surface.count_entities_filtered{
-      type = current_type,
-      force = game.forces.player
-    }
-    debug("Found " .. entity_count .. " entities of type '" .. current_type .. "' on surface '" .. current_surface.name .. "'")
-
-    batch_state.current_entities = current_surface.find_entities_filtered{
-      type = current_type,
-      force = game.forces.player
-    }
-
-    batch_state.current_entity_index = 1
-    batch_state.current_type_index = batch_state.current_type_index + 1
+  -- Determine which entity list to use
+  local current_entities
+  if not batch_state.is_processing_secondary then
+    current_entities = batch_state.cached_primary_entities
+  else
+    current_entities = batch_state.cached_secondary_entities
   end
 
   -- Extract batch of entities up to max_entities
   local batch = {}
   local remaining = max_entities
 
-  while remaining > 0 and batch_state.current_entities and batch_state.current_entity_index <= #batch_state.current_entities do
-    table.insert(batch, batch_state.current_entities[batch_state.current_entity_index])
-    batch_state.current_entity_index = batch_state.current_entity_index + 1
+  while remaining > 0 and batch_state.current_cached_entity_index <= #current_entities do
+    local entity = current_entities[batch_state.current_cached_entity_index]
+    if entity and entity.valid then
+      table.insert(batch, entity)
+    end
+    batch_state.current_cached_entity_index = batch_state.current_cached_entity_index + 1
     remaining = remaining - 1
+  end
+
+  -- Check if we've finished processing current entity type
+  if batch_state.current_cached_entity_index > #current_entities then
+    if not batch_state.is_processing_secondary then
+      -- Switch to secondary entities
+      batch_state.is_processing_secondary = true
+      batch_state.current_cached_entity_index = 1
+    else
+      -- Move to next surface
+      batch_state.current_surface_index = batch_state.current_surface_index + 1
+      batch_state.is_processing_secondary = false
+      batch_state.current_cached_entity_index = 1
+      batch_state.cache_valid = false -- Invalidate cache for next surface
+    end
   end
 
   return batch
@@ -579,13 +699,30 @@ local function check_and_change_quality()
     debug("Starting new batch processing cycle")
   end
 
-  -- Get and process next batch (max 1000 entities)
-  local batch = get_next_entity_batch(1000)
+  -- Get next batch using adaptive batch size
+  local batch = get_next_entity_batch(adaptive_batch_state.current_batch_size)
+
+  -- Skip processing if this is a cache update tick (empty batch returned)
+  if batch and #batch == 0 then
+    debug("Cache update tick - skipping processing")
+    return
+  end
+
   if batch and #batch > 0 then
     batch_state.entities_processed_this_batch = batch_state.entities_processed_this_batch + #batch
-    debug("Processing batch: " .. #batch .. " entities (total: " .. batch_state.entities_processed_this_batch .. ")")
+    debug("Processing batch: " .. #batch .. " entities (total: " .. batch_state.entities_processed_this_batch .. ", batch size: " .. adaptive_batch_state.current_batch_size .. ")")
 
+    -- Use LuaProfiler to measure batch processing performance
+    local profiler = game.create_profiler()
     process_entity_batch(batch)
+    profiler:stop()
+
+    -- Calculate per-entity time and update adaptive batch size
+    if #batch > 0 then
+      local batch_size = #batch
+      profiler.divide(batch_size)
+      update_adaptive_batch_size(profiler, batch_size)
+    end
   elseif not batch then
     debug("No more entities in batch - cycle completing")
   end
@@ -715,11 +852,12 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 script.on_init(function()
   debug("script.on_init called")
   ensure_tracked_entity_table()
+  reset_adaptive_batch_state()
   register_nth_tick_event()
 end)
 
 -- Rebuild quality lookup when configuration changes (mods added/removed)
-script.on_configuration_changed(function(event)
+script.on_configuration_changed(function()
   debug("script.on_configuration_changed called")
   -- Reset tracked entities data
   reinitialize_quality_control_storage()
