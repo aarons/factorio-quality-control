@@ -29,48 +29,112 @@ local function debug(message)
   end
 end
 
---- Entity types
-local primary_types = {"assembling-machine", "furnace", "rocket-silo"}
-local secondary_types = {
-  -- Production entities (non-crafting machines)
-  "agricultural-tower",
-  -- Logistics and production support
-  "mining-drill", "lab", "inserter", "pump", "radar", "roboport",
-  -- Belt system
-  -- "transport-belt", "underground-belt", "splitter", "loader",
-  -- Power infrastructure
-  "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
-  -- Storage and logistics
-  -- "container", "logistic-container", "storage-tank",
-  -- Pipes and fluid handling
-  -- "pipe", "pipe-to-ground",
-  "offshore-pump",
-  -- Defense structures
-  "turret", "artillery-turret", "wall", "gate",
-  -- Network and control
-  "beacon", "arithmetic-combinator", "decider-combinator", "constant-combinator", "power-switch", "programmable-speaker",
-  -- Other buildable entities
-  "lamp",
-  -- Space Age entities
-  "lightning-rod", "asteroid-collector", "thruster", "cargo-landing-pad"
+--- Entity type definitions by category
+local entity_categories = {
+  primary = {
+    ["assembling-machine"] = "assembly-machines",
+    ["furnace"] = "furnaces",
+    ["rocket-silo"] = "other-production"
+  },
+  electrical = {
+    "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
+    "power-switch", "lightning-rod"
+  },
+  other_production = {
+    "agricultural-tower", "mining-drill"
+  },
+  defense = {
+    "turret", "artillery-turret", "wall", "gate"
+  },
+  space = {
+    "asteroid-collector", "thruster", "cargo-landing-pad"
+  },
+  other = {
+    "lamp", "arithmetic-combinator", "decider-combinator", "constant-combinator", "programmable-speaker"
+  },
+  standalone = {
+    lab = "enable-labs",
+    roboport = "enable-roboports",
+    beacon = "enable-beacons",
+    pump = "enable-pumps",
+    ["offshore-pump"] = "enable-pumps",
+    radar = "enable-radar",
+    inserter = "enable-inserters"
+  }
 }
--- LUA's approach to concat/construct two tables together is frustrating; for now just hard code this
-local all_tracked_types = {
-  -- Primary types
-  "assembling-machine", "furnace", "rocket-silo",
-  -- Secondary types
-  "agricultural-tower",
-  "mining-drill", "lab", "inserter", "pump", "radar", "roboport",
-  -- "transport-belt", "underground-belt", "splitter", "loader",
-  "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
-  -- "container", "logistic-container", "storage-tank",
-  -- "pipe", "pipe-to-ground",
-  "offshore-pump",
-  "turret", "artillery-turret", "wall", "gate",
-  "beacon", "arithmetic-combinator", "decider-combinator", "constant-combinator", "power-switch", "programmable-speaker",
-  "lamp",
-  "lightning-rod", "asteroid-collector", "thruster", "cargo-landing-pad"
-}
+
+--- Build entity type lists based on settings
+local function build_entity_type_lists()
+  local primary_types = {}
+  local secondary_types = {}
+  local all_tracked_types = {}
+
+  -- Handle primary entities based on setting
+  local primary_setting = settings.startup["primary-entities-selection"].value
+  if primary_setting == "both" or primary_setting == "assembly-machines-only" then
+    table.insert(primary_types, "assembling-machine")
+    table.insert(all_tracked_types, "assembling-machine")
+  end
+  if primary_setting == "both" or primary_setting == "furnaces-only" then
+    table.insert(primary_types, "furnace")
+    table.insert(all_tracked_types, "furnace")
+  end
+
+  -- Always include rocket-silo in other-production category if enabled
+  if settings.startup["enable-other-production-entities"].value then
+    table.insert(secondary_types, "rocket-silo")
+    table.insert(all_tracked_types, "rocket-silo")
+  end
+
+  -- Add secondary entity categories based on settings
+  if settings.startup["enable-electrical-entities"].value then
+    for _, entity_type in ipairs(entity_categories.electrical) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-other-production-entities"].value then
+    for _, entity_type in ipairs(entity_categories.other_production) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-defense-entities"].value then
+    for _, entity_type in ipairs(entity_categories.defense) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-space-entities"].value then
+    for _, entity_type in ipairs(entity_categories.space) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-other-entities"].value then
+    for _, entity_type in ipairs(entity_categories.other) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  -- Add standalone entities based on individual settings
+  for entity_type, setting_name in pairs(entity_categories.standalone) do
+    if settings.startup[setting_name].value then
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  return primary_types, secondary_types, all_tracked_types
+end
+
+-- Build the actual entity type lists
+local primary_types, secondary_types, all_tracked_types = build_entity_type_lists()
 
 -- Construct is_tracked_type lookup table from the base arrays
 -- Has O(1) access time, for quick checks if an entity is a type that we are tracking
@@ -252,7 +316,7 @@ local function attempt_quality_change(entity)
   debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
     remove_entity_info(old_entity_type, old_unit_number)
-    
+
     -- Update module quality to match entity quality (if modules are lower quality)
     local module_inventory = replacement_entity.get_module_inventory()
     if module_inventory then
@@ -265,7 +329,7 @@ local function attempt_quality_change(entity)
         end
       end
     end
-    
+
     show_entity_quality_alert(replacement_entity, quality_change_direction)
 
     -- Return the replacement entity

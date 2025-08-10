@@ -1,10 +1,13 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 10. 08. 2025
-  Documentation:
-    - Created comprehensive changelog with detailed version history
-    - Expanded README with technical documentation and user guidance
-    - Improved project structure with development tooling organization
+  Features:
+    - Added configurable entity type selection system allowing players to customize which entities are affected by quality changes
+    - Primary entities dropdown enables choosing between assembly machines only, furnaces only, or both as the drivers of manufacturing hours
+    - Secondary entity categories can be toggled individually: electrical infrastructure, other production entities, defense structures, space platform assets, and miscellaneous items
+    - Standalone entity types (labs, roboports, beacons, pumps, radar, inserters) have individual toggle controls for granular customization
+  Ease of use:
+    - Comprehensive tooltips explain which specific entity types are included in each category
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.0
 Date: 09. 08. 2025
@@ -25,8 +28,8 @@ Date: 04. 08. 2025
     - Enhanced stability with automatic storage reinitialization
     - Added entity validation and error recovery mechanisms
   Optimizations:
-    - Simplified entity tracking by removing complex key management arrays and replaced random secondary entity selection with proportional ratio-based attempts (reduced memory overhead and improved predictability)
-    - Refactored entity type checking to use dynamically generated lookups from primary and secondary type arrays, improving maintainability while keeping O(1) performance
+    - Reduced memory overhead and improved predictability of entity tracking
+    - Refactored entity type checking to improve maintainability
   Bugfixes:
     - Improved handling of invalid entities during quality checks
 ---------------------------------------------------------------------------------------------------
@@ -69,10 +72,6 @@ Date: 31. 07. 2025
   Optimizations:
     - Return quality name string directly instead of full prototype object when determining next quality level (reduced memory usage and lookup overhead)
     - Improved machine data cleanup efficiency by replacing periodic full-scan cleanup with instant event-driven removal on entity destruction (on_entity_died, on_player_mined_entity, on_robot_mined_entity)
-  Minor Features:
-    - Simplified comment on manufacturing hour tracking
-    - Refined quality change work tracking
-    - Removed inspect_machine command
 ---------------------------------------------------------------------------------------------------
 Version: 0.1.0
 Date: 30. 07. 2025

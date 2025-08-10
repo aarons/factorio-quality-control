@@ -64,5 +64,93 @@ data:extend({
         setting_type = "runtime-per-user",
         default_value = true,
         order = "c-1"
+    },
+    -- Entity type selection settings
+    {
+        type = "string-setting",
+        name = "primary-entities-selection",
+        setting_type = "startup",
+        default_value = "both",
+        allowed_values = {"both", "assembly-machines-only", "furnaces-only"},
+        order = "d-0"
+    },
+    -- Secondary entity categories
+    {
+        type = "bool-setting",
+        name = "enable-electrical-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-1"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-production-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-2"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-defense-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-3"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-space-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-4"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-5"
+    },
+    -- Standalone entity types
+    {
+        type = "bool-setting",
+        name = "enable-labs",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-6"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-roboports",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-7"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-beacons",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-8"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-pumps",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-9"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-radar",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-10"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-inserters",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-11"
     }
 })
