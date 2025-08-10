@@ -26,7 +26,7 @@ Date: 04. 08. 2025
     - Added entity validation and error recovery mechanisms
   Optimizations:
     - Simplified entity tracking by removing complex key management arrays and replaced random secondary entity selection with proportional ratio-based attempts (reduced memory overhead and improved predictability)
-    - Refactored tracked_types hash table to be dynamically generated (is_tracked_type) from primary and secondary type arrays, improving maintainability while keeping O(1) performance
+    - Refactored entity type checking to use dynamically generated lookups from primary and secondary type arrays, improving maintainability while keeping O(1) performance
   Bugfixes:
     - Improved handling of invalid entities during quality checks
 ---------------------------------------------------------------------------------------------------
@@ -38,7 +38,7 @@ Date: 03. 08. 2025
     - Added entity inspection tool and cache re-initialization command
   Optimizations:
     - Replaced periodic entity scan with event-based tracking - eliminated expensive find_entities_filtered calls from the main quality-check loop by maintaining a cached list updated via creation/destruction events (major performance improvement on large maps)
-    - Consolidated scattered entity type definitions into a single hardcoded hash table (tracked_types) with O(1) lookup, replacing multiple inline table definitions
+    - Consolidated scattered entity type definitions into a single hardcoded lookup table with O(1) performance, replacing multiple inline table definitions
     - Refined quality change distribution logic to process all accumulated upgrade attempts per cycle instead of just one
   Bugfixes:
     - Reset internal state on configuration change
@@ -67,7 +67,7 @@ Date: 31. 07. 2025
     - Added player notifications for machine quality changes
     - Added optional console messages for quality changes
   Optimizations:
-    - Return quality name string directly instead of full prototype object from get_next_quality function (reduced memory usage and lookup overhead)
+    - Return quality name string directly instead of full prototype object when determining next quality level (reduced memory usage and lookup overhead)
     - Improved machine data cleanup efficiency by replacing periodic full-scan cleanup with instant event-driven removal on entity destruction (on_entity_died, on_player_mined_entity, on_robot_mined_entity)
   Minor Features:
     - Simplified comment on manufacturing hour tracking
