@@ -1,10 +1,10 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 10. 08. 2025
-  Minor Features:
-    - Reorganized project documentation and development tooling
-    - Restructured README to improve user experience flow
-    - Expanded README with comprehensive technical documentation
+  Documentation:
+    - Created comprehensive changelog with detailed version history
+    - Expanded README with technical documentation and user guidance
+    - Improved project structure with development tooling organization
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.0
 Date: 09. 08. 2025
