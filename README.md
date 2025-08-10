@@ -12,27 +12,131 @@ The mod is highly configurable so that it's impact on gameplay can be tuned to y
 
 ## Key Features
 
-- **Manufacturing Hours Tracking**: Machines accumulate hours based on actual production time (items crafted x recipe duration)
-- **Configurable Quality Direction**: Choose whether machines improve or degrade with use
-- **Maintains Gacha Spirit**: Quality changes are based on small random chance; staying spiritually adjacent to factorio's quality system
-- **Highly Configurable**: Adjust many parameters on how the mod will impact gameplay
-- **Optional Chance Accumulation System**: Failed quality change attempts increase the likelihood of future changes
-- **Comprehensive Entity Support**: Works with most placeable entities
-- **Optional Alerts**: Console messages and/or map pings when quality changes occur
-- **Entity Inspection**: Hotkey (default: Ctrl+Shift+Q) to inspect any tracked entity's quality metrics
+### Entity Support
 
-## Technical Details
+The mod tracks two categories of entities with different quality management approaches:
 
-Quality Control tracks manufacturing hours by accounting for recipe duration, ensuring fair quality progression regardless of recipe speed. This approach means that two assemblers: one producing fast recipes (gears), and one producing slow recipes (science), will experience quality changes at a similar rate as long as they are working full time.
+**Primary Entities** (Lines 33, 334-397 in control.lua):
+- Assembling machines, furnaces, and rocket silos
+- Track exact manufacturing hours based on items produced × recipe duration
+- Quality changes are deterministic based on accumulated work time
+- Each machine independently tracks its progress toward the next quality change
 
-Upgraded assemblers with modules and beacons will progress and experience changes faster.
+**Secondary Entities** (Lines 34-56, 406-429 in control.lua):
+- Infrastructure: mining drills, labs, inserters, pumps, radar, roboports
+- Power: electric poles, solar panels, accumulators, generators, reactors
+- Defense: turrets, walls, gates
+- Logic: combinators, beacons, speakers
+- Space Age: lightning rods, asteroid collectors, thrusters, cargo landing pads
 
-The quality change process follows these steps:
-1. Machines accumulate "manufacturing hours" as they produce items
-2. Once the configured threshold is reached, a quality change attempt occurs
-3. The change succeeds based on the configured percentage chance
-4. Failed attempts can accumulate, increasing future success chances
-5. Higher quality levels can require more hours to change (configurable cost scaling)
+Secondary entities use a proportional system - they attempt quality changes based on the average rate of change among primary entities. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
+
+### Direction of Changes
+
+Configure whether machines improve or degrade over time (Line 83 in control.lua):
+- **Quality Increase**: Machines become more efficient with use, representing experience and optimization
+- **Quality Decrease**: Machines wear down and require replacement, adding a maintenance gameplay element
+
+The mod automatically handles quality boundaries - machines at legendary quality won't attempt upgrades, and normal quality machines won't attempt downgrades.
+
+### Manufacturing Hours
+
+The core metric for quality progression (Lines 7-17, 358-363 in control.lua):
+
+```
+Manufacturing Hours = (Items Produced × Recipe Duration) / 3600
+```
+
+This approach ensures fairness:
+- Fast recipes (e.g., gears at 0.5s) and slow recipes (e.g., science at 30s) progress equally when running continuously
+- Machines with speed modules accumulate hours faster, reflecting their increased throughput
+- Idle machines don't progress toward quality changes
+
+The system tracks the delta between checks, allowing machines to accumulate multiple threshold crossings if left running for extended periods.
+
+### Chance-Based Changes
+
+When a machine reaches the hour threshold, a quality change attempt occurs (Lines 213-276 in control.lua):
+
+1. A random roll (0-100) is compared against the configured percentage chance
+2. If successful, the machine is replaced with the same type at the new quality level
+3. Modules in upgraded machines are automatically upgraded to match the new quality
+4. Failed attempts don't reset progress - the machine continues accumulating hours
+
+This maintains Factorio's "gacha" spirit while providing predictable progression over time.
+
+### Chance Accumulation
+
+Optional system to ensure fairness over time (Lines 86-96, 223-225 in control.lua):
+
+After each failed quality change attempt, the chance increases by:
+```
+New Chance = Current Chance + (Base Chance × Accumulation Rate)
+```
+
+Accumulation rates:
+- **None (0%)**: Pure randomness, no accumulation
+- **Low (20%)**: Adds 20% of base chance per failure
+- **Medium (50%)**: Adds 50% of base chance per failure  
+- **High (100%)**: Doubles the base chance per failure
+
+Example with 10% base chance and Medium accumulation:
+- Attempt 1: 10% chance
+- Attempt 2: 15% chance (10% + 5%)
+- Attempt 3: 20% chance (15% + 5%)
+
+### Cost Scaling
+
+Higher quality levels require more manufacturing hours (Line 357 in control.lua):
+
+```
+Required Hours = Base Hours × (1 + Cost Scaling Factor)^Quality Level
+```
+
+With a 0.5 cost scaling factor and 10 base hours:
+- Normal → Uncommon: 10 hours
+- Uncommon → Rare: 15 hours (10 × 1.5)
+- Rare → Epic: 22.5 hours (10 × 1.5²)
+- Epic → Legendary: 33.75 hours (10 × 1.5³)
+
+This creates a natural progression curve where reaching legendary quality requires significant investment.
+
+### In-Game Notifications
+
+Two notification systems keep you informed (Lines 201-210, 280-299 in control.lua):
+
+**Entity-Specific Alerts**: 
+- Map pings at the machine's location when quality changes
+- Shows entity icon with new quality level
+- Customizable per-player setting
+
+**Aggregate Console Messages**:
+- Summarizes all quality changes in the last check cycle
+- Example: "3 assembling-machines upgraded, 1 furnace downgraded"
+- Reduces notification spam for large factories
+
+Both can be independently enabled/disabled in runtime settings.
+
+### Inspection Tools
+
+**Hotkey Inspection** (Ctrl+Shift+Q) (Lines 445-507 in control.lua):
+Select any tracked entity and press the hotkey to see:
+- Current quality level and entity name
+- Total quality change attempts
+- Current success chance (including accumulation bonus)
+- Manufacturing hours accumulated vs. required
+- Progress percentage to next attempt
+
+**Console Command** (Line 557 in control.lua):
+```
+/quality-control-init
+```
+Rebuilds the entire tracking cache from scratch. Useful if:
+- Entities aren't being tracked properly after mod updates
+- You've made significant factory changes while the mod was disabled
+- Debugging tracking issues
+
+The mod also automatically reinitializes if it detects corruption in the tracking data (Lines 437-442).
 
 ## Mod Settings
 
@@ -67,17 +171,17 @@ This script will:
 1. Read the mod name and version from `info.json`
 2. Create a properly formatted zip file (`quality-control_<version>.zip`)
 3. Exclude development files (.git, .DS_Store, AGENTS.md, CLAUDE.md, etc.)
-4. Automatically detect your Factorio mods folder based on your OS
+4. Attempt to find your Factorio mods folder based on your OS
 5. Copy the packaged mod to your mods folder (if found)
 
 ### Manual Installation
 
-If the script can't auto-detect your mods folder, it will provide the correct path for your OS:
+If the script can't auto-detect your mods folder, it will leave the zipped file in this mods directory. These are the folders it checks for:
 - **macOS**: `~/Library/Application Support/factorio/mods/`
 - **Linux**: `~/.factorio/mods/` or `~/.local/share/factorio/mods/`
 - **Windows**: `%APPDATA%\Factorio\mods\`
 
-Simply copy the generated zip file to the appropriate folder.
+Copy the generated zip file to the factorio mods folder to test any changes.
 
 ### Development Tips
 
@@ -93,13 +197,13 @@ Simply copy the generated zip file to the appropriate folder.
 quality-control/
 ├── control.lua          # Main mod logic and event handlers
 ├── settings.lua         # Mod settings definitions
-├── info.json           # Mod metadata and dependencies
+├── info.json            # Mod metadata and dependencies
 ├── locale/
 │   └── en/
 │       └── locale.cfg  # English localization strings
 ├── changelog.txt       # Version history
 ├── package.sh          # Build and deployment script
-└── README.md          # This file
+└── README.md           # This file
 ```
 
 
