@@ -43,6 +43,13 @@ data:extend({
         order = "a-4"
     },
     {
+        type = "bool-setting",
+        name = "upgrade-modules-with-entity",
+        setting_type = "startup",
+        default_value = false,
+        order = "a-5"
+    },
+    {
         type = "double-setting",
         name = "upgrade-check-frequency-seconds",
         setting_type = "runtime-global",

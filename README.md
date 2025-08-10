@@ -77,7 +77,7 @@ New Chance = Current Chance + (Base Chance × Accumulation Rate)
 Accumulation rates:
 - **None (0%)**: Pure randomness, no accumulation
 - **Low (20%)**: Adds 20% of base chance per failure
-- **Medium (50%)**: Adds 50% of base chance per failure  
+- **Medium (50%)**: Adds 50% of base chance per failure
 - **High (100%)**: Doubles the base chance per failure
 
 Example with 10% base chance and Medium accumulation:
@@ -101,11 +101,23 @@ With a 0.5 cost scaling factor and 10 base hours:
 
 This creates a natural progression curve where reaching legendary quality requires significant investment.
 
+### Module Upgrading (Optional)
+
+By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality increases (Line 321 in control.lua).
+
+**When enabled** (`upgrade-modules-with-entity = true`):
+- Modules with lower quality than the new entity quality are automatically upgraded
+- The upgrade happens instantly and for free during the entity quality change
+- Only affects modules that are lower quality than the entity's new quality level
+- Higher quality modules remain unchanged
+
+This setting defaults to off to preserve the intended game balance, where players must make deliberate choices about module quality investments.
+
 ### In-Game Notifications
 
 Two notification systems keep you informed (Lines 201-210, 280-299 in control.lua):
 
-**Entity-Specific Alerts**: 
+**Entity-Specific Alerts**:
 - Map pings at the machine's location when quality changes
 - Shows entity icon with new quality level
 - Customizable per-player setting

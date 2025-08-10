@@ -318,14 +318,16 @@ local function attempt_quality_change(entity)
     remove_entity_info(old_entity_type, old_unit_number)
 
     -- Update module quality to match entity quality (if modules are lower quality)
-    local module_inventory = replacement_entity.get_module_inventory()
-    if module_inventory then
-      for i = 1, #module_inventory do
-        local stack = module_inventory[i]
-        if stack.valid_for_read and stack.is_module and stack.quality.level < target_quality.level then
-          local module_name = stack.name
-          stack.clear()
-          module_inventory.insert({name = module_name, count = 1, quality = target_quality.name})
+    if settings.startup["upgrade-modules-with-entity"].value then
+      local module_inventory = replacement_entity.get_module_inventory()
+      if module_inventory then
+        for i = 1, #module_inventory do
+          local stack = module_inventory[i]
+          if stack.valid_for_read and stack.is_module and stack.quality.level < target_quality.level then
+            local module_name = stack.name
+            stack.clear()
+            module_inventory.insert({name = module_name, count = 1, quality = target_quality.name})
+          end
         end
       end
     end

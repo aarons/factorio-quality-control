@@ -6,8 +6,11 @@ Date: 10. 08. 2025
     - Primary entities dropdown enables choosing between assembly machines only, furnaces only, or both as the drivers of manufacturing hours
     - Secondary entity categories can be toggled individually: electrical infrastructure, other production entities, defense structures, space platform assets, and miscellaneous items
     - Standalone entity types (labs, roboports, beacons, pumps, radar, inserters) have individual toggle controls for granular customization
+    - Added optional module upgrade setting that controls whether modules inside entities can change
+  Balancing:
+    - Module upgrading defaults to off
   Ease of use:
-    - Comprehensive tooltips explain which specific entity types are included in each category
+    - Added comprehensive tooltips explaining entity types and balance considerations for all settings
 ---------------------------------------------------------------------------------------------------
 Version: 0.8.0
 Date: 09. 08. 2025
