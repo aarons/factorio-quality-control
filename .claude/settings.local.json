@@ -4,7 +4,8 @@
       "mcp__context7__get-library-docs",
       "Bash(./package.sh)",
       "mcp__context7__resolve-library-id",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(git log:*)"
     ],
     "deny": []
   }

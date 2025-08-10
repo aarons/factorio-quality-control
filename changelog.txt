@@ -1,0 +1,83 @@
+---------------------------------------------------------------------------------------------------
+Version: 1.0.0
+Date: 10. 08. 2025
+  Minor Features:
+    - Reorganized project documentation and development tooling
+    - Restructured README to improve user experience flow
+    - Expanded README with comprehensive technical documentation
+---------------------------------------------------------------------------------------------------
+Version: 0.8.0
+Date: 09. 08. 2025
+  Features:
+    - Modules now automatically upgrade to match entity quality during quality changes
+---------------------------------------------------------------------------------------------------
+Version: 0.7.0
+Date: 07. 08. 2025
+  Features:
+    - Expanded tracked entity types to include Space Age content
+---------------------------------------------------------------------------------------------------
+Version: 0.6.0
+Date: 04. 08. 2025
+  Features:
+    - Split notifications into two independently configurable types:
+      - Aggregate console alerts showing summary of all changes per tick
+      - Individual entity map ping alerts for each quality change
+    - Enhanced stability with automatic storage reinitialization
+    - Added entity validation and error recovery mechanisms
+  Optimizations:
+    - Simplified entity tracking by removing complex key management arrays and replaced random secondary entity selection with proportional ratio-based attempts (reduced memory overhead and improved predictability)
+    - Refactored tracked_types hash table to be dynamically generated (is_tracked_type) from primary and secondary type arrays, improving maintainability while keeping O(1) performance
+  Bugfixes:
+    - Improved handling of invalid entities during quality checks
+---------------------------------------------------------------------------------------------------
+Version: 0.5.0
+Date: 03. 08. 2025
+  Features:
+    - Apply quality changes to random secondary entities
+    - Expanded entity tracking to include more placeable types (except belts, pipes, and tiles as they impacted performance too much)
+    - Added entity inspection tool and cache re-initialization command
+  Optimizations:
+    - Replaced periodic entity scan with event-based tracking - eliminated expensive find_entities_filtered calls from the main quality-check loop by maintaining a cached list updated via creation/destruction events (major performance improvement on large maps)
+    - Consolidated scattered entity type definitions into a single hardcoded hash table (tracked_types) with O(1) lookup, replacing multiple inline table definitions
+    - Refined quality change distribution logic to process all accumulated upgrade attempts per cycle instead of just one
+  Bugfixes:
+    - Reset internal state on configuration change
+    - Restricted manufacturing hour tracking to assemblers and furnaces only
+    - Fixed quality processing to handle all accumulated upgrade attempts per cycle
+    - Fixed "qaulity" typo in setting and variable names
+---------------------------------------------------------------------------------------------------
+Version: 0.4.0
+Date: 02. 08. 2025
+  Features:
+    - Added accumulating chance for quality upgrades
+  Optimizations:
+    - Removed redundant storage initialization checks that were being performed multiple times per tick
+    - Simplified quality control logic by eliminating unnecessary state variables and streamlining the upgrade/downgrade decision flow
+---------------------------------------------------------------------------------------------------
+Version: 0.3.0
+Date: 01. 08. 2025
+  Features:
+    - Extended quality control to inserter, pump, radar, and roboport
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 31. 07. 2025
+  Features:
+    - Implemented periodic checks based on manufacturing hours
+    - Added quality control support for labs and mining drills
+    - Added player notifications for machine quality changes
+    - Added optional console messages for quality changes
+  Optimizations:
+    - Return quality name string directly instead of full prototype object from get_next_quality function (reduced memory usage and lookup overhead)
+    - Improved machine data cleanup efficiency by replacing periodic full-scan cleanup with instant event-driven removal on entity destruction (on_entity_died, on_player_mined_entity, on_robot_mined_entity)
+  Minor Features:
+    - Simplified comment on manufacturing hour tracking
+    - Refined quality change work tracking
+    - Removed inspect_machine command
+---------------------------------------------------------------------------------------------------
+Version: 0.1.0
+Date: 30. 07. 2025
+  Features:
+    - Initial implementation of quality tracking system for machines
+    - Automatic quality upgrades and downgrades based on manufacturing hours
+    - Configurable upgrade timing and direction settings
+    - Support for assembling machines and furnaces
