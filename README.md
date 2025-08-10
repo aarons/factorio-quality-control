@@ -2,9 +2,13 @@
 
 A Factorio mod that automatically changes machine quality based on how hard they are working. You choose whether they should upgrade, downgrade, or a mix of both.
 
-Quality Control tracks manufacturing hours by accounting for recipe duration, ensuring fair quality progression regardless of recipe speed. This approach means that two assemblers: one producing fast recipes (gears), and one producing slow recipes (science), will experience quality changes at a similar rate as long as they are working full time.
+## How It Works
 
-Upgraded assemblers with modules and beacons will progress and experience changes faster.
+Quality Control will attempt to change the quality of machines based on how hard they are working. The mod tracks actual manufacturing hours by accounting for recipe duration, ensuring fair progression - an assembler making gears will advance at the same rate as one making science packs.
+
+The default configuration retains the gacha spirit of Factorio's quality mechanic; machines have a chance to change quality when the hours worked threshold is met; if the change fails then its quality will stay stable until the next threshold of hours worked is passed.
+
+The mod is highly configurable so that it's impact on gameplay can be tuned to your liking.
 
 ## Key Features
 
@@ -17,8 +21,13 @@ Upgraded assemblers with modules and beacons will progress and experience change
 - **Optional Alerts**: Console messages and/or map pings when quality changes occur
 - **Entity Inspection**: Hotkey (default: Ctrl+Shift+Q) to inspect any tracked entity's quality metrics
 
-## How It Works
+## Technical Details
 
+Quality Control tracks manufacturing hours by accounting for recipe duration, ensuring fair quality progression regardless of recipe speed. This approach means that two assemblers: one producing fast recipes (gears), and one producing slow recipes (science), will experience quality changes at a similar rate as long as they are working full time.
+
+Upgraded assemblers with modules and beacons will progress and experience changes faster.
+
+The quality change process follows these steps:
 1. Machines accumulate "manufacturing hours" as they produce items
 2. Once the configured threshold is reached, a quality change attempt occurs
 3. The change succeeds based on the configured percentage chance
