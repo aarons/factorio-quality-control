@@ -6,6 +6,10 @@ This is a Factorio mod called "Quality Control" that automatically changes machi
 
 Keep code clear to understand for other engineers. Clarity is more important than brevity or clever solutions.
 
-Correct use of factorio's API is vital; it's very important to validate assumptions about the API because it changes over time.
+Factorio's API documentation is available via context7 with this library ID: "context7/lua-api_factorio-stable"
 
-The API documentation is available via context7 with this library ID: "context7/lua-api_factorio-stable"
+### Core Files
+- `control.lua` - Main mod logic handling quality changes, machine tracking, and event handlers
+- `settings.lua` - Mod settings definitions for quality direction, timing, and notifications
+- `info.json` - Mod metadata including name, version, dependencies, and Factorio version requirements
+- `locale/en/locale.cfg` - Localization strings for settings and alert messages
