@@ -317,16 +317,34 @@ local function attempt_quality_change(entity)
   if replacement_entity and replacement_entity.valid then
     remove_entity_info(old_entity_type, old_unit_number)
 
-    -- Update module quality to match entity quality (if modules are lower quality)
-    if settings.startup["upgrade-modules-with-entity"].value then
+    -- Update module quality by a single tier when entity quality changes
+    if settings.startup["change-modules-with-entity"].value then
       local module_inventory = replacement_entity.get_module_inventory()
       if module_inventory then
         for i = 1, #module_inventory do
           local stack = module_inventory[i]
-          if stack.valid_for_read and stack.is_module and stack.quality.level < target_quality.level then
+          if stack.valid_for_read and stack.is_module then
             local module_name = stack.name
-            stack.clear()
-            module_inventory.insert({name = module_name, count = 1, quality = target_quality.name})
+            local current_module_quality = stack.quality
+            local new_module_quality = nil
+
+            if quality_change_direction == "increase" then
+              -- For upgrades: only bump modules that are lower tier than the new machine quality
+              if current_module_quality.level < target_quality.level and current_module_quality.next then
+                new_module_quality = current_module_quality.next
+              end
+            else -- decrease
+              -- For downgrades: only bump down modules that are higher tier than the new machine quality
+              if current_module_quality.level > target_quality.level then
+                new_module_quality = get_previous_quality(current_module_quality)
+              end
+            end
+
+            -- Apply the quality change if we determined a new quality
+            if new_module_quality then
+              stack.clear()
+              module_inventory.insert({name = module_name, count = 1, quality = new_module_quality.name})
+            end
           end
         end
       end

@@ -44,7 +44,7 @@ data:extend({
     },
     {
         type = "bool-setting",
-        name = "upgrade-modules-with-entity",
+        name = "change-modules-with-entity",
         setting_type = "startup",
         default_value = false,
         order = "a-5"

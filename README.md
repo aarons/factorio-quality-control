@@ -103,13 +103,14 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality increases (Line 321 in control.lua).
+By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically change modules when their host entity's quality changes (Line 321 in control.lua).
 
-**When enabled** (`upgrade-modules-with-entity = true`):
-- Modules with lower quality than the new entity quality are automatically upgraded
-- The upgrade happens instantly and for free during the entity quality change
-- Only affects modules that are lower quality than the entity's new quality level
-- Higher quality modules remain unchanged
+**When enabled** (`change-modules-with-entity = true`):
+- Modules move one quality tier in the same direction as the entity change
+- When entities upgrade: modules below the new entity quality move up one tier
+- When entities downgrade: modules above the new entity quality move down one tier
+- Modules at or equal to the target entity quality remain unchanged
+- Changes happen instantly and for free during the entity quality change
 
 This setting defaults to off to preserve the intended game balance, where players must make deliberate choices about module quality investments.
 
