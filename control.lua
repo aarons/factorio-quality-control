@@ -72,7 +72,7 @@ local function register_event_handlers()
   -- Runtime setting changes
   script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
     if event.setting == "batch-ticks-between-processing" then
-      if storage.batch_processing_initialized then
+      if storage.data_structures_ready then
         register_main_loop()
       end
     end
@@ -96,7 +96,7 @@ end)
 -- Handle startup setting changes and mod version updates
 script.on_configuration_changed(function(event)
   reinitialize_quality_control_storage()
-  storage.batch_processing_initialized = false
+  storage.data_structures_ready = false
   register_event_handlers()
 end)
 

@@ -167,7 +167,7 @@ function data_setup.setup_data_structures(force_reset)
     storage.rolling_ratio = {attempts = 0, entities = 0}
   end
 
-  storage.batch_processing_initialized = true
+  storage.data_structures_ready = true
 end
 
 return data_setup
