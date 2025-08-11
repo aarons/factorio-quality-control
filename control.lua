@@ -317,8 +317,9 @@ local function attempt_quality_change(entity)
   if replacement_entity and replacement_entity.valid then
     remove_entity_info(old_entity_type, old_unit_number)
 
-    -- Update module quality by a single tier when entity quality changes
-    if settings.startup["change-modules-with-entity"].value then
+    -- Update module quality when entity quality changes
+    local module_setting = settings.startup["change-modules-with-entity"].value
+    if module_setting ~= "disabled" then
       local module_inventory = replacement_entity.get_module_inventory()
       if module_inventory then
         for i = 1, #module_inventory do
@@ -328,15 +329,23 @@ local function attempt_quality_change(entity)
             local current_module_quality = stack.quality
             local new_module_quality = nil
 
-            if quality_change_direction == "increase" then
-              -- For upgrades: only bump modules that are lower tier than the new machine quality
-              if current_module_quality.level < target_quality.level and current_module_quality.next then
-                new_module_quality = current_module_quality.next
+            if module_setting == "enabled" then
+              -- Original behavior: modules change by one tier in same direction as entity
+              if quality_change_direction == "increase" then
+                -- For upgrades: only bump modules that are lower tier than the new machine quality
+                if current_module_quality.level < target_quality.level and current_module_quality.next then
+                  new_module_quality = current_module_quality.next
+                end
+              else -- decrease
+                -- For downgrades: only bump down modules that are higher tier than the new machine quality
+                if current_module_quality.level > target_quality.level then
+                  new_module_quality = get_previous_quality(current_module_quality)
+                end
               end
-            else -- decrease
-              -- For downgrades: only bump down modules that are higher tier than the new machine quality
-              if current_module_quality.level > target_quality.level then
-                new_module_quality = get_previous_quality(current_module_quality)
+            elseif module_setting == "extra-enabled" then
+              -- New behavior: modules match the entity's quality level exactly
+              if current_module_quality.level ~= target_quality.level then
+                new_module_quality = target_quality
               end
             end
 

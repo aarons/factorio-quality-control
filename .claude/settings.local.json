@@ -5,7 +5,8 @@
       "Bash(./package.sh)",
       "mcp__context7__resolve-library-id",
       "Bash(cat:*)",
-      "Bash(git log:*)"
+      "Bash(git log:*)",
+      "Bash(grep:*)"
     ],
     "deny": []
   }

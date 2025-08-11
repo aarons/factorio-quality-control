@@ -60,7 +60,7 @@ When a machine reaches the hour threshold, a quality change attempt occurs (Line
 
 1. A random roll (0-100) is compared against the configured percentage chance
 2. If successful, the machine is replaced with the same type at the new quality level
-3. Modules in upgraded machines are automatically upgraded to match the new quality
+3. Module quality changes depend on the `change-modules-with-entity` setting (see Module Upgrading section)
 4. Failed attempts don't reset progress - the machine continues accumulating hours
 
 This maintains Factorio's "gacha" spirit while providing predictable progression over time.
@@ -105,14 +105,21 @@ This creates a natural progression curve where reaching legendary quality requir
 
 By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically change modules when their host entity's quality changes (Line 321 in control.lua).
 
-**When enabled** (`change-modules-with-entity = true`):
-- Modules move one quality tier in the same direction as the entity change
-- When entities upgrade: modules below the new entity quality move up one tier
-- When entities downgrade: modules above the new entity quality move down one tier
-- Modules at or equal to the target entity quality remain unchanged
-- Changes happen instantly and for free during the entity quality change
+The `change-modules-with-entity` setting has three options:
 
-This setting defaults to off to preserve the intended game balance, where players must make deliberate choices about module quality investments.
+**Disabled** (Default):
+- Modules keep their original quality when entities change
+
+**Enabled**:
+- Modules move one quality tier in the same direction as the entity change
+    - When entities upgrade: modules below the new entity quality move up one tier
+    - When entities downgrade: modules above the new entity quality move down one tier
+- Modules at or equal to the target entity quality remain unchanged
+
+**Extra Enabled**:
+- Modules are changed to match their host when their host's quality changes
+- Ensures modules stay at the same quality as their host machine after changes
+
 
 ### In-Game Notifications
 

@@ -3,9 +3,9 @@ Version: 1.0.0
 Date: 10. 08. 2025
   Features:
     - Added settings to customize which entities are affected by quality changes
-    - Added option to allow modules to progress alongside their host entities
+    - Added options to allow modules to progress alongside their host entities
   Balancing:
-    - Modules move only one quality tier at a time for balanced progression
+    - Added option to have modules move only one quality tier at a time
   Ease of use:
     - Added comprehensive tooltips explaining entity types and balance considerations for all settings
 ---------------------------------------------------------------------------------------------------

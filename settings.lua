@@ -43,10 +43,11 @@ data:extend({
         order = "a-4"
     },
     {
-        type = "bool-setting",
+        type = "string-setting",
         name = "change-modules-with-entity",
         setting_type = "startup",
-        default_value = false,
+        default_value = "disabled",
+        allowed_values = {"disabled", "enabled", "extra-enabled"},
         order = "a-5"
     },
     {
