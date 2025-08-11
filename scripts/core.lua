@@ -53,11 +53,15 @@ function core.get_entity_info(entity)
   local previous_quality = get_previous_quality(entity.quality)
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
+  local can_change_quality = can_increase or can_decrease
 
-  -- Check if entity type is primary (assembling-machine or furnace)
-  local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace")
+  -- Skip tracking entities that can't change quality
+  if not can_change_quality then
+    return nil
+  end
 
-  -- if the unit doesn't exist, then initialize it
+  local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo")
+
   if not tracked_entities[id] then
     tracked_entities[id] = {
       entity = entity,
@@ -65,9 +69,8 @@ function core.get_entity_info(entity)
       is_primary = is_primary,
       chance_to_change = settings_data.base_percentage_chance,
       attempts_to_change = 0,
-      can_change_quality = can_increase or can_decrease
+      can_change_quality = can_change_quality
     }
-    -- Only primary entities track manufacturing hours
     if is_primary then
       tracked_entities[id].manufacturing_hours = 0
     end
@@ -112,10 +115,9 @@ local function attempt_quality_change(entity)
     return nil
   end
 
-  -- Store info before creating replacement (entity becomes invalid after fast_replace)
+  -- Entity becomes invalid after fast_replace
   local old_unit_number = entity.unit_number
 
-  -- Determine target quality based on direction setting
   local target_quality
   if settings_data.quality_change_direction == "increase" then
     target_quality = entity.quality.next
@@ -138,7 +140,6 @@ local function attempt_quality_change(entity)
   if replacement_entity and replacement_entity.valid then
     core.remove_entity_info(old_unit_number)
 
-    -- Update module quality when entity quality changes
     local module_setting = settings.startup["change-modules-with-entity"].value
     if module_setting ~= "disabled" then
       local module_inventory = replacement_entity.get_module_inventory()
@@ -151,26 +152,21 @@ local function attempt_quality_change(entity)
             local new_module_quality = nil
 
             if module_setting == "enabled" then
-              -- Original behavior: modules change by one tier in same direction as entity
               if settings_data.quality_change_direction == "increase" then
-                -- For upgrades: only bump modules that are lower tier than the new machine quality
                 if current_module_quality.level < target_quality.level and current_module_quality.next then
                   new_module_quality = current_module_quality.next
                 end
               else -- decrease
-                -- For downgrades: only bump down modules that are higher tier than the new machine quality
                 if current_module_quality.level > target_quality.level then
                   new_module_quality = get_previous_quality(current_module_quality)
                 end
               end
             elseif module_setting == "extra-enabled" then
-              -- New behavior: modules match the entity's quality level exactly
               if current_module_quality.level ~= target_quality.level then
                 new_module_quality = target_quality
               end
             end
 
-            -- Apply the quality change if we determined a new quality
             if new_module_quality then
               stack.clear()
               module_inventory.insert({name = module_name, count = 1, quality = new_module_quality.name})
@@ -182,11 +178,10 @@ local function attempt_quality_change(entity)
 
     notifications.show_entity_quality_alert(replacement_entity, settings_data.quality_change_direction)
 
-    -- Return the replacement entity
     return replacement_entity
   end
 
-  return nil -- we attempted to replace but it failed
+  return nil
 end
 
 function core.batch_process_entities()
@@ -201,19 +196,16 @@ function core.batch_process_entities()
     local unit_number, entity_info = next(tracked_entities, storage.last_processed_key)
 
     if not unit_number then
-      -- Finished the table, reset for next cycle
-      storage.last_processed_key = nil
+        storage.last_processed_key = nil
       break
     end
 
     local entity = entity_info.entity
-    if not entity or not entity.valid then
-      debug("entity invalid: " .. tostring(unit_number))
+    if not entity or not entity.valid or not entity_info.can_change_quality then
+      debug("removing: " .. tostring(unit_number))
       core.remove_entity_info(unit_number)
     else
-      -- Process entity based on whether it's primary or secondary
-      if entity_info.is_primary and entity_info.can_change_quality then
-        -- Primary entity logic (manufacturing hours)
+      if entity_info.is_primary then
         local thresholds_passed = 0
         local current_recipe = entity.get_recipe()
         if current_recipe then
@@ -242,11 +234,9 @@ function core.batch_process_entities()
           end
         end
 
-        -- Update EWMA immediately for this primary entity
         upgrade_rate_tracker.current_rate = upgrade_rate_tracker.alpha * thresholds_passed + (1 - upgrade_rate_tracker.alpha) * upgrade_rate_tracker.current_rate
         upgrade_rate_tracker.samples_count = upgrade_rate_tracker.samples_count + 1
-      elseif not entity_info.is_primary and entity_info.can_change_quality then
-        -- Secondary entity logic (uses EWMA rate from primary entities)
+      else
         if upgrade_rate_tracker.current_rate > 0 and math.random() < upgrade_rate_tracker.current_rate then
           local change_result = attempt_quality_change(entity)
           if change_result then
@@ -260,7 +250,6 @@ function core.batch_process_entities()
     entities_processed = entities_processed + 1
   end
 
-  -- Show notifications if any changes occurred
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
   end
@@ -272,7 +261,6 @@ function core.on_entity_created(event)
   debug("on_entity_created called")
   local entity = event.entity or event.created_entity
 
-  -- Check if it's a type we track and is player owned
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
     core.get_entity_info(entity)
   end

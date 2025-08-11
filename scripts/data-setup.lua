@@ -57,7 +57,7 @@ function data_setup.build_entity_type_lists()
   end
 
   if settings.startup["enable-other-production-entities"].value then
-    table.insert(secondary_types, "rocket-silo")
+    table.insert(primary_types, "rocket-silo")
     table.insert(all_tracked_types, "rocket-silo")
   end
 
