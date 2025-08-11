@@ -6,7 +6,8 @@
       "mcp__context7__resolve-library-id",
       "Bash(cat:*)",
       "Bash(git log:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "WebFetch(domain:www.lua.org)"
     ],
     "deny": []
   }

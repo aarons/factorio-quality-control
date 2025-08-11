@@ -18,18 +18,24 @@ machine with upgrades (like beacons) should be impacted by quality changes faste
 ]]
 
 --- Setup locally scoped variables
-local debug = false -- Set to true to enable debug logging
+local debug_enabled = false
 local previous_qualities = {} -- lookup table for previous qualities in the chain (to make downgrades easier)
 local tracked_entities -- lookup table for all the entities we might change the quality of
 
+--- Batch processing state (simple rolling window for secondary entity ratios)
+local rolling_ratio = {
+  attempts = 0,
+  entities = 0,
+  window_size = 10000 -- reset counters after this many primary entities processed
+}
+
 --- Helper function for debug logging
 local function debug(message)
-  if debug then
+  if debug_enabled then
     log("debug: " .. message)
   end
 end
 
---- Entity type definitions by category
 local entity_categories = {
   primary = {
     ["assembling-machine"] = "assembly-machines",
@@ -63,13 +69,11 @@ local entity_categories = {
   }
 }
 
---- Build entity type lists based on settings
 local function build_entity_type_lists()
   local primary_types = {}
   local secondary_types = {}
   local all_tracked_types = {}
 
-  -- Handle primary entities based on setting
   local primary_setting = settings.startup["primary-entities-selection"].value
   if primary_setting == "both" or primary_setting == "assembly-machines-only" then
     table.insert(primary_types, "assembling-machine")
@@ -80,13 +84,11 @@ local function build_entity_type_lists()
     table.insert(all_tracked_types, "furnace")
   end
 
-  -- Always include rocket-silo in other-production category if enabled
   if settings.startup["enable-other-production-entities"].value then
     table.insert(secondary_types, "rocket-silo")
     table.insert(all_tracked_types, "rocket-silo")
   end
 
-  -- Add secondary entity categories based on settings
   if settings.startup["enable-electrical-entities"].value then
     for _, entity_type in ipairs(entity_categories.electrical) do
       table.insert(secondary_types, entity_type)
@@ -122,7 +124,6 @@ local function build_entity_type_lists()
     end
   end
 
-  -- Add standalone entities based on individual settings
   for entity_type, setting_name in pairs(entity_categories.standalone) do
     if settings.startup[setting_name].value then
       table.insert(secondary_types, entity_type)
@@ -133,11 +134,8 @@ local function build_entity_type_lists()
   return primary_types, secondary_types, all_tracked_types
 end
 
--- Build the actual entity type lists
-local primary_types, secondary_types, all_tracked_types = build_entity_type_lists()
+local _, _, all_tracked_types = build_entity_type_lists()
 
--- Construct is_tracked_type lookup table from the base arrays
--- Has O(1) access time, for quick checks if an entity is a type that we are tracking
 local is_tracked_type = {}
 for _, entity_type in ipairs(all_tracked_types) do
   is_tracked_type[entity_type] = true
@@ -159,46 +157,19 @@ elseif accumulation_rate_setting == "high" then
   accumulation_percentage = 100
 end
 
-local function get_previous_quality(quality_prototype)
-  -- check if we need to build the lookup table
-  if not next(previous_qualities) then
-    for name, prototype in pairs(prototypes.quality) do  -- renamed to avoid collision
-      if name ~= "quality-unknown" and prototype.next then
-        previous_qualities[prototype.next.name] = prototype
-      end
+--- Build the previous quality lookup table (called once during init)
+local function build_previous_quality_lookup()
+  for name, prototype in pairs(prototypes.quality) do
+    if name ~= "quality-unknown" and prototype.next then
+      previous_qualities[prototype.next.name] = prototype
     end
   end
+end
 
+local function get_previous_quality(quality_prototype)
   return previous_qualities[quality_prototype.name]
 end
 
---- Initialize the entity tracking table structure
-local function ensure_tracked_entity_table(force_reset)
-  -- Fast path: if tracked_entities exists and no force reset, return immediately
-  if tracked_entities and not force_reset then
-    return
-  end
-
-  -- Handle force reset by clearing everything
-  if force_reset then
-    tracked_entities = nil
-  end
-
-  -- Initialize if tracked_entities is empty
-  if not tracked_entities then
-    if not storage.quality_control_entities then
-      storage.quality_control_entities = {}
-    end
-    tracked_entities = storage.quality_control_entities
-
-    -- Ensure all entity type tables exist
-    for _, entity_type in ipairs(all_tracked_types) do
-      if not tracked_entities[entity_type] then
-        tracked_entities[entity_type] = {}
-      end
-    end
-  end
-end
 
 --- Gets or creates entity metrics for a specific entity
 local function get_entity_info(entity)
@@ -210,21 +181,26 @@ local function get_entity_info(entity)
   local can_increase = quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = quality_change_direction == "decrease" and previous_quality ~= nil
 
+  -- Check if entity type is primary (assembling-machine or furnace)
+  local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace")
+
   -- if the unit doesn't exist, then initialize it
-  if not tracked_entities[entity_type][id] then
-    tracked_entities[entity_type][id] = {
+  if not tracked_entities[id] then
+    tracked_entities[id] = {
       entity = entity,
+      entity_type = entity_type,
+      is_primary = is_primary,
       chance_to_change = base_percentage_chance,
       attempts_to_change = 0,
       can_change_quality = can_increase or can_decrease
     }
-    -- Only assembling machines and furnaces track manufacturing hours
-    if entity_type == "assembling-machine" or entity_type == "furnace" then
-      tracked_entities[entity_type][id].manufacturing_hours = 0
+    -- Only primary entities track manufacturing hours
+    if is_primary then
+      tracked_entities[id].manufacturing_hours = 0
     end
   end
 
-  return tracked_entities[entity_type][id]
+  return tracked_entities[id]
 end
 
 --- Scans all surfaces and populates entity data
@@ -243,10 +219,9 @@ local function scan_and_populate_entities()
 end
 
 --- Cleans up data for a specific entity that was destroyed
-local function remove_entity_info(entity_type, id)
-  if is_tracked_type[entity_type] then
-    ensure_tracked_entity_table()
-    tracked_entities[entity_type][id] = nil
+local function remove_entity_info(id)
+  if tracked_entities then
+    tracked_entities[id] = nil
   end
 end
 
@@ -278,7 +253,7 @@ local function attempt_quality_change(entity)
   debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
 
   local random_roll = math.random()
-  local entity_info = tracked_entities[entity.type][entity.unit_number]
+  local entity_info = tracked_entities[entity.unit_number]
 
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
@@ -292,7 +267,6 @@ local function attempt_quality_change(entity)
 
   -- Store info before creating replacement (entity becomes invalid after fast_replace)
   local old_unit_number = entity.unit_number
-  local old_entity_type = entity.type
 
   -- Determine target quality based on direction setting
   local target_quality
@@ -315,7 +289,7 @@ local function attempt_quality_change(entity)
 
   debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
-    remove_entity_info(old_entity_type, old_unit_number)
+    remove_entity_info(old_unit_number)
 
     -- Update module quality when entity quality changes
     local module_setting = settings.startup["change-modules-with-entity"].value
@@ -391,134 +365,133 @@ local function show_quality_notifications(quality_changes)
   end
 end
 
+--- Setup all data structures needed for the mod
+local function setup_data_structures(force_reset)
+  -- Handle force reset by clearing everything
+  if force_reset then
+    storage.quality_control_entities = {}
+  end
+
+  -- Initialize storage tables
+  if not storage.quality_control_entities then
+    storage.quality_control_entities = {}
+  end
+  tracked_entities = storage.quality_control_entities
+
+  build_previous_quality_lookup()
+
+  if not storage.last_processed_key then
+    storage.last_processed_key = nil
+  end
+
+  if not storage.rolling_ratio then
+    storage.rolling_ratio = {attempts = 0, entities = 0}
+  end
+
+  storage.batch_processing_initialized = true
+end
+
 --- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
   debug("reinitialize_quality_control_storage called")
 
-  ensure_tracked_entity_table(true)
-  scan_and_populate_entities()
-
-  -- Only print message if called from console command (with player context)
+  -- Notify player that rebuild is starting
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
-      player.print("Quality Control storage reinitialized. All machines have been rescanned.")
+      player.print("Quality Control: Rebuilding cache, scanning entities...")
+    end
+  end
+
+  -- Full reinitialization: setup data structures and rescan entities
+  setup_data_structures(true)  -- Clear existing data
+  scan_and_populate_entities()
+
+  -- Notify player that rebuild is complete
+  if command and command.player_index then
+    local player = game.get_player(command.player_index)
+    if player then
+      player.print("Quality Control: Cache rebuild complete. All entities have been scanned.")
     end
   end
 end
 
+--- Process entities in batches to avoid performance spikes
+local function batch_process_entities()
+  debug("batch_process_entities called")
 
---- Iterates through all tracked entities and checks if their quality should be changed.
-local function check_and_change_quality()
-  debug("check_and_change_quality called")
-  ensure_tracked_entity_table()
+  local batch_size = settings.global["batch-entities-per-tick"].value
+  local entities_processed = 0
+  local quality_changes = {}
+  local ratio = storage.rolling_ratio
 
-  local total_invalid_entites = 0
+  -- Process entities using next() for natural iteration
+  while entities_processed < batch_size do
+    local unit_number, entity_info = next(tracked_entities, storage.last_processed_key)
 
-  -- Track changes for notifications
-  local quality_changes = {} -- For aggregate alerts
+    if not unit_number then
+      -- Finished the table, reset for next cycle
+      storage.last_processed_key = nil
 
-  -- Track primary entity attempts and counts for ratio calculation
-  local assembling_attempts = 0
-  local assembling_count = 0
-  local furnace_attempts = 0
-  local furnace_count = 0
+      -- Reset rolling ratio counters periodically
+      if ratio.entities > rolling_ratio.window_size then
+        ratio.attempts = math.floor(ratio.attempts / 2)
+        ratio.entities = math.floor(ratio.entities / 2)
+      end
+      break
+    end
 
-  -- Primary entities loop
-  for _, entity_type in pairs(primary_types) do
-    if tracked_entities[entity_type] then
+    local entity = entity_info.entity
+    if not entity or not entity.valid then
+      debug("entity invalid: " .. tostring(unit_number))
+      remove_entity_info(unit_number)
+    else
+      -- Process entity based on whether it's primary or secondary
+      if entity_info.is_primary and entity_info.can_change_quality then
+        -- Primary entity logic (manufacturing hours)
+        local current_recipe = entity.get_recipe()
+        if current_recipe then
+          local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
+          local recipe_time = current_recipe.prototype.energy
+          local current_hours = (entity.products_finished * recipe_time) / 3600
+          local previous_hours = entity_info.manufacturing_hours or 0
 
-      for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
-        local entity = entity_info.entity
-        if not entity or not entity.valid then
-          debug("entity invalid or unit number changed: valid=" .. tostring(entity and entity.valid) .. ", unit_numbers: " .. tostring(entity and entity.unit_number) .. " vs " .. tostring(unit_number))
-          remove_entity_info(entity_type, unit_number)
-          total_invalid_entites = total_invalid_entites + 1
-          goto continue
-        end
+          local available_hours = current_hours - previous_hours
+          local thresholds_passed = math.floor(available_hours / hours_needed)
 
-        -- Count entities for ratio calculation
-        if entity_type == "assembling-machine" then
-          assembling_count = assembling_count + 1
-        elseif entity_type == "furnace" then
-          furnace_count = furnace_count + 1
-        end
+          if thresholds_passed > 0 then
+            ratio.attempts = ratio.attempts + thresholds_passed
+            ratio.entities = ratio.entities + 1
 
-        if entity_info.can_change_quality then
-          local current_recipe = entity.get_recipe()
-          if current_recipe then
-            local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ entity.quality.level
-            local recipe_time = current_recipe.prototype.energy
-            local current_hours = (entity.products_finished * recipe_time) / 3600
-            local previous_hours = entity_info.manufacturing_hours or 0
-
-            local available_hours = current_hours - previous_hours
-            local thresholds_passed = math.floor(available_hours / hours_needed)
-
-            if thresholds_passed > 0 then
-              -- Track attempts for ratio calculation
-              if entity_type == "assembling-machine" then
-                assembling_attempts = assembling_attempts + thresholds_passed
-              elseif entity_type == "furnace" then
-                furnace_attempts = furnace_attempts + thresholds_passed
+            local successful_change = false
+            for _ = 1, thresholds_passed do
+              local change_result = attempt_quality_change(entity)
+              if change_result then
+                successful_change = true
+                quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+                break
               end
+            end
 
-              local successful_change = false
-
-              for i = 1, thresholds_passed do
-                local change_result = attempt_quality_change(entity)
-                if change_result then
-                  successful_change = true
-
-                  -- Track the change for notifications
-                  quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-
-                  break -- Stop trying after a success
-                end
-              end
-
-              -- If no change was made, update the manufacturing hours floor
-              if not successful_change then
-                entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
-              end
+            if not successful_change then
+              entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
             end
           end
         end
-        ::continue::
-      end
-    end
-  end
-
-  -- Calculate ratios for secondary entities
-  -- This determines, on average, how many changes were attempted as a proportion of the assembly machines or furnaces
-  -- Then we apply the same proportion of attempted changes to other secondary entity types
-  local assembling_ratio = assembling_count > 0 and (assembling_attempts / assembling_count) or 0
-  local furnace_ratio = furnace_count > 0 and (furnace_attempts / furnace_count) or 0
-  local secondary_ratio = math.max(assembling_ratio, furnace_ratio)
-
-  -- Secondary entities
-  if secondary_ratio > 0 then
-    for _, entity_type in pairs(secondary_types) do
-      for unit_number, entity_info in pairs(tracked_entities[entity_type]) do
-        if entity_info.can_change_quality then
-          local entity = entity_info.entity
-
-          if not entity or not entity.valid then
-            remove_entity_info(entity_type, unit_number)
-            total_invalid_entites = total_invalid_entites + 1
-            goto continue_secondary
-          end
-
-          if math.random() < secondary_ratio then
-            local change_result = attempt_quality_change(entity)
-            if change_result then
-              quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-            end
+      elseif not entity_info.is_primary and entity_info.can_change_quality then
+        -- Secondary entity logic (uses ratio from primary entities)
+        local current_ratio = ratio.entities > 0 and (ratio.attempts / ratio.entities) or 0
+        if current_ratio > 0 and math.random() < current_ratio then
+          local change_result = attempt_quality_change(entity)
+          if change_result then
+            quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
           end
         end
-        ::continue_secondary::
       end
     end
+
+    storage.last_processed_key = unit_number
+    entities_processed = entities_processed + 1
   end
 
   -- Show notifications if any changes occurred
@@ -526,13 +499,7 @@ local function check_and_change_quality()
     show_quality_notifications(quality_changes)
   end
 
-  -- See if we should re-initilize storage.
-  -- If error rate is high then something has gone wonky with tracked_entities; likely a mod change or migration from older data model during development
-  if (assembling_attempts + furnace_attempts == 0 and total_invalid_entites > 3) then
-    debug("Total invalid entities was high: " .. total_invalid_entites)
-    debug("Or there are fewer than expected entities tracked. re-initializing storage")
-    reinitialize_quality_control_storage()
-  end
+  debug("Processed " .. entities_processed .. " entities this tick")
 end
 
 --- Displays quality control metrics for the selected entity
@@ -559,13 +526,7 @@ local function show_entity_quality_info(player)
   end
 
   local entity_info = get_entity_info(selected_entity)
-  local is_primary_type = false
-  for _, entity_type in ipairs(primary_types) do
-    if selected_entity.type == entity_type then
-      is_primary_type = true
-      break
-    end
-  end
+  local is_primary_type = entity_info.is_primary
   local current_recipe = is_primary_type and selected_entity.get_recipe and selected_entity.get_recipe()
 
   -- Build info message parts
@@ -608,72 +569,83 @@ local function on_quality_control_inspect(event)
   end
 end
 
---- Registers the nth_tick event based on the current setting
-local function register_nth_tick_event()
-  debug("register_nth_tick_event called")
-  -- Get the frequency setting in seconds and convert to ticks (60 ticks = 1 second)
-  local check_interval_seconds = settings.global["upgrade-check-frequency-seconds"].value
-  local check_interval_ticks = math.max(60, math.floor(check_interval_seconds * 60))
-
-  -- Register the new nth_tick event (this will replace any existing handler for this specific tick interval)
-  script.on_nth_tick(check_interval_ticks, check_and_change_quality)
-end
-
 --- Event handler for entity destruction - cleans up entity data
 local function on_entity_destroyed(event)
   debug("on_entity_destroyed called")
   local entity = event.entity
   if entity and entity.valid then
-    remove_entity_info(entity.type, entity.unit_number)
+    remove_entity_info(entity.unit_number)
   end
 end
 
--- Register event handlers for entity creation
-script.on_event(defines.events.on_built_entity, on_entity_created)
-script.on_event(defines.events.on_robot_built_entity, on_entity_created)
-script.on_event(defines.events.on_space_platform_built_entity, on_entity_created)
-script.on_event(defines.events.script_raised_built, on_entity_created)
-script.on_event(defines.events.script_raised_revive, on_entity_created)
-script.on_event(defines.events.on_entity_cloned, on_entity_created)
 
--- Register event handlers for entity destruction/deconstruction
-script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed)
-script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
-script.on_event(defines.events.on_space_platform_mined_entity, on_entity_destroyed)
-script.on_event(defines.events.on_entity_died, on_entity_destroyed)
-script.on_event(defines.events.script_raised_destroy, on_entity_destroyed)
+--- Registers the main processing loop based on the current setting
+local function register_main_loop()
+  local tick_interval = settings.global["batch-ticks-between-processing"].value
+  script.on_nth_tick(nil)
+  script.on_nth_tick(tick_interval, batch_process_entities)
+end
 
--- Register event handler for quality control inspect shortcut
-script.on_event("quality-control-inspect-entity", on_quality_control_inspect)
+--- Initialize all event handlers
+local function register_event_handlers()
+  -- Entity creation events
+  script.on_event(defines.events.on_built_entity, on_entity_created)
+  script.on_event(defines.events.on_robot_built_entity, on_entity_created)
+  script.on_event(defines.events.on_space_platform_built_entity, on_entity_created)
+  script.on_event(defines.events.script_raised_built, on_entity_created)
+  script.on_event(defines.events.script_raised_revive, on_entity_created)
+  script.on_event(defines.events.on_entity_cloned, on_entity_created)
+
+  -- Entity destruction events
+  script.on_event(defines.events.on_player_mined_entity, on_entity_destroyed)
+  script.on_event(defines.events.on_robot_mined_entity, on_entity_destroyed)
+  script.on_event(defines.events.on_space_platform_mined_entity, on_entity_destroyed)
+  script.on_event(defines.events.on_entity_died, on_entity_destroyed)
+  script.on_event(defines.events.script_raised_destroy, on_entity_destroyed)
+
+  -- Quality control inspect shortcut
+  script.on_event("quality-control-inspect-entity", on_quality_control_inspect)
+
+  -- Runtime setting changes
+  script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+    if event.setting == "batch-ticks-between-processing" then
+      if storage.batch_processing_initialized then
+        register_main_loop()
+      end
+    end
+  end)
+
+  -- Start the main processing loop
+  register_main_loop()
+end
 
 -- Register console command
 commands.add_command("quality-control-init", "Reinitialize Quality Control storage and rescan all machines", reinitialize_quality_control_storage)
 
--- Initialize quality lookup on a new game
+-- Initialize on new game
 script.on_init(function()
-  debug("script.on_init called")
-  ensure_tracked_entity_table()
+  setup_data_structures()
   scan_and_populate_entities()
-  register_nth_tick_event()
+  register_event_handlers()
 end)
 
--- Rebuild quality lookup when configuration changes (mods added/removed)
+-- Handle startup setting changes and mod version updates
 script.on_configuration_changed(function(event)
-  debug("script.on_configuration_changed called")
-  -- Reset tracked entities data
   reinitialize_quality_control_storage()
-  register_nth_tick_event()
+  storage.batch_processing_initialized = false
+  register_event_handlers()
 end)
 
--- Handle runtime setting changes
-script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
-  debug("script.on_runtime_mod_setting_changed called for setting: " .. event.setting)
-  if event.setting == "upgrade-check-frequency-seconds" then
-    register_nth_tick_event()
-  end
-end)
-
+-- Handle save game loading
+-- Uses delayed initialization pattern because on_load has restrictions:
+-- - No access to game object
+-- - Storage table is read-only
+-- - Can only set up metatables and event handlers
+-- The one-tick delay ensures full game access when initializing
 script.on_load(function()
-  debug("script.on_load called")
-  register_nth_tick_event() -- register handler when loading a game
+  script.on_nth_tick(60, function()
+    script.on_nth_tick(nil)  -- Unregister to run only once
+    setup_data_structures()
+    register_event_handlers()
+  end)
 end)

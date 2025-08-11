@@ -51,13 +51,22 @@ data:extend({
         order = "a-5"
     },
     {
-        type = "double-setting",
-        name = "upgrade-check-frequency-seconds",
+        type = "int-setting",
+        name = "batch-entities-per-tick",
         setting_type = "runtime-global",
         default_value = 10,
         min_value = 1,
-        max_value = 3600,
+        max_value = 1000,
         order = "b-0"
+    },
+    {
+        type = "int-setting",
+        name = "batch-ticks-between-processing",
+        setting_type = "runtime-global",
+        default_value = 1,
+        min_value = 1,
+        max_value = 6000, -- about 15 minutes
+        order = "b-1"
     },
     {
         type = "bool-setting",
