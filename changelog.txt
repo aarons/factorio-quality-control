@@ -3,15 +3,9 @@ Version: 1.0.0
 Date: 10. 08. 2025
   Features:
     - Added settings to customize which entities are affected by quality changes
-    - Primary entities dropdown enables choosing between assembly machines only, furnaces only, or both as the drivers of manufacturing hours
-    - Secondary entity categories can be toggled individually: electrical infrastructure, other production entities, defense structures, space platform assets, and miscellaneous items
-    - Standalone entity types (labs, roboports, beacons, pumps, radar, inserters) have individual toggle controls for granular customization
-    - Added optional module quality change setting that allows modules to progress alongside their host entities
+    - Added option to allow modules to progress alongside their host entities
   Balancing:
-    - Module quality changes are now bidirectional (can upgrade or downgrade with the entity)
     - Modules move only one quality tier at a time for balanced progression
-    - Module quality is capped to not exceed the host entity's quality level
-    - Module quality changes default to off to preserve game balance
   Ease of use:
     - Added comprehensive tooltips explaining entity types and balance considerations for all settings
 ---------------------------------------------------------------------------------------------------
@@ -42,7 +36,7 @@ Date: 04. 08. 2025
 Version: 0.5.0
 Date: 03. 08. 2025
   Features:
-    - Apply quality changes to random secondary entities
+    - Apply quality changes to secondary entities
     - Expanded entity tracking to include more placeable types (except belts, pipes, and tiles as they impacted performance too much)
     - Added entity inspection tool and cache re-initialization command
   Optimizations:
