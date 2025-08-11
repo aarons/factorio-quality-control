@@ -17,11 +17,11 @@ local debug_enabled = false
 local tracked_entities -- lookup table for all the entities we might change the quality of
 local previous_qualities = {} -- lookup table for previous qualities in the chain
 
--- Batch processing state (simple rolling window for secondary entity ratios)
-local rolling_ratio = {
-  attempts = 0,
-  entities = 0,
-  window_size = 10000 -- reset counters after this many primary entities processed
+-- EWMA upgrade rate tracker for secondary entities
+local upgrade_rate_tracker = {
+  current_rate = 0.0,        -- Current estimated upgrade attempts per primary entity
+  alpha = 0.001,             -- Smoothing factor: 0.01 = 230 samples to converge on the average, 0.001 = 2300 samples
+  samples_count = 0          -- Number of primary entities processed
 }
 
 -- Settings (will be set by control.lua)
@@ -195,7 +195,6 @@ function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
   local entities_processed = 0
   local quality_changes = {}
-  local ratio = storage.rolling_ratio
 
   -- Process entities using next() for natural iteration
   while entities_processed < batch_size do
@@ -204,12 +203,6 @@ function core.batch_process_entities()
     if not unit_number then
       -- Finished the table, reset for next cycle
       storage.last_processed_key = nil
-
-      -- Reset rolling ratio counters periodically
-      if ratio.entities > rolling_ratio.window_size then
-        ratio.attempts = math.floor(ratio.attempts / 2)
-        ratio.entities = math.floor(ratio.entities / 2)
-      end
       break
     end
 
@@ -221,6 +214,7 @@ function core.batch_process_entities()
       -- Process entity based on whether it's primary or secondary
       if entity_info.is_primary and entity_info.can_change_quality then
         -- Primary entity logic (manufacturing hours)
+        local thresholds_passed = 0
         local current_recipe = entity.get_recipe()
         if current_recipe then
           local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
@@ -229,12 +223,9 @@ function core.batch_process_entities()
           local previous_hours = entity_info.manufacturing_hours or 0
 
           local available_hours = current_hours - previous_hours
-          local thresholds_passed = math.floor(available_hours / hours_needed)
+          thresholds_passed = math.floor(available_hours / hours_needed)
 
           if thresholds_passed > 0 then
-            ratio.attempts = ratio.attempts + thresholds_passed
-            ratio.entities = ratio.entities + 1
-
             local successful_change = false
             for _ = 1, thresholds_passed do
               local change_result = attempt_quality_change(entity)
@@ -250,10 +241,13 @@ function core.batch_process_entities()
             end
           end
         end
+
+        -- Update EWMA immediately for this primary entity
+        upgrade_rate_tracker.current_rate = upgrade_rate_tracker.alpha * thresholds_passed + (1 - upgrade_rate_tracker.alpha) * upgrade_rate_tracker.current_rate
+        upgrade_rate_tracker.samples_count = upgrade_rate_tracker.samples_count + 1
       elseif not entity_info.is_primary and entity_info.can_change_quality then
-        -- Secondary entity logic (uses ratio from primary entities)
-        local current_ratio = ratio.entities > 0 and (ratio.attempts / ratio.entities) or 0
-        if current_ratio > 0 and math.random() < current_ratio then
+        -- Secondary entity logic (uses EWMA rate from primary entities)
+        if upgrade_rate_tracker.current_rate > 0 and math.random() < upgrade_rate_tracker.current_rate then
           local change_result = attempt_quality_change(entity)
           if change_result then
             quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1

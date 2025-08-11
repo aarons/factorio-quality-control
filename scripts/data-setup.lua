@@ -163,10 +163,6 @@ function data_setup.setup_data_structures(force_reset)
     storage.last_processed_key = nil
   end
 
-  if not storage.rolling_ratio then
-    storage.rolling_ratio = {attempts = 0, entities = 0}
-  end
-
   storage.data_structures_ready = true
 end
 
