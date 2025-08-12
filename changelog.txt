@@ -1,5 +1,14 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.0
+Date: 11. 08. 2025
+  Features:
+    - Prevent console alert spam by adding notification throttling with cooldown (the console alert is off by default)
+  Optimizations:
+    - Improved performance by adding configurable batch processing
+    - Reduced total tracked entities by removing those that cannot change quality
+    - Reduced memory usage by implementing exponentially weighted moving average (EWMA) for secondary entity upgrade attempts
+---------------------------------------------------------------------------------------------------
+Version: 0.9.0
 Date: 10. 08. 2025
   Features:
     - Added settings to customize which entities are affected by quality changes

@@ -131,9 +131,10 @@ Two notification systems keep you informed (scripts/notifications.lua):
 - Customizable per-player setting
 
 **Aggregate Console Messages**:
-- Summarizes all quality changes in the last check cycle
+- Summarizes all quality changes with a 5-minute cooldown to prevent spam
+- Accumulates changes across multiple processing cycles until cooldown expires
 - Example: "3 assembling-machines upgraded, 1 furnace downgraded"
-- Reduces notification spam for large factories
+- Prevents console flooding while maintaining useful feedback
 
 Both can be independently enabled/disabled in runtime settings.
 

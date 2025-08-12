@@ -7,6 +7,45 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 
 local notifications = {}
 
+-- Aggregate notification throttling (5 minutes = 18000 ticks)
+local AGGREGATE_NOTIFICATION_COOLDOWN_TICKS = 18000
+
+function notifications.accumulate_quality_changes(quality_changes)
+  for entity_name, count in pairs(quality_changes) do
+    storage.aggregate_notifications.accumulated_changes[entity_name] =
+      (storage.aggregate_notifications.accumulated_changes[entity_name] or 0) + count
+  end
+end
+
+function notifications.try_show_accumulated_notifications(quality_change_direction)
+  local current_tick = game.tick
+  local time_since_last = current_tick - storage.aggregate_notifications.last_notification_tick
+
+  if time_since_last >= AGGREGATE_NOTIFICATION_COOLDOWN_TICKS and
+     next(storage.aggregate_notifications.accumulated_changes) then
+
+    local player = game.players[1]
+    if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
+      local messages = {}
+
+      for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
+        local action = quality_change_direction == "increase" and "upgraded" or "downgraded"
+        local plural = count > 1 and "s" or ""
+
+        table.insert(messages, count .. " " .. entity_name .. plural .. " " .. action)
+      end
+
+      if #messages > 0 then
+        player.print("Quality Control Updates:\n" .. table.concat(messages, "\n"))
+      end
+    end
+
+    -- Reset after showing
+    storage.aggregate_notifications.accumulated_changes = {}
+    storage.aggregate_notifications.last_notification_tick = current_tick
+  end
+end
+
 function notifications.show_entity_quality_alert(entity, change_type)
   local player = game.players[1] -- In single player, this is the player
   if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
@@ -18,21 +57,9 @@ function notifications.show_entity_quality_alert(entity, change_type)
 end
 
 function notifications.show_quality_notifications(quality_changes, quality_change_direction)
-  -- Show aggregate console alerts if enabled
-  local player = game.players[1]
-  if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
-    local messages = {}
-
-    for entity_name, count in pairs(quality_changes) do
-      local action = quality_change_direction == "increase" and "upgraded" or "downgraded"
-      local plural = count > 1 and "s" or ""
-
-      table.insert(messages, count .. " " .. entity_name .. plural .. " " .. action)
-    end
-
-    if #messages > 0 then
-      player.print("Quality Control Updates:\n" .. table.concat(messages, "\n"))
-    end
+  if next(quality_changes) then
+    notifications.accumulate_quality_changes(quality_changes)
+    notifications.try_show_accumulated_notifications(quality_change_direction)
   end
 end
 
