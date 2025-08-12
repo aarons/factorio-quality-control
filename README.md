@@ -16,24 +16,24 @@ The mod is highly configurable so that it's impact on gameplay can be tuned to y
 
 The mod tracks two categories of entities with different quality management approaches:
 
-**Primary Entities** (Lines 33, 334-397 in control.lua):
+**Primary Entities** (scripts/data-setup.lua):
 - Assembling machines, furnaces, and rocket silos
 - Track exact manufacturing hours based on items produced × recipe duration
 - Quality changes are deterministic based on accumulated work time
 - Each machine independently tracks its progress toward the next quality change
 
-**Secondary Entities** (Lines 34-56, 406-429 in control.lua):
+**Secondary Entities** (scripts/data-setup.lua):
 - Infrastructure: mining drills, labs, inserters, pumps, radar, roboports
 - Power: electric poles, solar panels, accumulators, generators, reactors
 - Defense: turrets, walls, gates
 - Logic: combinators, beacons, speakers
 - Space Age: lightning rods, asteroid collectors, thrusters, cargo landing pads
 
-Secondary entities use a proportional system - they attempt quality changes based on the average rate of change among primary entities. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
+Secondary entities use a proportional syste hi therem - they attempt quality changes based on the average rate of change among primary entities. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
 
 ### Direction of Changes
 
-Configure whether machines improve or degrade over time (Line 83 in control.lua):
+Configure whether machines improve or degrade over time:
 - **Quality Increase**: Machines become more efficient with use, representing experience and optimization
 - **Quality Decrease**: Machines wear down and require replacement, adding a maintenance gameplay element
 
@@ -41,7 +41,7 @@ The mod automatically handles quality boundaries - machines at legendary quality
 
 ### Manufacturing Hours
 
-The core metric for quality progression (Lines 7-17, 358-363 in control.lua):
+The core metric for quality progression (scripts/core.lua):
 
 ```
 Manufacturing Hours = (Items Produced × Recipe Duration) / 3600
@@ -56,7 +56,7 @@ The system tracks the delta between checks, allowing machines to accumulate mult
 
 ### Chance-Based Changes
 
-When a machine reaches the hour threshold, a quality change attempt occurs (Lines 213-276 in control.lua):
+When a machine reaches the hour threshold, a quality change attempt occurs (scripts/core.lua):
 
 1. A random roll (0-100) is compared against the configured percentage chance
 2. If successful, the machine is replaced with the same type at the new quality level
@@ -67,7 +67,7 @@ This maintains Factorio's "gacha" spirit while providing predictable progression
 
 ### Chance Accumulation
 
-Optional system to ensure fairness over time (Lines 86-96, 223-225 in control.lua):
+Optional system to ensure fairness over time (scripts/core.lua):
 
 After each failed quality change attempt, the chance increases by:
 ```
@@ -87,7 +87,7 @@ Example with 10% base chance and Medium accumulation:
 
 ### Cost Scaling
 
-Higher quality levels require more manufacturing hours (Line 357 in control.lua):
+Higher quality levels require more manufacturing hours (scripts/core.lua):
 
 ```
 Required Hours = Base Hours × (1 + Cost Scaling Factor)^Quality Level
@@ -103,7 +103,7 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically change modules when their host entity's quality changes (Line 321 in control.lua).
+By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically change modules when their host entity's quality changes (scripts/core.lua).
 
 The `change-modules-with-entity` setting has three options:
 
@@ -123,7 +123,7 @@ The `change-modules-with-entity` setting has three options:
 
 ### In-Game Notifications
 
-Two notification systems keep you informed (Lines 201-210, 280-299 in control.lua):
+Two notification systems keep you informed (scripts/notifications.lua):
 
 **Entity-Specific Alerts**:
 - Map pings at the machine's location when quality changes
@@ -139,7 +139,7 @@ Both can be independently enabled/disabled in runtime settings.
 
 ### Inspection Tools
 
-**Hotkey Inspection** (Ctrl+Shift+Q) (Lines 445-507 in control.lua):
+**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/core.lua):
 Select any tracked entity and press the hotkey to see:
 - Current quality level and entity name
 - Total quality change attempts
@@ -147,7 +147,7 @@ Select any tracked entity and press the hotkey to see:
 - Manufacturing hours accumulated vs. required
 - Progress percentage to next attempt
 
-**Console Command** (Line 557 in control.lua):
+**Console Command** (control.lua):
 ```
 /quality-control-init
 ```
@@ -156,7 +156,7 @@ Rebuilds the entire tracking cache from scratch. Useful if:
 - You've made significant factory changes while the mod was disabled
 - Debugging tracking issues
 
-The mod also automatically reinitializes if it detects corruption in the tracking data (Lines 437-442).
+The mod also automatically reinitializes if it detects corruption in the tracking data.
 
 ## Mod Settings
 
@@ -208,16 +208,21 @@ Copy the generated zip file to the factorio mods folder to test any changes.
 1. After making changes, run `./package.sh` to build and deploy
 2. Restart Factorio or reload mods to test your changes
 3. Use the in-game console (`~` key) to check for errors
-4. Enable debug mode in `control.lua` (set `debug = true`) for detailed logging
+4. Enable debug mode in `scripts/core.lua` (set `debug_enabled = true`) for detailed logging
 5. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
 
 ### Project Structure
 
 ```
 quality-control/
-├── control.lua          # Main mod logic and event handlers
+├── control.lua          # Main entry point and event handlers
+├── data.lua             # Data stage definitions and prototypes
 ├── settings.lua         # Mod settings definitions
 ├── info.json            # Mod metadata and dependencies
+├── scripts/             # Core mod logic (modular architecture)
+│   ├── core.lua         # Quality control processing and entity tracking
+│   ├── data-setup.lua   # Data structure initialization and configuration
+│   └── notifications.lua # Notification and UI systems
 ├── locale/
 │   └── en/
 │       └── locale.cfg  # English localization strings
