@@ -7,6 +7,8 @@ Date: 11. 08. 2025
     - Improved performance by adding configurable batch processing
     - Reduced total tracked entities by removing those that cannot change quality
     - Reduced memory usage by implementing exponentially weighted moving average (EWMA) for secondary entity upgrade attempts
+  Bugfixes:
+    - Prevent double upgrades when re-initializing cached storage
 ---------------------------------------------------------------------------------------------------
 Version: 0.9.0
 Date: 10. 08. 2025

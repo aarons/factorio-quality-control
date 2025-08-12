@@ -72,7 +72,14 @@ function core.get_entity_info(entity)
       can_change_quality = can_change_quality
     }
     if is_primary then
-      tracked_entities[id].manufacturing_hours = 0
+      -- Initialize manufacturing hours to actual current value to prevent double upgrades on re-initialization
+      local current_recipe = entity.get_recipe()
+      if current_recipe then
+        local recipe_time = current_recipe.prototype.energy
+        tracked_entities[id].manufacturing_hours = (entity.products_finished * recipe_time) / 3600
+      else
+        tracked_entities[id].manufacturing_hours = 0
+      end
     end
   end
 
@@ -94,7 +101,7 @@ function core.scan_and_populate_entities(all_tracked_types)
 end
 
 function core.remove_entity_info(id)
-  if tracked_entities then
+  if tracked_entities and tracked_entities[id] then
     tracked_entities[id] = nil
   end
 end
@@ -269,7 +276,7 @@ end
 function core.on_entity_destroyed(event)
   debug("on_entity_destroyed called")
   local entity = event.entity
-  if entity and entity.valid then
+  if entity and entity.valid and is_tracked_type[entity.type] then
     core.remove_entity_info(entity.unit_number)
   end
 end
