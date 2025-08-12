@@ -150,11 +150,19 @@ Select any tracked entity and press the hotkey to see:
 
 **Console Command** (control.lua):
 ```
-/quality-control-init
+/quality-control-init [default_hours]
 ```
-Rebuilds the entire tracking cache from scratch. Useful if:
+Rebuilds the entire tracking cache from scratch. Optionally accepts a numeric parameter to set default manufacturing hours for all entities (useful for testing).
+
+Examples:
+- `/quality-control-init` - Standard reinitialization using existing production data
+- `/quality-control-init 0` - Reset all entities to 0 manufacturing hours
+- `/quality-control-init 1000` - Initialize all entities with 1000 manufacturing hours
+
+Useful when:
 - Entities aren't being tracked properly after mod updates
 - You've made significant factory changes while the mod was disabled
+- Testing quality upgrade/downgrade behavior with specific hour values
 - Debugging tracking issues
 
 The mod also automatically reinitializes if it detects corruption in the tracking data.

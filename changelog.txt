@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 12. 08. 2025
+  Features:
+    - Added optional default_hours parameter to reinitialize command for testing purposes
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 11. 08. 2025
   Features:

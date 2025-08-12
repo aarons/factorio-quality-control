@@ -45,8 +45,8 @@ local function get_previous_quality(quality_prototype)
   return previous_qualities[quality_prototype.name]
 end
 
-function core.get_entity_info(entity)
-  debug("get_entity_info called for entity type: " .. (entity.type or "unknown"))
+function core.get_entity_info(entity, default_hours)
+  debug("get_entity_info called for entity type: " .. (entity.type or "unknown") .. (default_hours and " with default_hours=" .. default_hours or ""))
 
   local id = entity.unit_number
   local entity_type = entity.type
@@ -72,13 +72,18 @@ function core.get_entity_info(entity)
       can_change_quality = can_change_quality
     }
     if is_primary then
-      -- Initialize manufacturing hours to actual current value to prevent double upgrades on re-initialization
-      local current_recipe = entity.get_recipe()
-      if current_recipe then
-        local recipe_time = current_recipe.prototype.energy
-        tracked_entities[id].manufacturing_hours = (entity.products_finished * recipe_time) / 3600
+      if default_hours ~= nil then
+        -- Use the provided default hours for testing purposes
+        tracked_entities[id].manufacturing_hours = default_hours
       else
-        tracked_entities[id].manufacturing_hours = 0
+        -- Initialize manufacturing hours to actual current value to prevent double upgrades on re-initialization
+        local current_recipe = entity.get_recipe()
+        if current_recipe then
+          local recipe_time = current_recipe.prototype.energy
+          tracked_entities[id].manufacturing_hours = (entity.products_finished * recipe_time) / 3600
+        else
+          tracked_entities[id].manufacturing_hours = 0
+        end
       end
     end
   end
@@ -86,8 +91,8 @@ function core.get_entity_info(entity)
   return tracked_entities[id]
 end
 
-function core.scan_and_populate_entities(all_tracked_types)
-  debug("scan_and_populate_entities called")
+function core.scan_and_populate_entities(all_tracked_types, default_hours)
+  debug("scan_and_populate_entities called" .. (default_hours and " with default_hours=" .. default_hours or ""))
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
       type = all_tracked_types,
@@ -95,7 +100,7 @@ function core.scan_and_populate_entities(all_tracked_types)
     }
 
     for _, entity in ipairs(entities) do
-      core.get_entity_info(entity) -- This will initialize the entity in tracked_entities
+      core.get_entity_info(entity, default_hours) -- Pass default_hours to get_entity_info
     end
   end
 end

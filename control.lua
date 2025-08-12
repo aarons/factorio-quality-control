@@ -18,18 +18,32 @@ local previous_qualities = data_setup.build_previous_quality_lookup()
 
 --- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
+  local default_hours = nil
+  
+  -- Parse optional default_hours parameter from command
+  if command and command.parameter then
+    default_hours = tonumber(command.parameter)
+    if default_hours and default_hours < 0 then
+      default_hours = 0  -- Ensure non-negative
+    end
+  end
+  
   -- Notify player that rebuild is starting
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
-      player.print("Quality Control: Rebuilding cache, scanning entities...")
+      local message = "Quality Control: Rebuilding cache, scanning entities..."
+      if default_hours ~= nil then
+        message = message .. " (default hours: " .. default_hours .. ")"
+      end
+      player.print(message)
     end
   end
 
   -- Full reinitialization: setup data structures and rescan entities
   data_setup.setup_data_structures(true)  -- Clear existing data
   core.initialize(settings_data, is_tracked_type, previous_qualities)
-  core.scan_and_populate_entities(all_tracked_types)
+  core.scan_and_populate_entities(all_tracked_types, default_hours)
 
   -- Notify player that rebuild is complete
   if command and command.player_index then
@@ -89,7 +103,7 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 script.on_init(function()
   data_setup.setup_data_structures()
   core.initialize(settings_data, is_tracked_type, previous_qualities)
-  core.scan_and_populate_entities(all_tracked_types)
+  core.scan_and_populate_entities(all_tracked_types)  -- No default_hours on initial load
   register_event_handlers()
 end)
 
