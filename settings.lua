@@ -11,7 +11,7 @@ data:extend({
         type = "double-setting",
         name = "manufacturing-hours-for-change",
         setting_type = "startup",
-        default_value = 5,
+        default_value = 3,
         min_value = 0.001,
         max_value = 1000,
         order = "a-1"
@@ -29,16 +29,16 @@ data:extend({
         type = "double-setting",
         name = "quality-increase-cost",
         setting_type = "startup",
-        default_value = 0.3,
+        default_value = 50,
         min_value = 0,
-        max_value = 1000,
+        max_value = 100000,
         order = "a-3"
     },
     {
         type = "string-setting",
         name = "quality-chance-accumulation-rate",
         setting_type = "startup",
-        default_value = "none",
+        default_value = "low",
         allowed_values = {"none", "low", "medium", "high"},
         order = "a-4"
     },
@@ -46,7 +46,7 @@ data:extend({
         type = "string-setting",
         name = "change-modules-with-entity",
         setting_type = "startup",
-        default_value = "disabled",
+        default_value = "enabled",
         allowed_values = {"disabled", "enabled", "extra-enabled"},
         order = "a-5"
     },

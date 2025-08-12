@@ -93,7 +93,7 @@ Higher quality levels require more manufacturing hours (scripts/core.lua):
 Required Hours = Base Hours × (1 + Cost Scaling Factor)^Quality Level
 ```
 
-With a 0.5 cost scaling factor and 10 base hours:
+With a 0.5 cost scaling factor and 1 base hours:
 - Normal → Uncommon: 10 hours
 - Uncommon → Rare: 15 hours (10 × 1.5)
 - Rare → Epic: 22.5 hours (10 × 1.5²)
@@ -166,7 +166,7 @@ All settings are configurable at game startup:
 - **Quality Change Direction**: Increase or decrease quality over time
 - **Manufacturing Hours for Change**: Base hours required before a quality change (0.001 - 1000 hours)
 - **Percentage Chance**: Likelihood of quality change when hours are met (0.0001% - 100%)
-- **Quality Increase Cost**: Compounds the hour requirement at higher quality levels
+- **Cost Increases per Quality Level**: Compounds the hour requirement at higher quality levels
 - **Chance Accumulation Rate**: How much the chance increases after failed attempts (None/Low/Medium/High)
 - **Check Frequency**: How often to scan machines (1 - 3600 seconds)
 - **Alert Settings**: Toggle console messages and/or map pings for quality changes

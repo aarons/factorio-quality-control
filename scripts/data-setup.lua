@@ -121,7 +121,7 @@ function data_setup.parse_settings()
   -- Setup all values defined in startup settings
   settings_data.quality_change_direction = settings.startup["quality-change-direction"].value
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
-  settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value
+  settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
   
   local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value

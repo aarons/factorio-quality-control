@@ -132,6 +132,9 @@ local function attempt_quality_change(entity)
     target_quality = get_previous_quality(entity.quality)
   end
 
+  -- Raise script_raised_destroy event for the old entity before replacement
+  script.raise_script_destroy{entity = entity}
+
   local replacement_entity = entity.surface.create_entity {
     name = entity.name,
     position = entity.position,
