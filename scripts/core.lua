@@ -18,21 +18,63 @@ local tracked_entities -- lookup table for all the entities we might change the 
 local previous_qualities = {} -- lookup table for previous qualities in the chain
 
 -- EWMA upgrade rate tracker for secondary entities
-local upgrade_rate_tracker = {
-  current_rate = 0.0,        -- Current estimated upgrade attempts per primary entity
-  alpha = 0.001,             -- Smoothing factor: 0.01 = 230 samples to converge on the average, 0.001 = 2300 samples
-  samples_count = 0          -- Number of primary entities processed
+local quality_change_tracker = {
+  attempts_per_tick = 0.0,       -- EWMA rate (attempts per game tick)
+  alpha = 0.01,                  -- 230 samples to converge
+  last_update_tick = nil,        -- When we last updated EWMA
+  total_samples = 0              -- For stabilization check
 }
 
 -- Settings (will be set by control.lua)
 local settings_data = {}
 local is_tracked_type = {}
 
+-- Function to update EWMA with encapsulated timing logic
+local function update_quality_change_ewma(attempts_this_batch)
+  local current_tick = game.tick
+
+  -- Calculate elapsed ticks internally
+  local elapsed_ticks
+  if quality_change_tracker.last_update_tick then
+    elapsed_ticks = current_tick - quality_change_tracker.last_update_tick
+  else
+    -- First call - use configured interval as fallback
+    elapsed_ticks = settings.global["batch-ticks-between-processing"].value
+    quality_change_tracker.last_update_tick = current_tick
+  end
+
+  -- Skip update if no time has passed (defensive programming)
+  if elapsed_ticks <= 0 then return end
+
+  -- Calculate rate and update EWMA
+  local attempts_per_tick = attempts_this_batch / elapsed_ticks
+  quality_change_tracker.attempts_per_tick =
+    quality_change_tracker.alpha * attempts_per_tick +
+    (1 - quality_change_tracker.alpha) * quality_change_tracker.attempts_per_tick
+
+  quality_change_tracker.last_update_tick = current_tick
+  quality_change_tracker.total_samples = quality_change_tracker.total_samples + 1
+end
+
+-- Reset function for tracker initialization
+function core.reset_quality_change_tracker()
+  if quality_change_tracker and game then
+    quality_change_tracker.attempts_per_tick = 0.0
+    quality_change_tracker.total_samples = 0
+    quality_change_tracker.last_update_tick = game.tick
+  end
+end
+
 function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup)
   settings_data = parsed_settings
   is_tracked_type = tracked_type_lookup
   previous_qualities = quality_lookup
   tracked_entities = storage.quality_control_entities
+
+  -- Initialize tracker with current tick
+  if game then
+    quality_change_tracker.last_update_tick = game.tick
+  end
 end
 
 local function debug(message)
@@ -102,6 +144,14 @@ end
 
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
+    -- If we're removing the current iteration key, advance it first
+    if storage.last_processed_key == id then
+      -- Get the next key before removing current one
+      local next_key = next(tracked_entities, id)
+      storage.last_processed_key = next_key
+      debug("Advanced last_processed_key from removed entity " .. tostring(id) .. " to " .. tostring(next_key))
+    end
+    
     tracked_entities[id] = nil
   end
 end
@@ -200,9 +250,17 @@ function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
   local entities_processed = 0
   local quality_changes = {}
+  local attempts_to_change_quality = 0  -- Track attempts this batch
 
   -- Process entities using next() for natural iteration
   while entities_processed < batch_size do
+    -- Validate stored key still exists before using it
+    if storage.last_processed_key and not tracked_entities[storage.last_processed_key] then
+      -- Key is stale, reset to start fresh iteration
+      storage.last_processed_key = nil
+      debug("Detected stale last_processed_key, resetting")
+    end
+    
     local unit_number, entity_info = next(tracked_entities, storage.last_processed_key)
 
     if not unit_number then
@@ -244,13 +302,18 @@ function core.batch_process_entities()
           end
         end
 
-        upgrade_rate_tracker.current_rate = upgrade_rate_tracker.alpha * thresholds_passed + (1 - upgrade_rate_tracker.alpha) * upgrade_rate_tracker.current_rate
-        upgrade_rate_tracker.samples_count = upgrade_rate_tracker.samples_count + 1
+        attempts_to_change_quality = attempts_to_change_quality + thresholds_passed
       else
-        if upgrade_rate_tracker.current_rate > 0 and math.random() < upgrade_rate_tracker.current_rate then
-          local change_result = attempt_quality_change(entity)
-          if change_result then
-            quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+        -- Apply quality change rate if stabilized
+        if quality_change_tracker.total_samples >= 50 then
+          local ticks_between_processing = settings.global["batch-ticks-between-processing"].value
+          local probability = quality_change_tracker.attempts_per_tick * ticks_between_processing
+
+          if probability > 0 and math.random() < probability then
+            local change_result = attempt_quality_change(entity)
+            if change_result then
+              quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+            end
           end
         end
       end
@@ -259,6 +322,8 @@ function core.batch_process_entities()
     storage.last_processed_key = unit_number
     entities_processed = entities_processed + 1
   end
+
+  update_quality_change_ewma(attempts_to_change_quality)
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)

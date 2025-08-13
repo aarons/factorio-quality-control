@@ -18,8 +18,6 @@ Assemblers that are at max quality and can no longer change will not impact the 
 
 You can select which entities should be included or excluded in the settings.
 
-![settings example image](settings.png)
-
 There are a few entities that aren't supported right now: belts, pipes, and storage items. These should be fine to add in if desired; some performance work was completed recently that should make adding these a non-issue.
 
 **Gameplay experience**
@@ -39,8 +37,6 @@ If you use mods that add quality levels, then 50% compounding will bump the hour
 **Optional notifications**
 
 By default, a silent map ping is turned on to highlight entities that change. This should be a non-obtrusive way to know that things were happening.
-
-![notification image](map.png)
 
 There is an optional aggregate report (default off), which will ping the console with a breakdown of how many entities changed (maximum of 1 report every 5 minutes, so you don't get spammed). This one does make some noise.
 

@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.1
+Date: 13. 08. 2025
+  Bugfixes:
+    - Fixed secondary entity quality change rate being affected by processing frequency
+    - Secondary entities now upgrade at consistent rates regardless of batch processing interval
+---------------------------------------------------------------------------------------------------
 Version: 1.0.0
 Date: 11. 08. 2025
   Features:
