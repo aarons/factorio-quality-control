@@ -13,6 +13,16 @@ echo "Factorio Mod Packaging Script"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "========================================="
 
+# Run validation before packaging
+echo ""
+echo "Running pre-packaging validation..."
+if ! ./validate.sh --changelog; then
+    echo ""
+    echo "❌ Validation failed! Fix the errors above before packaging."
+    exit 1
+fi
+echo ""
+
 # Read mod name and version from info.json
 MOD_NAME=$(jq -r .name info.json)
 MOD_VERSION=$(jq -r .version info.json)
@@ -33,7 +43,7 @@ FULL_PACKAGE_DIR="$TMP_DIR/$PACKAGE_DIR"
 mkdir -p "$FULL_PACKAGE_DIR"
 
 # Copy all files to the temporary directory, excluding .git
-rsync -av --exclude='.git' --exclude='assets*' --exclude='plan*.md' --exclude='mod-description.md' --exclude='.DS_Store' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' --exclude='.claude*' ./ "$FULL_PACKAGE_DIR/"
+rsync -av --exclude='.git' --exclude='assets*' --exclude='plan*.md' --exclude='mod-description.md' --exclude='.DS_Store' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' --exclude='.claude*' --exclude='tests*' --exclude='validate*' ./ "$FULL_PACKAGE_DIR/"
 
 # Create the zip file
 (
