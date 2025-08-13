@@ -47,8 +47,6 @@ local function register_main_loop()
   local tick_interval = settings.global["batch-ticks-between-processing"].value
   script.on_nth_tick(nil)
   script.on_nth_tick(tick_interval, core.batch_process_entities)
-  -- Reset tracker when registering loop to ensure accurate elapsed time
-  core.reset_quality_change_tracker()
 end
 
 --- Initialize all event handlers
@@ -75,8 +73,11 @@ local function register_event_handlers()
   script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
     if event.setting == "batch-ticks-between-processing" then
       if storage.data_structures_ready then
+        local old_interval = storage.last_batch_interval or settings.global["batch-ticks-between-processing"].value
         register_main_loop()
-        core.reset_quality_change_tracker()
+        local new_interval = settings.global["batch-ticks-between-processing"].value
+        core.adjust_quality_change_tracker(old_interval, new_interval)
+        storage.last_batch_interval = new_interval
       end
     end
   end)

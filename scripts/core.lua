@@ -65,6 +65,16 @@ function core.reset_quality_change_tracker()
   end
 end
 
+-- Adjust tracker for interval changes (prevents exploit by scaling rate)
+function core.adjust_quality_change_tracker(old_interval, new_interval)
+  if quality_change_tracker and game and old_interval and new_interval > 0 then
+    local scaling_factor = old_interval / new_interval
+    quality_change_tracker.attempts_per_tick = quality_change_tracker.attempts_per_tick * scaling_factor
+    quality_change_tracker.last_update_tick = game.tick
+    -- Keep total_samples intact to preserve stabilization
+  end
+end
+
 function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup)
   settings_data = parsed_settings
   is_tracked_type = tracked_type_lookup
@@ -151,7 +161,7 @@ function core.remove_entity_info(id)
       storage.last_processed_key = next_key
       debug("Advanced last_processed_key from removed entity " .. tostring(id) .. " to " .. tostring(next_key))
     end
-    
+
     tracked_entities[id] = nil
   end
 end
@@ -255,12 +265,12 @@ function core.batch_process_entities()
   -- Process entities using next() for natural iteration
   while entities_processed < batch_size do
     -- Validate stored key still exists before using it
+    -- It can be invalidated by another mod removing an entity without raising the removal event
     if storage.last_processed_key and not tracked_entities[storage.last_processed_key] then
-      -- Key is stale, reset to start fresh iteration
       storage.last_processed_key = nil
       debug("Detected stale last_processed_key, resetting")
     end
-    
+
     local unit_number, entity_info = next(tracked_entities, storage.last_processed_key)
 
     if not unit_number then

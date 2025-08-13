@@ -45,6 +45,15 @@ mkdir -p "$FULL_PACKAGE_DIR"
 # Copy all files to the temporary directory, excluding .git
 rsync -av --exclude='.git' --exclude='assets*' --exclude='plan*.md' --exclude='mod-description.md' --exclude='.DS_Store' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='package.sh' --exclude='*.zip' --exclude='.claude*' --exclude='tests*' --exclude='validate*' ./ "$FULL_PACKAGE_DIR/"
 
+# Create archive folder if it doesn't exist
+mkdir -p archive
+
+# Move any existing version zip files to archive folder
+if ls quality-control_*.zip 1> /dev/null 2>&1; then
+    echo "Moving existing version files to archive folder..."
+    mv quality-control_*.zip archive/
+fi
+
 # Create the zip file
 (
   cd "$TMP_DIR"

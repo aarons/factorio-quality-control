@@ -171,6 +171,11 @@ function data_setup.setup_data_structures(force_reset)
     }
   end
 
+  -- Initialize batch interval tracking for EWMA scaling
+  if not storage.last_batch_interval then
+    storage.last_batch_interval = settings.global["batch-ticks-between-processing"].value
+  end
+
   storage.data_structures_ready = true
 end
 
