@@ -52,7 +52,7 @@ If you want to forcefully rebuild the cache (shouldn't ever be needed, but just 
 
 **Has good performance**
 
-A fair amount of performance tuning and testing went into this, it shouldn't impact UPS or gameplay noticeably even for large bases.
+The mod has been tuned to perform well on large bases, it shouldn't impact UPS or gameplay noticeably.
 
 There are map settings that can be used to optimize things further if you do notice an impact. The settings are:
 - number of units processed at once (default 10)
