@@ -14,15 +14,21 @@ local core = {}
 
 -- Module state
 local debug_enabled = false
+
+local function debug(message)
+  if debug_enabled then
+    log("debug: " .. message)
+  end
+end
 local tracked_entities -- lookup table for all the entities we might change the quality of
 local previous_qualities = {} -- lookup table for previous qualities in the chain
 
 -- EWMA upgrade rate tracker for secondary entities
 local quality_change_tracker = {
-  attempts_per_tick = 0.0,       -- EWMA rate (attempts per game tick)
-  alpha = 0.01,                  -- 230 samples to converge
-  last_update_tick = nil,        -- When we last updated EWMA
-  total_samples = 0              -- For stabilization check
+  per_entity_rate_per_tick = 0.0, -- EWMA per-entity rate (attempts per entity per tick)
+  alpha = 0.01,                   -- 230 samples to converge
+  last_update_tick = nil,         -- When we last updated EWMA
+  total_samples = 0               -- For stabilization check
 }
 
 -- Settings (will be set by control.lua)
@@ -30,7 +36,7 @@ local settings_data = {}
 local is_tracked_type = {}
 
 -- Function to update EWMA with encapsulated timing logic
-local function update_quality_change_ewma(attempts_this_batch)
+local function update_quality_change_ewma(attempts_this_batch, primary_entities_this_batch)
   local current_tick = game.tick
 
   -- Calculate elapsed ticks internally
@@ -43,27 +49,33 @@ local function update_quality_change_ewma(attempts_this_batch)
     quality_change_tracker.last_update_tick = current_tick
   end
 
-  -- Skip update if no time has passed (defensive programming)
+  -- Skip update if we get a surprising elapsed_tick value
   if elapsed_ticks <= 0 then return end
 
-  -- Calculate rate and update EWMA
-  local attempts_per_tick = attempts_this_batch / elapsed_ticks
-  quality_change_tracker.attempts_per_tick =
-    quality_change_tracker.alpha * attempts_per_tick +
-    (1 - quality_change_tracker.alpha) * quality_change_tracker.attempts_per_tick
+  -- Calculate per-entity rate and update EWMA
+  local per_entity_rate_per_tick = 0
+  if primary_entities_this_batch > 0 then
+    per_entity_rate_per_tick = attempts_this_batch / (primary_entities_this_batch * elapsed_ticks)
+  end
+
+  quality_change_tracker.per_entity_rate_per_tick =
+    quality_change_tracker.alpha * per_entity_rate_per_tick +
+    (1 - quality_change_tracker.alpha) * quality_change_tracker.per_entity_rate_per_tick
 
   quality_change_tracker.last_update_tick = current_tick
   quality_change_tracker.total_samples = quality_change_tracker.total_samples + 1
+
+  debug("EWMA Update: " .. attempts_this_batch .. " attempts from " .. primary_entities_this_batch ..
+        " primary entities over " .. elapsed_ticks .. " ticks. Per-entity rate: " ..
+        string.format("%.6f", quality_change_tracker.per_entity_rate_per_tick) .. " attempts/entity/tick")
 end
 
 
--- Adjust tracker for interval changes (prevents exploit by scaling rate)
-function core.adjust_quality_change_tracker(old_interval, new_interval)
-  if quality_change_tracker and game and old_interval and new_interval > 0 then
-    local scaling_factor = old_interval / new_interval
-    quality_change_tracker.attempts_per_tick = quality_change_tracker.attempts_per_tick * scaling_factor
+-- Reset tracker timing on interval changes (prevents timing calculation errors)
+function core.adjust_quality_change_tracker()
+  if quality_change_tracker and game then
+    -- reset the timing reference so our next rate calculation knows the starting point
     quality_change_tracker.last_update_tick = game.tick
-    -- Keep total_samples intact to preserve stabilization
   end
 end
 
@@ -76,12 +88,6 @@ function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup)
   -- Initialize tracker with current tick
   if game then
     quality_change_tracker.last_update_tick = game.tick
-  end
-end
-
-local function debug(message)
-  if debug_enabled then
-    log("debug: " .. message)
   end
 end
 
@@ -253,6 +259,7 @@ function core.batch_process_entities()
   local entities_processed = 0
   local quality_changes = {}
   local attempts_to_change_quality = 0  -- Track attempts this batch
+  local primary_entities_processed = 0  -- Count primary entities (including those with 0 attempts)
 
   -- Process entities using next() for natural iteration
   while entities_processed < batch_size do
@@ -276,6 +283,7 @@ function core.batch_process_entities()
       core.remove_entity_info(unit_number)
     else
       if entity_info.is_primary then
+        primary_entities_processed = primary_entities_processed + 1  -- Count all primary entities
         local thresholds_passed = 0
         local current_recipe = entity.get_recipe()
         if current_recipe then
@@ -309,9 +317,28 @@ function core.batch_process_entities()
         -- Apply quality change rate if stabilized
         if quality_change_tracker.total_samples >= 50 then
           local ticks_between_processing = settings.global["batch-ticks-between-processing"].value
-          local probability = quality_change_tracker.attempts_per_tick * ticks_between_processing
 
-          if probability > 0 and math.random() < probability then
+          -- Apply the per-entity rate to this secondary entity (handle rates > 1.0 with multiple attempts)
+          local total_rate = quality_change_tracker.per_entity_rate_per_tick * ticks_between_processing
+          local guaranteed_attempts = math.floor(total_rate)
+          local fractional_chance = total_rate - guaranteed_attempts
+
+          debug("Secondary entity " .. tostring(entity.unit_number) .. ": per_entity_rate_per_tick=" ..
+                string.format("%.6f", quality_change_tracker.per_entity_rate_per_tick) .. ", total_rate=" ..
+                string.format("%.4f", total_rate) .. ", guaranteed=" .. guaranteed_attempts ..
+                ", fractional=" .. string.format("%.4f", fractional_chance))
+
+          -- Perform guaranteed attempts
+          for _ = 1, guaranteed_attempts do
+            local change_result = attempt_quality_change(entity)
+            if change_result then
+              quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+              break -- Stop after first successful upgrade (like primary entities)
+            end
+          end
+
+          -- Perform fractional chance attempt if no upgrade yet and entity still valid
+          if fractional_chance > 0 and entity.valid and math.random() < fractional_chance then
             local change_result = attempt_quality_change(entity)
             if change_result then
               quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
@@ -325,7 +352,7 @@ function core.batch_process_entities()
     entities_processed = entities_processed + 1
   end
 
-  update_quality_change_ewma(attempts_to_change_quality)
+  update_quality_change_ewma(attempts_to_change_quality, primary_entities_processed)
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
