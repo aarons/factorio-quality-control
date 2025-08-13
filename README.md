@@ -173,6 +173,8 @@ All settings are configurable at game startup:
 
 ## Performance
 
+A late game base doing 1,000 spm can have ~100,000 units. At the default rate of 10 units per tick, it would take about 3 minutes to check everything. If a unit has passed several thresholds between checks it's fine; no progress will be lost. All the attempted upgrades/downgrades it has earned will be applied at once. So a fast machine can be upgraded multiple times in a single pass.
+
 Some test results on an m2 mac:
 
 - A base with 2,000spm (vanilla, not yet at promethium science) with 130,000 units was totally fine, UPS stayed steady at 60 UPS
@@ -222,10 +224,9 @@ Copy the generated zip file to the factorio mods folder to test any changes.
 ### Development Tips
 
 1. After making changes, run `./package.sh` to build and deploy
-2. Restart Factorio or reload mods to test your changes
-3. Use the in-game console (`~` key) to check for errors
-4. Enable debug mode in `scripts/core.lua` (set `debug_enabled = true`) for detailed logging
-5. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
+2. Restart Factorio to load the updated mod
+3. Enable debug mode in `scripts/core.lua` (set `debug_enabled = true`) for detailed logging to factorio-current.log
+4. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
 
 ### Project Structure
 
