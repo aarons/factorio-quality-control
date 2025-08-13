@@ -56,14 +56,6 @@ local function update_quality_change_ewma(attempts_this_batch)
   quality_change_tracker.total_samples = quality_change_tracker.total_samples + 1
 end
 
--- Reset function for tracker initialization
-function core.reset_quality_change_tracker()
-  if quality_change_tracker and game then
-    quality_change_tracker.attempts_per_tick = 0.0
-    quality_change_tracker.total_samples = 0
-    quality_change_tracker.last_update_tick = game.tick
-  end
-end
 
 -- Adjust tracker for interval changes (prevents exploit by scaling rate)
 function core.adjust_quality_change_tracker(old_interval, new_interval)
