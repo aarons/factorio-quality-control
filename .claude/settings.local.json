@@ -8,7 +8,10 @@
       "Bash(git log:*)",
       "Bash(grep:*)",
       "WebFetch(domain:www.lua.org)",
-      "WebFetch(domain:wiki.factorio.com)"
+      "WebFetch(domain:wiki.factorio.com)",
+      "WebSearch",
+      "WebFetch(domain:forums.factorio.com)",
+      "WebFetch(domain:mods.factorio.com)"
     ],
     "deny": []
   }

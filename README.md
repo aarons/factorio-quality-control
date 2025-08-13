@@ -171,6 +171,21 @@ All settings are configurable at game startup:
 - **Check Frequency**: How often to scan machines (1 - 3600 seconds)
 - **Alert Settings**: Toggle console messages and/or map pings for quality changes
 
+## Performance
+
+Some test results on an m2 mac:
+
+- A base with 2,000spm (vanilla, not yet at promethium science) with 130,000 units was totally fine, UPS stayed steady at 60 UPS
+
+- A base with 30,000spm (modded) was also fine: UPS stayed at about 60 (it was already fluctuating a bit before the mod, and adding it seemed about the same)
+
+- Average milliseconds used over 100 ticks on my largest base fluctuated between 0.3ms to 0.7ms. Over those 100 ticks there was a max value of ~3ms, but I didn't notice lag spikes, and the average didn't change. I'm not sure where that small spike came from. For reference, 1 tick in the game is 16.67ms, and all game and mods share that; so the less used the better.
+
+- Bumping up to 100 units per 1 tick had no noticeable impact.
+
+- Bumping up to 1000 units introduced some noticeable lag, and higher values did even more so. Spreading out the units processed into large groups created lag spikes, which causes the game to stutter. So I wouldn't recommend something like 100k every 60 ticks. It's better to do fewer units more frequently.
+
+
 ## Developer Workflow
 
 ### Prerequisites

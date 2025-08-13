@@ -3,7 +3,7 @@ data:extend({
   {
     type = "custom-input",
     name = "quality-control-inspect-entity",
-    key_sequence = "SHIFT + Q",
+    key_sequence = "CTRL + SHIFT + Q",
     consuming = "none"
   }
 })

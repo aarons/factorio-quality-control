@@ -9,9 +9,21 @@
   "dependencies": [
     "base",
     "quality",
-    "? all-quality-from-start",
+    "? additional-qualities",
+    "? artifactquality",
+    "? ic-more-qualities",
+    "? infinite-quality-tiers-plus",
+    "? mythic-quality-fg",
+    "? mythic-quality",
+    "? mythicquality",
+    "? quality-plus-plus-shiny-mechanics",
+    "? quality-plus-plus-sus-fork",
+    "? quality-plus-plus",
+    "? qualityplus",
+    "? ultimate-quality",
     "? unlimited-quality",
-    "? additional-qualities"
+    "? unreal-mythical-quality",
+    "? vfsteeperqualitywithmythic"
   ],
   "quality_required": true,
   "rail_bridges_required": false,
