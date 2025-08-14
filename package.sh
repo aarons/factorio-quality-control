@@ -127,3 +127,19 @@ detect_and_copy_to_mods_folder
 
 echo ""
 echo "Mod installed at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+
+# Check for debug mode in core.lua and show warning at the end
+if grep -q "debug_enabled = true" scripts/core.lua; then
+    echo ""
+    echo "========================================="
+    echo "⚠️  WARNING: DEBUG MODE IS ENABLED!"
+    echo "========================================="
+    echo ""
+    echo "Found 'debug_enabled = true' in scripts/core.lua"
+    echo "This will cause excessive logging in production."
+    echo ""
+    echo "Please set 'debug_enabled = false' before packaging"
+    echo "for release to users."
+    echo ""
+    echo "========================================="
+fi

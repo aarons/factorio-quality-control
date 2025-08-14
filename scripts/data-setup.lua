@@ -152,7 +152,6 @@ function data_setup.setup_data_structures(force_reset)
   -- Handle force reset by clearing everything
   if force_reset then
     storage.quality_control_entities = {}
-    storage.total_primary_entities = 0
   end
 
   -- Initialize storage tables
@@ -160,8 +159,8 @@ function data_setup.setup_data_structures(force_reset)
     storage.quality_control_entities = {}
   end
 
-  if not storage.last_processed_key then
-    storage.last_processed_key = nil
+  if not storage.next_batch_key then
+    storage.next_batch_key = nil
   end
 
   -- Initialize notification system
