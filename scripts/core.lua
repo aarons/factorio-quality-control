@@ -9,11 +9,10 @@ Contains the main processing logic for quality control:
 ]]
 
 local notifications = require("scripts.notifications")
-
 local core = {}
 
 -- Module state
-local debug_enabled = false
+local debug_enabled = true
 
 local function debug(message)
   if debug_enabled then
@@ -26,7 +25,7 @@ local previous_qualities = {} -- lookup table for previous qualities in the chai
 -- EWMA upgrade rate tracker for secondary entities
 local quality_change_tracker = {
   per_entity_rate_per_tick = 0.0, -- EWMA per-entity rate (attempts per entity per tick)
-  alpha = 0.01,                   -- 230 samples to converge
+  base_alpha = 0.01,               -- Base alpha for small batches
   last_update_tick = nil,         -- When we last updated EWMA
   total_samples = 0               -- For stabilization check
 }
@@ -52,22 +51,23 @@ local function update_quality_change_ewma(attempts_this_batch, primary_entities_
   -- Skip update if we get a surprising elapsed_tick value
   if elapsed_ticks <= 0 then return end
 
-  -- Calculate per-entity rate and update EWMA
-  local per_entity_rate_per_tick = 0
-  if primary_entities_this_batch > 0 then
-    per_entity_rate_per_tick = attempts_this_batch / (primary_entities_this_batch * elapsed_ticks)
-  end
+  -- Calculate per-entity rate using total primary entities as denominator
+  local total_primary = math.max(storage.total_primary_entities or 0, 1)  -- Avoid division by zero
+  local per_entity_rate_per_tick = attempts_this_batch / (total_primary * elapsed_ticks)
+  local alpha = quality_change_tracker.base_alpha
 
   quality_change_tracker.per_entity_rate_per_tick =
-    quality_change_tracker.alpha * per_entity_rate_per_tick +
-    (1 - quality_change_tracker.alpha) * quality_change_tracker.per_entity_rate_per_tick
+    alpha * per_entity_rate_per_tick +
+    (1 - alpha) * quality_change_tracker.per_entity_rate_per_tick
 
   quality_change_tracker.last_update_tick = current_tick
   quality_change_tracker.total_samples = quality_change_tracker.total_samples + 1
 
   debug("EWMA Update: " .. attempts_this_batch .. " attempts from " .. primary_entities_this_batch ..
-        " primary entities over " .. elapsed_ticks .. " ticks. Per-entity rate: " ..
-        string.format("%.6f", quality_change_tracker.per_entity_rate_per_tick) .. " attempts/entity/tick")
+        " batch entities (total primary: " .. total_primary .. ") over " .. elapsed_ticks ..
+        " ticks. Alpha: " .. string.format("%.4f", alpha) ..
+        ", Per-entity rate: " .. string.format("%.6f", quality_change_tracker.per_entity_rate_per_tick) ..
+        " attempts/entity/tick")
 end
 
 
@@ -84,6 +84,11 @@ function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup)
   is_tracked_type = tracked_type_lookup
   previous_qualities = quality_lookup
   tracked_entities = storage.quality_control_entities
+
+  -- Initialize global entity counts if not set
+  if not storage.total_primary_entities then
+    storage.total_primary_entities = 0
+  end
 
   -- Initialize tracker with current tick
   if game then
@@ -130,6 +135,8 @@ function core.get_entity_info(entity)
       else
         tracked_entities[id].manufacturing_hours = 0
       end
+      -- Increment global primary entity count
+      storage.total_primary_entities = (storage.total_primary_entities or 0) + 1
     end
   end
 
@@ -152,12 +159,15 @@ end
 
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
-    -- If we're removing the current iteration key, advance it first
+    -- Decrement global primary entity count if this was a primary entity
+    if tracked_entities[id].is_primary then
+      storage.total_primary_entities = math.max(0, (storage.total_primary_entities or 0) - 1)
+    end
+
+    -- If the entity we're removing is also the current iteration key, advance it first
     if storage.last_processed_key == id then
-      -- Get the next key before removing current one
-      local next_key = next(tracked_entities, id)
-      storage.last_processed_key = next_key
-      debug("Advanced last_processed_key from removed entity " .. tostring(id) .. " to " .. tostring(next_key))
+      storage.last_processed_key = next(tracked_entities, id)
+      debug("Advanced last_processed_key from removed entity " .. tostring(id) .. " to " .. tostring(storage.last_processed_key))
     end
 
     tracked_entities[id] = nil
@@ -261,7 +271,6 @@ function core.batch_process_entities()
   local attempts_to_change_quality = 0  -- Track attempts this batch
   local primary_entities_processed = 0  -- Count primary entities (including those with 0 attempts)
 
-  -- Process entities using next() for natural iteration
   while entities_processed < batch_size do
     -- Validate stored key still exists before using it
     -- It can be invalidated by another mod removing an entity without raising the removal event
@@ -296,18 +305,21 @@ function core.batch_process_entities()
           thresholds_passed = math.floor(available_hours / hours_needed)
 
           if thresholds_passed > 0 then
-            local successful_change = false
+            local successful_changes = 0
             for _ = 1, thresholds_passed do
               local change_result = attempt_quality_change(entity)
               if change_result then
-                successful_change = true
+                successful_changes = successful_changes + 1
+                entity = change_result  -- Update entity reference to the new replacement
+                unit_number = change_result.unit_number
                 quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-                break
               end
             end
 
-            if not successful_change then
-              entity_info.manufacturing_hours = previous_hours + (thresholds_passed * hours_needed)
+            -- Update manufacturing hours for any unsuccessful attempts
+            if successful_changes < thresholds_passed then
+              local remaining_attempts = thresholds_passed - successful_changes
+              entity_info.manufacturing_hours = previous_hours + (remaining_attempts * hours_needed)
             end
           end
         end
@@ -329,18 +341,22 @@ function core.batch_process_entities()
                 ", fractional=" .. string.format("%.4f", fractional_chance))
 
           -- Perform guaranteed attempts
+          local successful_changes = 0
           for _ = 1, guaranteed_attempts do
             local change_result = attempt_quality_change(entity)
             if change_result then
+              successful_changes = successful_changes + 1
+              entity = change_result  -- Update entity reference to the new replacement
+              unit_number = change_result.unit_number
               quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-              break -- Stop after first successful upgrade (like primary entities)
             end
           end
 
-          -- Perform fractional chance attempt if no upgrade yet and entity still valid
-          if fractional_chance > 0 and entity.valid and math.random() < fractional_chance then
+          -- Perform fractional chance attempt only if no successful changes and entity still valid
+          if successful_changes == 0 and fractional_chance > 0 and entity.valid and math.random() < fractional_chance then
             local change_result = attempt_quality_change(entity)
             if change_result then
+              unit_number = change_result.unit_number
               quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
             end
           end

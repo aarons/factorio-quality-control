@@ -152,6 +152,7 @@ function data_setup.setup_data_structures(force_reset)
   -- Handle force reset by clearing everything
   if force_reset then
     storage.quality_control_entities = {}
+    storage.total_primary_entities = 0
   end
 
   -- Initialize storage tables

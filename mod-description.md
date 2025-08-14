@@ -19,15 +19,23 @@ Crafting speed does impact progression though; an assembler with crafting speed 
 
 **Works with the whole base**
 
-Supported: Assembling machines, furnaces, rocket silos, mining drills, agricultural towers, electric poles, solar panels, accumulators, generators, reactors, boilers, heat pipes, power switches, lightning rods, turrets, artillery turrets, walls, gates, asteroid collectors, thrusters, cargo landing pads, labs, roboports, beacons, pumps, offshore pumps, radar, inserters, lamps, combinators, and programmable speakers.
+Just about all unit types are supported. Here's the full list:
 
-Some entities do not have direct way to track their work (like solar panels or inserters). These use the average progression rate of the assemblers, so that entities in the base evolves at about the same rate.
+- Manufacturing: assembling machines, furnaces, rocket silos
+- Mining: mining drills, agricultural towers
+- Fluids: pumps, offshore pumps
+- Power: electric poles, solar panels, accumulators, generators, reactors, boilers, heat pipes, power switches, lightning rods
+- Combat: turrets, artillery turrets, walls, gates, radar
+- Logistics: inserters, beacons, roboports
+- Space Age: asteroid collectors, thrusters, cargo landing pads
+- Other: labs, combinators, programmable speakers, lamps
 
-Assemblers that are sitting around idle will lower the overall rate. Assemblers that have reached max quality will NOT lower the rate, regardless of what they are doing.
+They can be toggled off in the settings if you want to avoid affecting certain items.
 
-There are a few entity types that are not supported: belts, pipes, rails, and storage containers.
+Some entities do not have direct way to track their work (like solar panels or inserters). These use the average progression rate of the assemblers, so that they evolve at about the same rate.
 
-Belts tend to have very high counts; performance testing shows it should be fine, but I wanted to wait and see if anyone wants these. Storage containers change size when their quality adjusts, so that may cause issues. I don't know what would happen if a rail changed under a train, or a signal was replaced when in a certain state; it feels like a lot of shenanigans to work through.
+Assemblers that are sitting around idle will lower the overall progression rate. Assemblers that have reached max quality will NOT lower the rate, regardless of what they are doing.
+
 
 **Customization options**
 
@@ -37,13 +45,11 @@ Belts tend to have very high counts; performance testing shows it should be fine
 - Quality scaling: Higher quality levels can require more work time (optional)
 - Entity selection: Choose which machine types participate
 
-
 **Notifications**
 
-A silent map ping is on by default to highlight entities that change. This should be a non-obtrusive way to know that things were happening.
+A silent map ping is on by default, which highlights entities that change. This should be a non-obtrusive way to know that things are happening. It can be toggled off in player settings.
 
-An aggregate report of recent changes is available in player settings (default off), which will ping the console with a breakdown of how many entities changed.
-
+An aggregate report is off by default, it will ping the console with a breakdown of how many entities changed. This one does make a sound, it can be turned on or off in the player settings.
 
 **In game commands**
 
@@ -52,19 +58,29 @@ Inspect entity: control-shift-q will inspect the entity under the cursor and pri
 If you need to rebuild the cache (shouldn't be needed, but just in case), there is a console command available: `quality-control-init`
 
 
-**Performance Tuning**
+**High performance**
 
 Designed to run smoothly on massive bases. The mod processes a few machines each tick to avoid lag spikes, and includes settings (under the map tab) to tune the performance further.
 
 Adding the mod to an existing save game may cause some lag as it scans everything. Once all the entities are scanned it will go back to normal.
 
+**Unsupported Entity Types**
+
+There are a few entity types that are not supported by the mod currently: belts, pipes, rails, and storage containers.
+
+Belts tend to have very high counts; performance testing shows that it should be fine to add them, but I wanted to wait and see if anyone wants these. Also, I'm not sure if there is a performance impact of items on a belt transitioning between different quality segments
+
+Pipes are similar, it should be fine to add but haven't tested to see if there are any weird edge cases with lots of quality changes in a single pipeline.
+
+Storage containers change size when their quality adjusts, so that may cause issues. Some testing is needed to see how things like reserved slots or blocked slots work. Also if quality degrades - should extra items spill out?
+
+Finally rails... I don't know what would happen if a rail changed under a train, or if a rail signal was replaced when in a certain state; it feels like a lot of shenanigans to try and test all the scenarios.
 
 **Compatibility**
 
 Works great with mods that add extra quality tiers. Please let me know if I missed one, it's easy to add support.
 
-It may not work with mods that replace entities in a non-standard way. It shouldn't error out either, just may not track them properly.
-
+It may not work with mods that replace entities in a non-standard way. It shouldn't error out, it just may not track them properly.
 
 **Inspiration**
 
