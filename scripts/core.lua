@@ -262,6 +262,34 @@ local function attempt_quality_change(entity)
   return nil
 end
 
+local function process_quality_attempts(entity, unit_number, attempts_count, quality_changes, fractional_chance)
+  local successful_changes = 0
+  local current_entity = entity
+  local current_unit_number = unit_number
+
+  for _ = 1, attempts_count do
+    local change_result = attempt_quality_change(current_entity)
+    if change_result then
+      successful_changes = successful_changes + 1
+      current_entity = change_result
+      current_unit_number = change_result.unit_number
+      quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+    end
+  end
+
+  -- Handle fractional chance attempt only if no successful changes and entity still valid
+  if fractional_chance and successful_changes == 0 and fractional_chance > 0 and current_entity.valid and math.random() < fractional_chance then
+    local change_result = attempt_quality_change(current_entity)
+    if change_result then
+      current_unit_number = change_result.unit_number
+      quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+    end
+  end
+
+  return successful_changes, current_entity, current_unit_number
+end
+
+
 function core.batch_process_entities()
   debug("batch_process_entities called")
 
@@ -305,16 +333,11 @@ function core.batch_process_entities()
           thresholds_passed = math.floor(available_hours / hours_needed)
 
           if thresholds_passed > 0 then
-            local successful_changes = 0
-            for _ = 1, thresholds_passed do
-              local change_result = attempt_quality_change(entity)
-              if change_result then
-                successful_changes = successful_changes + 1
-                entity = change_result  -- Update entity reference to the new replacement
-                unit_number = change_result.unit_number
-                quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-              end
-            end
+            local successful_changes, updated_entity, updated_unit_number = process_quality_attempts(
+              entity, unit_number, thresholds_passed, quality_changes)
+
+            entity = updated_entity -- luacheck: ignore 311
+            unit_number = updated_unit_number
 
             -- Update manufacturing hours for any unsuccessful attempts
             if successful_changes < thresholds_passed then
@@ -340,26 +363,12 @@ function core.batch_process_entities()
                 string.format("%.4f", total_rate) .. ", guaranteed=" .. guaranteed_attempts ..
                 ", fractional=" .. string.format("%.4f", fractional_chance))
 
-          -- Perform guaranteed attempts
-          local successful_changes = 0
-          for _ = 1, guaranteed_attempts do
-            local change_result = attempt_quality_change(entity)
-            if change_result then
-              successful_changes = successful_changes + 1
-              entity = change_result  -- Update entity reference to the new replacement
-              unit_number = change_result.unit_number
-              quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-            end
-          end
+          -- Perform guaranteed attempts and fractional chance
+          local _, updated_entity, updated_unit_number = process_quality_attempts(
+            entity, unit_number, guaranteed_attempts, quality_changes, fractional_chance)
 
-          -- Perform fractional chance attempt only if no successful changes and entity still valid
-          if successful_changes == 0 and fractional_chance > 0 and entity.valid and math.random() < fractional_chance then
-            local change_result = attempt_quality_change(entity)
-            if change_result then
-              unit_number = change_result.unit_number
-              quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-            end
-          end
+          entity = updated_entity -- luacheck: ignore 311
+          unit_number = updated_unit_number
         end
       end
     end
