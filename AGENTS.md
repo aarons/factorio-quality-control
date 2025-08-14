@@ -17,3 +17,18 @@ Factorio's API documentation is available via context7 with this library ID: "co
 - `data.lua` - Data stage definitions and prototypes
 - `info.json` - Mod metadata including name, version, dependencies, and Factorio version requirements
 - `locale/en/locale.cfg` - Localization strings for settings and alert messages
+
+## Development Validation
+
+The project includes comprehensive validation tools for local development:
+- `./validate.sh` - Run all validations (default)
+- `./validate.sh --changelog` - Run changelog validation only
+
+### Validation Checks
+- **Luacheck**: Lua code linting (if luacheck is installed via `luarocks install luacheck`)
+- **info.json**: Validates JSON structure and required fields
+- **Locale files**: Checks for proper locale.cfg structure
+- **Changelog**: Validates changelog.txt format and test examples
+
+### Automated Validation
+Claude Code is configured with PostTool hooks (via `.claude_code_settings.json`) to automatically run `./validate.sh` after file modifications. This ensures code quality is maintained during development.

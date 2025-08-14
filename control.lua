@@ -95,7 +95,7 @@ script.on_init(function()
 end)
 
 -- Handle startup setting changes and mod version updates
-script.on_configuration_changed(function(event)
+script.on_configuration_changed(function(_)
   reinitialize_quality_control_storage()
   storage.data_structures_ready = false
   register_event_handlers()

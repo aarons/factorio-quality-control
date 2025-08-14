@@ -12,7 +12,11 @@
       "WebSearch",
       "WebFetch(domain:forums.factorio.com)",
       "WebFetch(domain:mods.factorio.com)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(./validate.sh)"
     ],
     "deny": []
   }
