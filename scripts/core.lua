@@ -397,7 +397,7 @@ function core.batch_process_entities()
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
   end
 
-  debug("Processed " .. entities_processed .. " entities this tick")
+  -- debug("Processed " .. entities_processed .. " entities this tick")
 end
 
 function core.on_entity_created(event)
