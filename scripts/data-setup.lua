@@ -22,7 +22,7 @@ local entity_categories = {
     "agricultural-tower", "mining-drill"
   },
   defense = {
-    "turret", "artillery-turret", "wall", "gate"
+    "turret", "ammo-turret", "electric-turret", "fluid-turret", "artillery-turret", "wall", "gate"
   },
   space = {
     "asteroid-collector", "thruster", "cargo-landing-pad"

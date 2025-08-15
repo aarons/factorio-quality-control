@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.0.3
+Date: 15. 08. 2025
+  Bugfixes:
+    - Fixed missing turret entity types: ammo-turret, electric-turret, and fluid-turret are now properly tracked when defense entities are enabled
+---------------------------------------------------------------------------------------------------
 Version: 1.0.2
 Date: 15. 08. 2025
   Bugfixes:
