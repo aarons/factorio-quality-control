@@ -1,21 +1,23 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.3
 Date: 15. 08. 2025
-  Bugfixes:
-    - Fixed missing turret entity types: ammo-turret, electric-turret, and fluid-turret are now properly tracked when defense entities are enabled
+  Features:
+    - Added support for additional turret types: ammo-turret, electric-turret, and fluid-turret
+  Ease of use:
+    - Clarified aggregate notification setting to indicate 5-minute display frequency
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.2
 Date: 15. 08. 2025
   Bugfixes:
-    - Fixed an issue with secondary entity rate tracking that could apply quality updates too frequently
+    - Fixed an issue with secondary entity rate tracking that could apply updates too frequently
   Ease of use:
     - Added tests and validation scripts for mod authors and contributors
-    - Quality-control-init command now preserves existing machine progress instead of resetting to zero
+    - The quality-control-init command now preserves machine progress instead of resetting it to zero
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.1
 Date: 13. 08. 2025
   Bugfixes:
-    - Fixed secondary entity quality change rate being affected by processing frequency
+    - Fixed an issue with the secondary entity change rate being affected by ticks between processing
     - Secondary entities now upgrade at consistent rates regardless of batch processing interval
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.0

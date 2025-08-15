@@ -29,7 +29,7 @@ The mod tracks two categories of entities with different quality management appr
 - Logic: combinators, beacons, speakers
 - Space Age: lightning rods, asteroid collectors, thrusters, cargo landing pads
 
-Secondary entities use a proportional syste hi therem - they attempt quality changes based on the average rate of change among primary entities. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
+Secondary entities use a proportional system - they attempt quality changes based on the average rate of change among primary entities. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
 
 ### Direction of Changes
 

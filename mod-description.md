@@ -49,7 +49,7 @@ Assemblers that are sitting around idle will lower the overall progression rate.
 
 A silent map ping is on by default, which highlights entities that change. This should be a non-obtrusive way to know that things are happening. It can be toggled off in player settings.
 
-An aggregate report is off by default, it will ping the console with a breakdown of how many entities changed. This one does make a sound, it can be turned on or off in the player settings.
+An aggregate report is off by default, it will ping the console with a breakdown of how many entities changed (displayed once every 5 minutes). This one does make a sound, it can be turned on or off in the player settings.
 
 **In game commands**
 
