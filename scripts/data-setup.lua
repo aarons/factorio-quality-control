@@ -22,10 +22,19 @@ local entity_categories = {
     "agricultural-tower", "mining-drill"
   },
   defense = {
-    "turret", "ammo-turret", "electric-turret", "fluid-turret", "artillery-turret", "wall", "gate"
+    "turret", "ammo-turret", "electric-turret", "fluid-turret", "artillery-turret", "wall", "gate", "radar"
   },
   space = {
     "asteroid-collector", "thruster", "cargo-landing-pad"
+  },
+  logistics = {
+    "transport-belt", "underground-belt", "splitter", "loader-1x1", "loader"
+  },
+  storage = {
+    "container", "logistic-container", "linked-container"
+  },
+  fluid = {
+    "pipe", "pipe-to-ground", "storage-tank", "pump", "offshore-pump"
   },
   other = {
     "lamp", "arithmetic-combinator", "decider-combinator", "constant-combinator", "programmable-speaker"
@@ -34,9 +43,6 @@ local entity_categories = {
     lab = "enable-labs",
     roboport = "enable-roboports",
     beacon = "enable-beacons",
-    pump = "enable-pumps",
-    ["offshore-pump"] = "enable-pumps",
-    radar = "enable-radar",
     inserter = "enable-inserters"
   }
 }
@@ -84,6 +90,27 @@ function data_setup.build_entity_type_lists()
 
   if settings.startup["enable-space-entities"].value then
     for _, entity_type in ipairs(entity_categories.space) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-logistics-entities"].value then
+    for _, entity_type in ipairs(entity_categories.logistics) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-storage-entities"].value then
+    for _, entity_type in ipairs(entity_categories.storage) do
+      table.insert(secondary_types, entity_type)
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  if settings.startup["enable-fluid-entities"].value then
+    for _, entity_type in ipairs(entity_categories.fluid) do
       table.insert(secondary_types, entity_type)
       table.insert(all_tracked_types, entity_type)
     end

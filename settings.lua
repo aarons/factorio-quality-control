@@ -122,10 +122,31 @@ data:extend({
     },
     {
         type = "bool-setting",
-        name = "enable-other-entities",
+        name = "enable-logistics-entities",
         setting_type = "startup",
         default_value = true,
         order = "d-5"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-storage-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-6"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-fluid-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-7"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-entities",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-8"
     },
     -- Standalone entity types
     {
@@ -133,41 +154,27 @@ data:extend({
         name = "enable-labs",
         setting_type = "startup",
         default_value = true,
-        order = "d-6"
+        order = "d-9"
     },
     {
         type = "bool-setting",
         name = "enable-roboports",
         setting_type = "startup",
         default_value = true,
-        order = "d-7"
+        order = "d-10"
     },
     {
         type = "bool-setting",
         name = "enable-beacons",
         setting_type = "startup",
         default_value = true,
-        order = "d-8"
-    },
-    {
-        type = "bool-setting",
-        name = "enable-pumps",
-        setting_type = "startup",
-        default_value = true,
-        order = "d-9"
-    },
-    {
-        type = "bool-setting",
-        name = "enable-radar",
-        setting_type = "startup",
-        default_value = true,
-        order = "d-10"
+        order = "d-11"
     },
     {
         type = "bool-setting",
         name = "enable-inserters",
         setting_type = "startup",
         default_value = true,
-        order = "d-11"
+        order = "d-12"
     }
 })
