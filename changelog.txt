@@ -5,6 +5,7 @@ Date: 15. 08. 2025
     - Fixed an issue with secondary entity rate tracking that could apply quality updates too frequently
   Ease of use:
     - Added tests and validation scripts for mod authors and contributors
+    - Quality-control-init command now preserves existing machine progress instead of resetting to zero
 ---------------------------------------------------------------------------------------------------
 Version: 1.0.1
 Date: 13. 08. 2025
