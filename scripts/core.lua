@@ -92,6 +92,10 @@ function core.get_entity_info(entity)
       attempts_to_change = 0,
       can_change_quality = can_change_quality
     }
+
+    -- Add to ordered list for batch processing with O(1) lookup
+    table.insert(storage.entity_list, id)
+    storage.entity_list_index[id] = #storage.entity_list
     if is_primary then
       -- Initialize manufacturing hours based on current products_finished
       -- This ensures we don't double-count hours for already-producing entities
@@ -139,13 +143,27 @@ end
 
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
-    -- If the entity we are removing is also the next_batch_key, advance to a new key
-    if storage.next_batch_key == id then
-      storage.next_batch_key = next(tracked_entities, id)
-      debug("Advanced next_batch_key from removed entity " .. tostring(id) .. " to " .. tostring(storage.next_batch_key))
-    end
-
     tracked_entities[id] = nil
+
+    -- O(1) removal using swap-with-last approach
+    local index = storage.entity_list_index[id]
+    if index then
+      local last_index = #storage.entity_list
+      local last_unit_number = storage.entity_list[last_index]
+
+      -- Swap with last element
+      storage.entity_list[index] = last_unit_number
+      storage.entity_list_index[last_unit_number] = index
+
+      -- Remove the last element
+      storage.entity_list[last_index] = nil
+      storage.entity_list_index[id] = nil
+
+      -- Adjust batch_index if we swapped an element we haven't processed yet
+      if index < storage.batch_index then
+        storage.batch_index = storage.batch_index - 1
+      end
+    end
   end
 end
 
@@ -254,6 +272,7 @@ local function attempt_quality_change(entity)
 end
 
 
+
 -- Complete a primary entity cycle and update the EWMA
 local function complete_primary_cycle()
   if quality_change_tracker.cycle_start_tick then
@@ -276,6 +295,7 @@ local function complete_primary_cycle()
             string.format("%.6f", quality_change_tracker.current_average_rate))
     end
   end
+
 
   -- Reset cycle tracking
   quality_change_tracker.cycle_change_attempts = 0
@@ -315,55 +335,47 @@ function core.batch_process_entities()
   local quality_changes = {}
 
   while entities_processed < batch_size do
-    if storage.next_batch_key and not tracked_entities[storage.next_batch_key] then
-      storage.next_batch_key = nil  -- invalid key, this shouldn't happen
-    end
-
-    local unit_number, entity_info = next(tracked_entities, storage.next_batch_key)
-
-    -- check for end of table (cycle complete)
-    if not unit_number then
+    -- Check for end of list (cycle complete)
+    if storage.batch_index > #storage.entity_list then
       complete_primary_cycle()
-      storage.next_batch_key = nil  -- reset for next batch to start from beginning
+      storage.batch_index = 1  -- Reset for next cycle
       break
     end
 
-    -- calculate next position before processing
-    -- protects against entity removal/replacement during processing
-    storage.next_batch_key = next(tracked_entities, unit_number)
+    -- Get the next entity to process
+    local unit_number = storage.entity_list[storage.batch_index]
+    storage.batch_index = storage.batch_index + 1
 
-    -- 5. Process current entity
-    local entity = entity_info.entity
-    if not entity or not entity.valid or not entity_info.can_change_quality then
-      debug("removing: " .. tostring(unit_number))
+    -- Validate entity before processing
+    local entity_info = tracked_entities[unit_number]
+    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not entity_info.can_change_quality then
       core.remove_entity_info(unit_number)
-    else
-      if entity_info.is_primary then
+      goto continue
+    end
+
+    local entity = entity_info.entity
+
+    if entity_info.is_primary then
         quality_change_tracker.primary_entities_seen = quality_change_tracker.primary_entities_seen + 1
-        local thresholds_passed = 0
         local current_recipe = entity.get_recipe()
         if current_recipe then
           local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
           local recipe_time = current_recipe.prototype.energy
           local current_hours = (entity.products_finished * recipe_time) / 3600
           local previous_hours = entity_info.manufacturing_hours or 0
-
           local available_hours = current_hours - previous_hours
-          thresholds_passed = math.floor(available_hours / hours_needed)
+          local thresholds_passed = math.floor(available_hours / hours_needed)
 
           if thresholds_passed > 0 then
             quality_change_tracker.cycle_change_attempts = quality_change_tracker.cycle_change_attempts + thresholds_passed
             local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
-            -- Update manufacturing hours only if all attempts failed (entity unchanged)
+            -- Update manufacturing hours if all attempts failed
             if successful_changes == 0 then
-              -- All attempts failed, so the entity is unchanged - update its manufacturing hours
               entity_info.manufacturing_hours = current_hours
             end
-            -- If any upgrade succeeded, the entity was replaced and will be re-tracked with fresh hours
           end
         end
       else -- entity is a secondary entity type without hours
-        -- Apply quality change rate if available
         if quality_change_tracker.current_average_rate > 0 then
           local ticks_between_processing = settings.global["batch-ticks-between-processing"].value
 
@@ -376,10 +388,11 @@ function core.batch_process_entities()
           process_quality_attempts(entity, guaranteed_attempts, quality_changes, fractional_chance)
         end
       end
-    end
 
     -- 6. Increment counter
     entities_processed = entities_processed + 1
+
+    ::continue::
   end
 
   if next(quality_changes) then

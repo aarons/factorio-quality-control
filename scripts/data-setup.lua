@@ -152,6 +152,9 @@ function data_setup.setup_data_structures(force_reset)
   -- Handle force reset by clearing everything
   if force_reset then
     storage.quality_control_entities = {}
+    storage.entity_list = {}
+    storage.entity_list_index = {}
+    storage.batch_index = 1
   end
 
   -- Initialize storage tables
@@ -159,8 +162,22 @@ function data_setup.setup_data_structures(force_reset)
     storage.quality_control_entities = {}
   end
 
-  if not storage.next_batch_key then
-    storage.next_batch_key = nil
+  if not storage.entity_list then
+    storage.entity_list = {}
+  end
+
+  if not storage.entity_list_index then
+    storage.entity_list_index = {}
+    -- Rebuild index from existing entity_list for migration
+    for i, unit_number in ipairs(storage.entity_list or {}) do
+      if unit_number then
+        storage.entity_list_index[unit_number] = i
+      end
+    end
+  end
+
+  if not storage.batch_index then
+    storage.batch_index = 1
   end
 
   -- Initialize notification system
