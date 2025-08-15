@@ -389,9 +389,7 @@ function core.batch_process_entities()
         end
       end
 
-    -- 6. Increment counter
     entities_processed = entities_processed + 1
-
     ::continue::
   end
 
