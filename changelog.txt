@@ -1,5 +1,5 @@
 ---------------------------------------------------------------------------------------------------
-Version: 1.0.3
+Version: 1.1.0
 Date: 15. 08. 2025
   Features:
     - Added support for additional turret types: ammo-turret, electric-turret, and fluid-turret
