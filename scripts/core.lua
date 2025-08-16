@@ -21,6 +21,7 @@ local function debug(message)
 end
 local tracked_entities -- lookup table for all the entities we might change the quality of
 local previous_qualities = {} -- lookup table for previous qualities in the chain
+local quality_limit = nil -- the quality limit (max for increase, min for decrease)
 
 -- EWMA upgrade rate tracker for secondary entities
 local quality_change_tracker = {
@@ -45,10 +46,11 @@ function core.adjust_quality_change_tracker()
   end
 end
 
-function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup)
+function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, quality_limit_setting)
   settings_data = parsed_settings
   is_tracked_type = tracked_type_lookup
   previous_qualities = quality_lookup
+  quality_limit = quality_limit_setting
   tracked_entities = storage.quality_control_entities
 
   -- Reset EWMA tracker completely on initialization
@@ -67,7 +69,7 @@ local function get_previous_quality(quality_prototype)
 end
 
 function core.get_entity_info(entity)
-  debug("get_entity_info called for entity type: " .. (entity.type or "unknown"))
+  debug("get_entity_info called for entity type: " .. (entity.type or "unknown") .. ", id: " .. tostring(entity.unit_number))
 
   local id = entity.unit_number
   local entity_type = entity.type
@@ -84,6 +86,7 @@ function core.get_entity_info(entity)
   local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo")
 
   if not tracked_entities[id] then
+    debug("adding new entity to tracked_entities: " .. tostring(id))
     tracked_entities[id] = {
       entity = entity,
       entity_type = entity_type,
@@ -92,6 +95,7 @@ function core.get_entity_info(entity)
       attempts_to_change = 0,
       can_change_quality = can_change_quality
     }
+    debug("entity added to tracked_entities: " .. tostring(id))
 
     -- Add to ordered list for batch processing with O(1) lookup
     table.insert(storage.entity_list, id)
@@ -122,6 +126,8 @@ function core.get_entity_info(entity)
         tracked_entities[id].manufacturing_hours = 0
       end
     end
+  else
+    debug("entity already tracked: " .. tostring(id))
   end
 
   return tracked_entities[id]
@@ -221,7 +227,9 @@ local function attempt_quality_change(entity)
   debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
 
   local random_roll = math.random()
+  debug("looking up entity_info for unit_number: " .. tostring(entity.unit_number))
   local entity_info = tracked_entities[entity.unit_number]
+  debug("entity_info result: " .. tostring(entity_info))
 
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
@@ -260,18 +268,13 @@ local function attempt_quality_change(entity)
   debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
     core.remove_entity_info(old_unit_number)
-
     update_module_quality(replacement_entity, target_quality, settings_data)
-
     notifications.show_entity_quality_alert(replacement_entity, settings_data.quality_change_direction)
-
     return replacement_entity
   end
 
   return nil
 end
-
-
 
 -- Complete a primary entity cycle and update the EWMA
 local function complete_primary_cycle()
@@ -313,11 +316,17 @@ local function process_quality_attempts(entity, attempts_count, quality_changes,
       successful_changes = successful_changes + 1
       current_entity = change_result
       quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+
+      -- If entity reached quality limit, stop attempting further changes
+      if current_entity.quality == quality_limit then
+        debug("entity reached quality limit, stopping attempts: " .. tostring(current_entity.unit_number))
+        break
+      end
     end
   end
 
-  -- Handle fractional chance attempt only if no successful changes and entity still valid
-  if fractional_chance and successful_changes == 0 and fractional_chance > 0 and current_entity.valid and math.random() < fractional_chance then
+  -- Handle fractional chance attempt only if no successful changes and entity still valid and not at quality limit
+  if fractional_chance and successful_changes == 0 and fractional_chance > 0 and current_entity.valid and current_entity.quality ~= quality_limit and math.random() < fractional_chance then
     local change_result = attempt_quality_change(current_entity)
     if change_result then
       successful_changes = successful_changes + 1
@@ -396,8 +405,6 @@ function core.batch_process_entities()
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
   end
-
-  -- debug("Processed " .. entities_processed .. " entities this tick")
 end
 
 function core.on_entity_created(event)

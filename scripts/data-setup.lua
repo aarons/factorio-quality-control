@@ -175,6 +175,20 @@ function data_setup.build_previous_quality_lookup()
   return previous_qualities
 end
 
+function data_setup.get_quality_limit(direction)
+  if direction == "increase" then
+    -- Find maximum quality by following the chain
+    local current = prototypes.quality["normal"]
+    while current.next do
+      current = current.next
+    end
+    return current
+  else -- decrease
+    -- Minimum is always normal quality
+    return prototypes.quality["normal"]
+  end
+end
+
 function data_setup.setup_data_structures(force_reset)
   -- Handle force reset by clearing everything
   if force_reset then
