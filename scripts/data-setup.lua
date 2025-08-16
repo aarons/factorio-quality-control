@@ -169,6 +169,9 @@ function data_setup.setup_data_structures(force_reset)
     storage.entity_list = {}
     storage.entity_list_index = {}
     storage.batch_index = 1
+    storage.primary_entity_count = 0
+    storage.secondary_entity_count = 0
+    storage.accumulated_upgrade_attempts = 0
   end
 
   -- Initialize storage tables
@@ -202,9 +205,17 @@ function data_setup.setup_data_structures(force_reset)
     }
   end
 
-  -- Initialize batch interval tracking for EWMA scaling
-  if not storage.last_batch_interval then
-    storage.last_batch_interval = settings.global["batch-ticks-between-processing"].value
+  -- Initialize credit system
+  if not storage.primary_entity_count then
+    storage.primary_entity_count = 0
+  end
+  
+  if not storage.secondary_entity_count then
+    storage.secondary_entity_count = 0
+  end
+  
+  if not storage.accumulated_upgrade_attempts then
+    storage.accumulated_upgrade_attempts = 0
   end
 
   storage.data_structures_ready = true

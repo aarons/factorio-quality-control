@@ -32,6 +32,7 @@ local function reinitialize_quality_control_storage(command)
   core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
   core.scan_and_populate_entities(all_tracked_types)
 
+
   -- Notify player that rebuild is complete
   if command and command.player_index then
     local player = game.get_player(command.player_index)
@@ -75,7 +76,6 @@ local function register_event_handlers()
     if event.setting == "batch-ticks-between-processing" then
       if storage.data_structures_ready then
         register_main_loop()
-        core.adjust_quality_change_tracker()
       end
     end
   end)
@@ -107,9 +107,9 @@ end)
 -- - No access to game object
 -- - Storage table is read-only
 -- - Can only set up metatables and event handlers
--- The one-tick delay ensures full game access when initializing
+-- The first tick delay ensures full game access when initializing
 script.on_load(function()
-  script.on_nth_tick(60, function()
+  script.on_nth_tick(120, function()
     script.on_nth_tick(nil)  -- Unregister to run only once
     data_setup.setup_data_structures()
     core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)

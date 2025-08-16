@@ -23,28 +23,11 @@ local tracked_entities -- lookup table for all the entities we might change the 
 local previous_qualities = {} -- lookup table for previous qualities in the chain
 local quality_limit = nil -- the quality limit (max for increase, min for decrease)
 
--- EWMA upgrade rate tracker for secondary entities
-local quality_change_tracker = {
-  current_average_rate = 0,                                -- Current EWMA average rate
-  alpha = 0.1,                                             -- EWMA smoothing factor (0.1 = ~10 cycles highly impactful)
-
-  -- Tracking for current cycle
-  cycle_change_attempts = 0,                               -- Quality change attempts in current cycle
-  cycle_start_tick = nil,                                  -- When cycle started
-  primary_entities_seen = 0,                               -- Primary entities in current cycle
-}
 
 -- Settings (will be set by control.lua)
 local settings_data = {}
 local is_tracked_type = {}
 
--- Reset tracker timing on interval changes (prevents timing calculation errors)
-function core.adjust_quality_change_tracker()
-  if quality_change_tracker and game then
-    -- Reset cycle timing to prevent calculation errors after interval changes
-    quality_change_tracker.cycle_start_tick = game.tick
-  end
-end
 
 function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, quality_limit_setting)
   settings_data = parsed_settings
@@ -53,15 +36,6 @@ function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, q
   quality_limit = quality_limit_setting
   tracked_entities = storage.quality_control_entities
 
-  -- Reset EWMA tracker completely on initialization
-  quality_change_tracker.current_average_rate = 0
-  quality_change_tracker.cycle_change_attempts = 0
-  quality_change_tracker.primary_entities_seen = 0
-
-  -- Initialize tracker with current tick
-  if game then
-    quality_change_tracker.cycle_start_tick = game.tick
-  end
 end
 
 local function get_previous_quality(quality_prototype)
@@ -96,6 +70,13 @@ function core.get_entity_info(entity)
       can_change_quality = can_change_quality
     }
     debug("entity added to tracked_entities: " .. tostring(id))
+    
+    -- Update entity counts
+    if is_primary then
+      storage.primary_entity_count = storage.primary_entity_count + 1
+    else
+      storage.secondary_entity_count = storage.secondary_entity_count + 1
+    end
 
     -- Add to ordered list for batch processing with O(1) lookup
     table.insert(storage.entity_list, id)
@@ -145,10 +126,41 @@ function core.scan_and_populate_entities(all_tracked_types)
       core.get_entity_info(entity) -- This will initialize the entity in tracked_entities
     end
   end
+  
+  -- Calculate initial credits from existing manufacturing hours
+  local total_past_attempts = 0
+  for id, entity_info in pairs(storage.quality_control_entities) do
+    if entity_info.can_change_quality and entity_info.is_primary and entity_info.manufacturing_hours then
+      if entity_info.manufacturing_hours > 0 then
+        local hours_needed = settings_data.manufacturing_hours_for_change *
+                           (1 + settings_data.quality_increase_cost) ^ entity_info.entity.quality.level
+        total_past_attempts = total_past_attempts + math.floor(entity_info.manufacturing_hours / hours_needed)
+      end
+    end
+  end
+  
+  -- Set accumulated credits based on entity ratio
+  if storage.secondary_entity_count > 0 and storage.primary_entity_count > 0 then
+    local credit_ratio = storage.secondary_entity_count / storage.primary_entity_count
+    storage.accumulated_upgrade_attempts = total_past_attempts * credit_ratio
+  else
+    storage.accumulated_upgrade_attempts = 0
+  end
 end
 
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
+    local entity_info = tracked_entities[id]
+    
+    -- Update counts before removal
+    if entity_info.can_change_quality then
+      if entity_info.is_primary then
+        storage.primary_entity_count = math.max(0, storage.primary_entity_count - 1)
+      else
+        storage.secondary_entity_count = math.max(0, storage.secondary_entity_count - 1)
+      end
+    end
+    
     tracked_entities[id] = nil
 
     -- O(1) removal using swap-with-last approach
@@ -276,37 +288,8 @@ local function attempt_quality_change(entity)
   return nil
 end
 
--- Complete a primary entity cycle and update the EWMA
-local function complete_primary_cycle()
-  if quality_change_tracker.cycle_start_tick then
-    local current_tick = game.tick
-    local elapsed_ticks = current_tick - quality_change_tracker.cycle_start_tick
 
-    if elapsed_ticks > 0 then
-      -- Calculate rate for this cycle: attempts per entity per tick
-      local total_primary = math.max(quality_change_tracker.primary_entities_seen, 1)
-      local cycle_rate = quality_change_tracker.cycle_change_attempts / (total_primary * elapsed_ticks)
-
-      -- Update EWMA: new_avg = α * new_value + (1 - α) * old_avg
-      local alpha = quality_change_tracker.alpha
-      quality_change_tracker.current_average_rate = alpha * cycle_rate + (1 - alpha) * quality_change_tracker.current_average_rate
-
-      debug("Completed primary cycle: " .. quality_change_tracker.cycle_change_attempts ..
-            " attempts from " .. quality_change_tracker.primary_entities_seen ..
-            " entities over " .. elapsed_ticks .. " ticks. Rate: " ..
-            string.format("%.6f", cycle_rate) .. ", EWMA avg: " ..
-            string.format("%.6f", quality_change_tracker.current_average_rate))
-    end
-  end
-
-
-  -- Reset cycle tracking
-  quality_change_tracker.cycle_change_attempts = 0
-  quality_change_tracker.cycle_start_tick = game.tick
-  quality_change_tracker.primary_entities_seen = 0
-end
-
-local function process_quality_attempts(entity, attempts_count, quality_changes, fractional_chance)
+local function process_quality_attempts(entity, attempts_count, quality_changes)
   local successful_changes = 0
   local current_entity = entity
 
@@ -325,15 +308,6 @@ local function process_quality_attempts(entity, attempts_count, quality_changes,
     end
   end
 
-  -- Handle fractional chance attempt only if no successful changes and entity still valid and not at quality limit
-  if fractional_chance and successful_changes == 0 and fractional_chance > 0 and current_entity.valid and current_entity.quality ~= quality_limit and math.random() < fractional_chance then
-    local change_result = attempt_quality_change(current_entity)
-    if change_result then
-      successful_changes = successful_changes + 1
-      quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-    end
-  end
-
   return successful_changes
 end
 
@@ -346,7 +320,6 @@ function core.batch_process_entities()
   while entities_processed < batch_size do
     -- Check for end of list (cycle complete)
     if storage.batch_index > #storage.entity_list then
-      complete_primary_cycle()
       storage.batch_index = 1  -- Reset for next cycle
       break
     end
@@ -365,7 +338,6 @@ function core.batch_process_entities()
     local entity = entity_info.entity
 
     if entity_info.is_primary then
-        quality_change_tracker.primary_entities_seen = quality_change_tracker.primary_entities_seen + 1
         local current_recipe = entity.get_recipe()
         if current_recipe then
           local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
@@ -376,25 +348,37 @@ function core.batch_process_entities()
           local thresholds_passed = math.floor(available_hours / hours_needed)
 
           if thresholds_passed > 0 then
-            quality_change_tracker.cycle_change_attempts = quality_change_tracker.cycle_change_attempts + thresholds_passed
+            -- Generate credits for secondary entities
+            if storage.secondary_entity_count > 0 then
+              local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
+              storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + (thresholds_passed * credit_ratio)
+            end
+            
+            -- Process primary entity attempts
             local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
-            -- Update manufacturing hours if all attempts failed
             if successful_changes == 0 then
               entity_info.manufacturing_hours = current_hours
             end
           end
         end
       else -- entity is a secondary entity type without hours
-        if quality_change_tracker.current_average_rate > 0 then
-          local ticks_between_processing = settings.global["batch-ticks-between-processing"].value
-
-          -- Apply the filtered average rate to this secondary entity
-          local total_rate = quality_change_tracker.current_average_rate * ticks_between_processing
-          local guaranteed_attempts = math.floor(total_rate)
-          local fractional_chance = total_rate - guaranteed_attempts
-
-          -- Perform guaranteed attempts and fractional chance
-          process_quality_attempts(entity, guaranteed_attempts, quality_changes, fractional_chance)
+        if storage.accumulated_upgrade_attempts > 0 and storage.secondary_entity_count > 0 then
+          -- Calculate attempts for this entity
+          local attempts_per_entity = storage.accumulated_upgrade_attempts / storage.secondary_entity_count
+          local guaranteed_attempts = math.floor(attempts_per_entity)
+          local fractional_chance = attempts_per_entity - guaranteed_attempts
+          
+          -- Resolve fractional to integer
+          local total_attempts = guaranteed_attempts
+          if fractional_chance > 0 and math.random() < fractional_chance then
+            total_attempts = total_attempts + 1
+          end
+          
+          -- Consume exact credits
+          if total_attempts > 0 then
+            storage.accumulated_upgrade_attempts = math.max(0, storage.accumulated_upgrade_attempts - total_attempts)
+            process_quality_attempts(entity, total_attempts, quality_changes)
+          end
         end
       end
 
