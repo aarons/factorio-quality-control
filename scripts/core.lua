@@ -409,7 +409,20 @@ end
 
 function core.on_entity_created(event)
   debug("on_entity_created called")
-  local entity = event.entity or event.created_entity
+  local entity = event.entity
+
+  if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    core.get_entity_info(entity)
+  end
+end
+
+function core.on_entity_cloned(event)
+  debug("on_entity_cloned called")
+  local entity = event.destination
+
+  if not entity then
+    return
+  end
 
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
     core.get_entity_info(entity)

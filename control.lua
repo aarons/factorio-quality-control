@@ -58,7 +58,7 @@ local function register_event_handlers()
   script.on_event(defines.events.on_space_platform_built_entity, core.on_entity_created)
   script.on_event(defines.events.script_raised_built, core.on_entity_created)
   script.on_event(defines.events.script_raised_revive, core.on_entity_created)
-  script.on_event(defines.events.on_entity_cloned, core.on_entity_created)
+  script.on_event(defines.events.on_entity_cloned, core.on_entity_cloned)
 
   -- Entity destruction events
   script.on_event(defines.events.on_player_mined_entity, core.on_entity_destroyed)
