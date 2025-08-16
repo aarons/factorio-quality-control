@@ -14,6 +14,7 @@ local _, _, all_tracked_types = data_setup.build_entity_type_lists()
 local is_tracked_type = data_setup.build_is_tracked_type_lookup()
 local settings_data = data_setup.parse_settings()
 local previous_qualities = data_setup.build_previous_quality_lookup()
+local quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
 
 
 --- Console command to reinitialize storage
@@ -28,7 +29,7 @@ local function reinitialize_quality_control_storage(command)
 
   -- Full reinitialization: setup data structures and rescan entities
   data_setup.setup_data_structures(true)  -- Clear existing data
-  core.initialize(settings_data, is_tracked_type, previous_qualities)
+  core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
   core.scan_and_populate_entities(all_tracked_types)
 
   -- Notify player that rebuild is complete
@@ -89,7 +90,7 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 -- Initialize on new game
 script.on_init(function()
   data_setup.setup_data_structures()
-  core.initialize(settings_data, is_tracked_type, previous_qualities)
+  core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
   core.scan_and_populate_entities(all_tracked_types)
   register_event_handlers()
 end)
@@ -111,7 +112,7 @@ script.on_load(function()
   script.on_nth_tick(60, function()
     script.on_nth_tick(nil)  -- Unregister to run only once
     data_setup.setup_data_structures()
-    core.initialize(settings_data, is_tracked_type, previous_qualities)
+    core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
     register_event_handlers()
   end)
 end)
