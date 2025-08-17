@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.0
-Date: 16. 08. 2025
+Date: 17. 08. 2025
   Balancing:
     - Improved upgrade system for secondary entities to provide more consistent progression.
       It should feel more reliable and slightly more frequent. They now receive guaranteed
