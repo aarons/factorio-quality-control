@@ -52,19 +52,19 @@ end
 
 --- Initialize all event handlers
 local function register_event_handlers()
-  -- Entity creation events
-  script.on_event(defines.events.on_built_entity, core.on_entity_created)
-  script.on_event(defines.events.on_robot_built_entity, core.on_entity_created)
-  script.on_event(defines.events.on_space_platform_built_entity, core.on_entity_created)
+  -- Entity creation events (with player force filter where supported)
+  script.on_event(defines.events.on_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.on_robot_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.on_space_platform_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
   script.on_event(defines.events.script_raised_built, core.on_entity_created)
   script.on_event(defines.events.script_raised_revive, core.on_entity_created)
   script.on_event(defines.events.on_entity_cloned, core.on_entity_cloned)
 
-  -- Entity destruction events
+  -- Entity destruction events (with player force filter where supported)
   script.on_event(defines.events.on_player_mined_entity, core.on_entity_destroyed)
   script.on_event(defines.events.on_robot_mined_entity, core.on_entity_destroyed)
   script.on_event(defines.events.on_space_platform_mined_entity, core.on_entity_destroyed)
-  script.on_event(defines.events.on_entity_died, core.on_entity_destroyed)
+  script.on_event(defines.events.on_entity_died, core.on_entity_destroyed, {{filter = "force", force = "player"}})
   script.on_event(defines.events.script_raised_destroy, core.on_entity_destroyed)
 
   -- Quality control inspect shortcut
