@@ -188,6 +188,25 @@ Some test results on an m2 mac:
 - Bumping up to 1000 units introduced some noticeable lag, and higher values did even more so. Spreading out the units processed into large groups created lag spikes, which causes the game to stutter. So I wouldn't recommend something like 100k every 60 ticks. It's better to do fewer units more frequently.
 
 
+## Technical Details: Secondary-Entity Upgrade Algorithm
+
+This may be interesting to only a few, but here is how the upgrade system works.
+
+The mod tracks two types of entities: primary entities (assemblers, furnaces, rocket silos) that have a way to measure their manufacturing time, and secondary entities (like inserters, power poles, etc.) that don't have a way to track work. The goal is to keep secondary entities upgrading at about the same rate, so that if all assemblers worked their way up to legendary then other entities would also be achieving legendary at about the same time.
+
+When a primary entity earns an upgrade we generate a credit for secondary entities to use. There are usually more secondaries than primaries, so that credit is multiplied by a ratio of secondaries to primaries. Credits then accumulate in a global pool that each secondary has an equal chance to pull from in a round-robin process.
+
+Example for a base with 10 assemblers (10 primaries), 20 inserters, and 30 solar panels (50 secondaries)
+- This base would have a 5:1 ratio of secondaries to primaries.
+- When an assembler earns 1 upgrade attempt, it generates 5 upgrade attempts for the secondaries to use, which are stored in a general pool.
+- Each secondary gets a 10% chance (5 attempts / 50 secondary units) to pull from the pool and use an upgrade attempt.
+- Each attempt that gets used will deplete the pool
+
+In this scenario, say 3 attempts were used, so there are now 2 attempts / 50 secondaries == 4% chance that the next secondary in the round robin will use an attempt. This continues until all attempts in the pool are used.
+
+What this means for gameplay: a couple fast assemblers can help a lot of secondary entities advance, and there is an advantage to having fewer active assemlbers instead of lots of idle ones, which helps keep the ratios higher.
+
+
 ## Developer Workflow
 
 ### Prerequisites

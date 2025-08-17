@@ -1,9 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.0
 Date: 16. 08. 2025
-  Optimizations:
-    - Improved upgrade system for secondary entities for more consistent quality progression
-    - Secondary entities receive upgrade attempts proportional to the ratio of secondary to primary entities
+  Balancing:
+    - Improved upgrade system for secondary entities to provide more consistent progression.
+      It should feel more reliable and slightly more frequent. They now receive guaranteed
+      upgrade attempts proportional to the ratio of secondary to primary entities. Previously
+      the mod used a per-unit-per-tick-percentage-chance that decayed over time, which was too
+      difficult to tune properly. This system is simpler and more consistent.
 ---------------------------------------------------------------------------------------------------
 Version: 1.1.3
 Date: 16. 08. 2025
