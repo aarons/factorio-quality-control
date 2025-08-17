@@ -69,21 +69,24 @@ local function get_previous_quality(quality_prototype)
 end
 
 function core.get_entity_info(entity)
-  debug("get_entity_info called for entity type: " .. (entity.type or "unknown") .. ", id: " .. tostring(entity.unit_number))
-
   local id = entity.unit_number
   local entity_type = entity.type
   local previous_quality = get_previous_quality(entity.quality)
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
   local can_change_quality = can_increase or can_decrease
-
-  -- Skip tracking entities that can't change quality
-  if not can_change_quality then
-    return nil
-  end
-
   local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo")
+
+  -- Return error codes for entities that can't change quality
+  if not can_change_quality then
+    if settings_data.quality_change_direction == "increase" then
+      return "at max quality"
+    elseif settings_data.quality_change_direction == "decrease" then
+      return "at min quality"
+    else
+      return "unable to change quality"
+    end
+  end
 
   if not tracked_entities[id] then
     debug("adding new entity to tracked_entities: " .. tostring(id))
@@ -95,7 +98,6 @@ function core.get_entity_info(entity)
       attempts_to_change = 0,
       can_change_quality = can_change_quality
     }
-    debug("entity added to tracked_entities: " .. tostring(id))
 
     -- Add to ordered list for batch processing with O(1) lookup
     table.insert(storage.entity_list, id)
@@ -126,10 +128,7 @@ function core.get_entity_info(entity)
         tracked_entities[id].manufacturing_hours = 0
       end
     end
-  else
-    debug("entity already tracked: " .. tostring(id))
   end
-
   return tracked_entities[id]
 end
 
@@ -142,7 +141,7 @@ function core.scan_and_populate_entities(all_tracked_types)
     }
 
     for _, entity in ipairs(entities) do
-      core.get_entity_info(entity) -- This will initialize the entity in tracked_entities
+      core.get_entity_info(entity)
     end
   end
 end
