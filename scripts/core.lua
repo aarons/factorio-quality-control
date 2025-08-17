@@ -335,13 +335,11 @@ function core.batch_process_entities()
 
           if thresholds_passed > 0 then
             -- Generate credits for secondary entities
-            if storage.secondary_entity_count > 0 then
-              local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
-              local credits_added = thresholds_passed * credit_ratio
-              storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
-              debug("Primary entity " .. tostring(entity.unit_number) .. " generated " .. string.format("%.2f", credits_added) .. " credits (ratio: " .. string.format("%.2f", credit_ratio) .. ")")
-              debug("Accumulated upgrade attempts now: " .. string.format("%.2f", storage.accumulated_upgrade_attempts))
-            end
+            local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
+            local credits_added = thresholds_passed * credit_ratio
+            storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
+            debug("Primary entity " .. tostring(entity.unit_number) .. " generated " .. string.format("%.2f", credits_added) .. " credits (ratio: " .. string.format("%.2f", credit_ratio) .. ")")
+            debug("Accumulated upgrade attempts now: " .. string.format("%.2f", storage.accumulated_upgrade_attempts))
 
             -- Process primary entity attempts
             local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
