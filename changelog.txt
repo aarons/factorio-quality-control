@@ -2,7 +2,7 @@
 Version: 1.1.3
 Date: 16. 08. 2025
   Optimizations:
-    - Added event filters to reduce unnecessary event processing for better performance
+    - Small performance improvement by filtering out non-player events where possible
   Bugfixes:
     - Fixed a crash when inspecting entities that can no longer change quality (at max/min quality limits)
 ---------------------------------------------------------------------------------------------------
