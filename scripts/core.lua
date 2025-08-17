@@ -12,7 +12,7 @@ local notifications = require("scripts.notifications")
 local core = {}
 
 -- Module state
-local debug_enabled = false
+local debug_enabled = true
 
 local function debug(message)
   if debug_enabled then
@@ -63,7 +63,6 @@ function core.get_entity_info(entity)
   end
 
   if not tracked_entities[id] then
-    debug("adding new entity to tracked_entities: " .. tostring(id))
     tracked_entities[id] = {
       entity = entity,
       entity_type = entity_type,
@@ -72,7 +71,6 @@ function core.get_entity_info(entity)
       attempts_to_change = 0,
       can_change_quality = can_change_quality
     }
-    debug("entity added to tracked_entities: " .. tostring(id))
 
     -- Update entity counts
     if is_primary then
@@ -84,6 +82,7 @@ function core.get_entity_info(entity)
     -- Add to ordered list for batch processing with O(1) lookup
     table.insert(storage.entity_list, id)
     storage.entity_list_index[id] = #storage.entity_list
+
     if is_primary then
       -- Initialize manufacturing hours based on current products_finished
       -- This ensures we don't double-count hours for already-producing entities
@@ -105,6 +104,9 @@ function core.get_entity_info(entity)
             tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
             tracked_entities[id].attempts_to_change = past_attempts
           end
+
+          -- Not adding credits for past attempts; it's too hard to balance with secondary entities.
+          -- Basically everytime you do a quality-control-init it refills the credit pool; for easy upgrade farming
         end
       else
         tracked_entities[id].manufacturing_hours = 0
@@ -126,25 +128,7 @@ function core.scan_and_populate_entities(all_tracked_types)
     end
   end
 
-  -- Calculate initial credits from existing manufacturing hours
-  local total_past_attempts = 0
-  for id, entity_info in pairs(storage.quality_control_entities) do
-    if entity_info.can_change_quality and entity_info.is_primary and entity_info.manufacturing_hours then
-      if entity_info.manufacturing_hours > 0 then
-        local hours_needed = settings_data.manufacturing_hours_for_change *
-                           (1 + settings_data.quality_increase_cost) ^ entity_info.entity.quality.level
-        total_past_attempts = total_past_attempts + math.floor(entity_info.manufacturing_hours / hours_needed)
-      end
-    end
-  end
-
-  -- Set accumulated credits based on entity ratio
-  if storage.secondary_entity_count > 0 and storage.primary_entity_count > 0 then
-    local credit_ratio = storage.secondary_entity_count / storage.primary_entity_count
-    storage.accumulated_upgrade_attempts = total_past_attempts * credit_ratio
-  else
-    storage.accumulated_upgrade_attempts = 0
-  end
+  debug("Entity scan complete - Primary: " .. storage.primary_entity_count .. ", Secondary: " .. storage.secondary_entity_count)
 end
 
 function core.remove_entity_info(id)
@@ -238,9 +222,7 @@ local function attempt_quality_change(entity)
   debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
 
   local random_roll = math.random()
-  debug("looking up entity_info for unit_number: " .. tostring(entity.unit_number))
   local entity_info = tracked_entities[entity.unit_number]
-  debug("entity_info result: " .. tostring(entity_info))
 
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
@@ -320,6 +302,11 @@ function core.batch_process_entities()
     -- Check for end of list (cycle complete)
     if storage.batch_index > #storage.entity_list then
       storage.batch_index = 1  -- Reset for next cycle
+      -- Debug: total entities at end of cycle
+      debug("=== CYCLE COMPLETE ===")
+      debug("Total entities - Primary: " .. storage.primary_entity_count .. ", Secondary: " .. storage.secondary_entity_count .. ", Total: " .. (storage.primary_entity_count + storage.secondary_entity_count))
+      debug("Accumulated upgrade attempts: " .. string.format("%.2f", storage.accumulated_upgrade_attempts))
+      debug("=====================")
       break
     end
 
@@ -350,7 +337,10 @@ function core.batch_process_entities()
             -- Generate credits for secondary entities
             if storage.secondary_entity_count > 0 then
               local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
-              storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + (thresholds_passed * credit_ratio)
+              local credits_added = thresholds_passed * credit_ratio
+              storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
+              debug("Primary entity " .. tostring(entity.unit_number) .. " generated " .. string.format("%.2f", credits_added) .. " credits (ratio: " .. string.format("%.2f", credit_ratio) .. ")")
+              debug("Accumulated upgrade attempts now: " .. string.format("%.2f", storage.accumulated_upgrade_attempts))
             end
 
             -- Process primary entity attempts
@@ -375,7 +365,9 @@ function core.batch_process_entities()
 
           -- Consume exact credits
           if total_attempts > 0 then
+            local credits_before = storage.accumulated_upgrade_attempts
             storage.accumulated_upgrade_attempts = math.max(0, storage.accumulated_upgrade_attempts - total_attempts)
+            debug("Secondary entity " .. tostring(entity.unit_number) .. " consumed " .. total_attempts .. " credits (from " .. string.format("%.2f", credits_before) .. " to " .. string.format("%.2f", storage.accumulated_upgrade_attempts) .. ")")
             process_quality_attempts(entity, total_attempts, quality_changes)
           end
         end
@@ -385,13 +377,17 @@ function core.batch_process_entities()
     ::continue::
   end
 
+  -- Debug: batch summary
+  if entities_processed > 0 then
+    debug("Batch processed " .. entities_processed .. " entities, " .. (next(quality_changes) and "had quality changes" or "no quality changes"))
+  end
+
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
   end
 end
 
 function core.on_entity_created(event)
-  debug("on_entity_created called")
   local entity = event.entity
 
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
@@ -400,7 +396,6 @@ function core.on_entity_created(event)
 end
 
 function core.on_entity_cloned(event)
-  debug("on_entity_cloned called")
   local entity = event.destination
 
   if not entity then
@@ -413,7 +408,6 @@ function core.on_entity_cloned(event)
 end
 
 function core.on_entity_destroyed(event)
-  debug("on_entity_destroyed called")
   local entity = event.entity
   if entity and entity.valid and is_tracked_type[entity.type] then
     core.remove_entity_info(entity.unit_number)
@@ -421,7 +415,6 @@ function core.on_entity_destroyed(event)
 end
 
 function core.on_quality_control_inspect(event)
-  debug("on_quality_control_inspect called")
   local player = game.get_player(event.player_index)
   if player then
     notifications.show_entity_quality_info(
