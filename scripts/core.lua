@@ -43,21 +43,24 @@ local function get_previous_quality(quality_prototype)
 end
 
 function core.get_entity_info(entity)
-  debug("get_entity_info called for entity type: " .. (entity.type or "unknown") .. ", id: " .. tostring(entity.unit_number))
-
   local id = entity.unit_number
   local entity_type = entity.type
   local previous_quality = get_previous_quality(entity.quality)
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
   local can_change_quality = can_increase or can_decrease
-
-  -- Skip tracking entities that can't change quality
-  if not can_change_quality then
-    return nil
-  end
-
   local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo")
+
+  -- Return error codes for entities that can't change quality
+  if not can_change_quality then
+    if settings_data.quality_change_direction == "increase" then
+      return "at max quality"
+    elseif settings_data.quality_change_direction == "decrease" then
+      return "at min quality"
+    else
+      return "unable to change quality"
+    end
+  end
 
   if not tracked_entities[id] then
     debug("adding new entity to tracked_entities: " .. tostring(id))
@@ -70,7 +73,7 @@ function core.get_entity_info(entity)
       can_change_quality = can_change_quality
     }
     debug("entity added to tracked_entities: " .. tostring(id))
-    
+
     -- Update entity counts
     if is_primary then
       storage.primary_entity_count = storage.primary_entity_count + 1
@@ -107,15 +110,11 @@ function core.get_entity_info(entity)
         tracked_entities[id].manufacturing_hours = 0
       end
     end
-  else
-    debug("entity already tracked: " .. tostring(id))
   end
-
   return tracked_entities[id]
 end
 
 function core.scan_and_populate_entities(all_tracked_types)
-  debug("scan_and_populate_entities called")
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
       type = all_tracked_types,
@@ -123,10 +122,10 @@ function core.scan_and_populate_entities(all_tracked_types)
     }
 
     for _, entity in ipairs(entities) do
-      core.get_entity_info(entity) -- This will initialize the entity in tracked_entities
+      core.get_entity_info(entity)
     end
   end
-  
+
   -- Calculate initial credits from existing manufacturing hours
   local total_past_attempts = 0
   for id, entity_info in pairs(storage.quality_control_entities) do
@@ -138,7 +137,7 @@ function core.scan_and_populate_entities(all_tracked_types)
       end
     end
   end
-  
+
   -- Set accumulated credits based on entity ratio
   if storage.secondary_entity_count > 0 and storage.primary_entity_count > 0 then
     local credit_ratio = storage.secondary_entity_count / storage.primary_entity_count
@@ -151,7 +150,7 @@ end
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
     local entity_info = tracked_entities[id]
-    
+
     -- Update counts before removal
     if entity_info.can_change_quality then
       if entity_info.is_primary then
@@ -160,7 +159,7 @@ function core.remove_entity_info(id)
         storage.secondary_entity_count = math.max(0, storage.secondary_entity_count - 1)
       end
     end
-    
+
     tracked_entities[id] = nil
 
     -- O(1) removal using swap-with-last approach
@@ -353,7 +352,7 @@ function core.batch_process_entities()
               local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
               storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + (thresholds_passed * credit_ratio)
             end
-            
+
             -- Process primary entity attempts
             local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
             if successful_changes == 0 then
@@ -367,13 +366,13 @@ function core.batch_process_entities()
           local attempts_per_entity = storage.accumulated_upgrade_attempts / storage.secondary_entity_count
           local guaranteed_attempts = math.floor(attempts_per_entity)
           local fractional_chance = attempts_per_entity - guaranteed_attempts
-          
+
           -- Resolve fractional to integer
           local total_attempts = guaranteed_attempts
           if fractional_chance > 0 and math.random() < fractional_chance then
             total_attempts = total_attempts + 1
           end
-          
+
           -- Consume exact credits
           if total_attempts > 0 then
             storage.accumulated_upgrade_attempts = math.max(0, storage.accumulated_upgrade_attempts - total_attempts)
@@ -393,7 +392,20 @@ end
 
 function core.on_entity_created(event)
   debug("on_entity_created called")
-  local entity = event.entity or event.created_entity
+  local entity = event.entity
+
+  if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    core.get_entity_info(entity)
+  end
+end
+
+function core.on_entity_cloned(event)
+  debug("on_entity_cloned called")
+  local entity = event.destination
+
+  if not entity then
+    return
+  end
 
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
     core.get_entity_info(entity)
