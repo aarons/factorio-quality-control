@@ -209,11 +209,11 @@ function data_setup.setup_data_structures(force_reset)
   if not storage.primary_entity_count then
     storage.primary_entity_count = 0
   end
-  
+
   if not storage.secondary_entity_count then
     storage.secondary_entity_count = 0
   end
-  
+
   if not storage.accumulated_upgrade_attempts then
     storage.accumulated_upgrade_attempts = 0
   end
