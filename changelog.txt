@@ -1,6 +1,6 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.0
-Date: 17. 08. 2025
+Date: 16. 08. 2025
   Optimizations:
     - Improved upgrade system for secondary entities for more consistent quality progression
     - Secondary entities receive upgrade attempts proportional to the ratio of secondary to primary entities

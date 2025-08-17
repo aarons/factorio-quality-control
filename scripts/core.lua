@@ -12,7 +12,7 @@ local notifications = require("scripts.notifications")
 local core = {}
 
 -- Module state
-local debug_enabled = true
+local debug_enabled = false
 
 local function debug(message)
   if debug_enabled then
