@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.1
+Date: 18. 08. 2025
+  Bugfixes:
+    - Fixed crash caused by debug statements accessing invalid entity properties. Even though
+      debugging was turned off, LUA still evaluated the arguments with the way it was setup.
+      Thanks to MrSilver2510 for the bug report!
+    - Removed all debug statements until a safer approach can be implemented.
+---------------------------------------------------------------------------------------------------
 Version: 1.2.0
 Date: 17. 08. 2025
   Balancing:

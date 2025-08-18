@@ -12,13 +12,6 @@ local notifications = require("scripts.notifications")
 local core = {}
 
 -- Module state
-local debug_enabled = false
-
-local function debug(message)
-  if debug_enabled then
-    log("debug: " .. message)
-  end
-end
 local tracked_entities -- lookup table for all the entities we might change the quality of
 local previous_qualities = {} -- lookup table for previous qualities in the chain
 local quality_limit = nil -- the quality limit (max for increase, min for decrease)
@@ -128,7 +121,6 @@ function core.scan_and_populate_entities(all_tracked_types)
     end
   end
 
-  debug("Entity scan complete - Primary: " .. storage.primary_entity_count .. ", Secondary: " .. storage.secondary_entity_count)
 end
 
 function core.remove_entity_info(id)
@@ -219,8 +211,6 @@ local function update_module_quality(replacement_entity, target_quality, setting
 end
 
 local function attempt_quality_change(entity)
-  debug("attempt_quality_change called for entity type: " .. entity.type .. ", id: " .. tostring(entity.unit_number))
-
   local random_roll = math.random()
   local entity_info = tracked_entities[entity.unit_number]
 
@@ -258,7 +248,6 @@ local function attempt_quality_change(entity)
     raise_built=true,
   }
 
-  debug("replacement_entity valid: " .. tostring(replacement_entity))
   if replacement_entity and replacement_entity.valid then
     core.remove_entity_info(old_unit_number)
     update_module_quality(replacement_entity, target_quality, settings_data)
@@ -283,7 +272,6 @@ local function process_quality_attempts(entity, attempts_count, quality_changes)
 
       -- If entity reached quality limit, stop attempting further changes
       if current_entity.quality == quality_limit then
-        debug("entity reached quality limit, stopping attempts: " .. tostring(current_entity.unit_number))
         break
       end
     end
@@ -302,11 +290,6 @@ function core.batch_process_entities()
     -- Check for end of list (cycle complete)
     if storage.batch_index > #storage.entity_list then
       storage.batch_index = 1  -- Reset for next cycle
-      -- Debug: total entities at end of cycle
-      debug("=== CYCLE COMPLETE ===")
-      debug("Total entities - Primary: " .. storage.primary_entity_count .. ", Secondary: " .. storage.secondary_entity_count .. ", Total: " .. (storage.primary_entity_count + storage.secondary_entity_count))
-      debug("Accumulated upgrade attempts: " .. string.format("%.2f", storage.accumulated_upgrade_attempts))
-      debug("=====================")
       break
     end
 
@@ -339,8 +322,6 @@ function core.batch_process_entities()
               local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
               local credits_added = thresholds_passed * credit_ratio
               storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
-              debug("Primary entity " .. tostring(entity.unit_number) .. " generated " .. string.format("%.2f", credits_added) .. " credits (ratio: " .. string.format("%.2f", credit_ratio) .. ")")
-              debug("Accumulated upgrade attempts now: " .. string.format("%.2f", storage.accumulated_upgrade_attempts))
             end
 
             -- Process primary entity attempts
@@ -367,7 +348,6 @@ function core.batch_process_entities()
           if total_attempts > 0 then
             local credits_before = storage.accumulated_upgrade_attempts
             storage.accumulated_upgrade_attempts = math.max(0, storage.accumulated_upgrade_attempts - total_attempts)
-            debug("Secondary entity " .. tostring(entity.unit_number) .. " consumed " .. total_attempts .. " credits (from " .. string.format("%.2f", credits_before) .. " to " .. string.format("%.2f", storage.accumulated_upgrade_attempts) .. ")")
             process_quality_attempts(entity, total_attempts, quality_changes)
           end
         end
@@ -377,10 +357,6 @@ function core.batch_process_entities()
     ::continue::
   end
 
-  -- Debug: batch summary
-  if entities_processed > 0 then
-    debug("Batch processed " .. entities_processed .. " entities, " .. (next(quality_changes) and "had quality changes" or "no quality changes"))
-  end
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
