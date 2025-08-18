@@ -9,13 +9,21 @@ Handles initialization, event registration, and orchestrates the modular compone
 local data_setup = require("scripts.data-setup")
 local core = require("scripts.core")
 
--- Module state
-local _, _, all_tracked_types = data_setup.build_entity_type_lists()
-local is_tracked_type = data_setup.build_is_tracked_type_lookup()
-local settings_data = data_setup.parse_settings()
-local previous_qualities = data_setup.build_previous_quality_lookup()
-local quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
+-- Script state - will be initialized by build_settings_dependent_data_structures()
+local all_tracked_types
+local is_tracked_type
+local settings_data
+local previous_qualities
+local quality_limit
 
+--- builds all settings-dependent data structures from current mod settings
+local function build_settings_dependent_data_structures()
+  all_tracked_types = select(3, data_setup.build_entity_type_lists()) -- 3rd return: combined list of all entity types to track
+  is_tracked_type = data_setup.build_is_tracked_type_lookup()
+  settings_data = data_setup.parse_settings()
+  previous_qualities = data_setup.build_previous_quality_lookup()
+  quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
+end
 
 --- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
@@ -26,6 +34,9 @@ local function reinitialize_quality_control_storage(command)
       player.print("Quality Control: Rebuilding cache, scanning entities...")
     end
   end
+
+  -- Rebuild state from current settings
+  build_settings_dependent_data_structures()
 
   -- Full reinitialization: setup data structures and rescan entities
   data_setup.setup_data_structures(true)  -- Clear existing data
@@ -89,6 +100,7 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 
 -- Initialize on new game
 script.on_init(function()
+  build_settings_dependent_data_structures()
   data_setup.setup_data_structures()
   core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
   core.scan_and_populate_entities(all_tracked_types)
@@ -111,6 +123,7 @@ end)
 script.on_load(function()
   script.on_nth_tick(120, function()
     script.on_nth_tick(nil)  -- Unregister to run only once
+    build_settings_dependent_data_structures()
     data_setup.setup_data_structures()
     core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
     register_event_handlers()
