@@ -101,8 +101,8 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
     -- Attempts to change
     table.insert(info_parts, {"quality-control.attempts-to-change", entity_info.attempts_to_change})
 
-    -- Current chance of change
-    table.insert(info_parts, {"quality-control.current-chance", string.format("%.2f", entity_info.chance_to_change)})
+    -- Current chance of change (capped at 100% for display)
+    table.insert(info_parts, {"quality-control.current-chance", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
 
     -- Progress to next attempt (for primary types with manufacturing hours)
     if is_primary_type and current_recipe then
