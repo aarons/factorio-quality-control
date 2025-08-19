@@ -255,10 +255,11 @@ local function attempt_quality_change(entity)
     if settings_data.accumulation_percentage > 0 then
       entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
     end
-    return false  -- Failed roll, but entity still valid - can retry
+    return false
   end
 
-  -- Entity becomes invalid after fast_replace
+  -- Save some info for logging in case of an issue
+  -- Entity may become invalid after fast_replace
   local old_unit_number = entity.unit_number
   local old_entity_type = entity.type
   local old_entity_name = entity.name
@@ -300,7 +301,8 @@ local function attempt_quality_change(entity)
     if history then
       log("  - From mod: " .. history.created)
     end
-    return false  -- Signal to caller that this was a failed attempt, not a nil entity
+    core.remove_entity_info(old_unit_number) -- don't try to replace again
+    return nil  -- signal to caller not to try again
   end
 end
 
@@ -377,7 +379,7 @@ function core.batch_process_entities()
 
             -- Process primary entity attempts
             local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
-            if successful_changes == 0 then
+            if successful_changes == 0 and tracked_entities[unit_number] then
               entity_info.manufacturing_hours = current_hours
             end
           end
