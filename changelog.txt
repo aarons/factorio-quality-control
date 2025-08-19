@@ -3,6 +3,8 @@ Version: 1.2.2
 Date: 18. 08. 2025
   Bugfixes:
     - Fixed a crash when entities become invalid during quality processing. Thank you Smougtea for reporting!
+  Modding:
+    - Excludes entities from mods that add non-upgradeable items (Warp-Drive-Machine, quality-condenser)
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.1
 Date: 18. 08. 2025
