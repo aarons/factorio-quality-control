@@ -25,11 +25,18 @@ local function should_exclude_entity(entity)
   --   return true
   -- end
 
-  -- Check if entity was created by an excluded mod
-  local excluded_mods = {"Warp-Drive-Machine", "quality-condenser", "RealisticReactorsReborn"}
+  -- Entities from these mods don't fast_replace well, so for now exclude them
+  local exclude_items_from_mods = {
+    "Warp-Drive-Machine",
+    "quality-condenser",
+    "RealisticReactorsReborn",
+    "railloader2-patch",
+    "router",
+    "fct-ControlTech" -- patch requested, can remove once they are greater than 2.0.5
+  }
   local history = prototypes.get_history(entity.type, entity.name)
   if history then
-    for _, excluded_mod in ipairs(excluded_mods) do
+    for _, excluded_mod in ipairs(exclude_items_from_mods) do
       if history.created:find(excluded_mod, 1, true) ~= nil then
         log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
         return true
