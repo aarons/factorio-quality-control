@@ -162,6 +162,7 @@ function data_setup.get_quality_limit(direction)
   end
 end
 
+
 function data_setup.setup_data_structures(force_reset)
   -- Handle force reset by clearing everything
   if force_reset then

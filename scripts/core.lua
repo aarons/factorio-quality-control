@@ -16,11 +16,32 @@ local tracked_entities -- lookup table for all the entities we might change the 
 local previous_qualities = {} -- lookup table for previous qualities in the chain
 local quality_limit = nil -- the quality limit (max for increase, min for decrease)
 
+-- Exclude entities that don't work well with fast_replace or should be excluded
+local function should_exclude_entity(entity)
+  -- Check if entity prototype is hidden in factoriopedia
+  -- local entity_prototype = prototypes.entity[entity.name]
+  -- if entity_prototype and entity_prototype.hidden_in_factoriopedia then
+  --   log("[QC] Excluding entity " .. entity.name .. " - hidden in factoriopedia")
+  --   return true
+  -- end
+
+  -- Check if entity was created by an excluded mod
+  local excluded_mods = {"Warp-Drive-Machine", "quality-condenser"}
+  local history = prototypes.get_history(entity.type, entity.name)
+  if history then
+    for _, excluded_mod in ipairs(excluded_mods) do
+      if history.created:find(excluded_mod, 1, true) ~= nil then
+        log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
+        return true
+      end
+    end
+  end
+  return false
+end
 
 -- Settings (will be set by control.lua)
 local settings_data = {}
 local is_tracked_type = {}
-
 
 function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, quality_limit_setting)
   settings_data = parsed_settings
@@ -36,6 +57,10 @@ local function get_previous_quality(quality_prototype)
 end
 
 function core.get_entity_info(entity)
+  if should_exclude_entity(entity) then
+    return "entity excluded from quality control"
+  end
+
   local id = entity.unit_number
   local entity_type = entity.type
   local previous_quality = get_previous_quality(entity.quality)
@@ -211,8 +236,17 @@ local function update_module_quality(replacement_entity, target_quality, setting
 end
 
 local function attempt_quality_change(entity)
+  if not entity.valid then
+    -- not sure how we can get here with an invalid entity
+    return nil
+  end
+
   local random_roll = math.random()
   local entity_info = tracked_entities[entity.unit_number]
+
+  if not entity_info then
+    return nil  -- entity not tracked, invalid state
+  end
 
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
@@ -221,11 +255,13 @@ local function attempt_quality_change(entity)
     if settings_data.accumulation_percentage > 0 then
       entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
     end
-    return nil
+    return false  -- Failed roll, but entity still valid - can retry
   end
 
   -- Entity becomes invalid after fast_replace
   local old_unit_number = entity.unit_number
+  local old_entity_type = entity.type
+  local old_entity_name = entity.name
 
   local target_quality
   if settings_data.quality_change_direction == "increase" then
@@ -234,7 +270,7 @@ local function attempt_quality_change(entity)
     target_quality = get_previous_quality(entity.quality)
   end
 
-  -- Raise script_raised_destroy event for the old entity before replacement
+  -- Call script_raised_destroy before the replacement attempt
   script.raise_script_destroy{entity = entity}
 
   local replacement_entity = entity.surface.create_entity {
@@ -249,13 +285,23 @@ local function attempt_quality_change(entity)
   }
 
   if replacement_entity and replacement_entity.valid then
-    core.remove_entity_info(old_unit_number)
+    core.remove_entity_info(old_unit_number) -- may not be needed since we already did raise_script_destroy
     update_module_quality(replacement_entity, target_quality, settings_data)
     notifications.show_entity_quality_alert(replacement_entity, settings_data.quality_change_direction)
     return replacement_entity
+  else
+    -- Unexpected failure after script_raised_destroy was called
+    log("Quality Control - Unexpected Problem: Entity replacement failed")
+    log("  - Entity unit_number: " .. old_unit_number)
+    log("  - Entity type: " .. old_entity_type)
+    log("  - Entity name: " .. old_entity_name)
+    log("  - Target quality: " .. (target_quality and target_quality.name or "nil"))
+    local history = prototypes.get_history(old_entity_type, old_entity_name)
+    if history then
+      log("  - From mod: " .. history.created)
+    end
+    return false  -- Signal to caller that this was a failed attempt, not a nil entity
   end
-
-  return nil
 end
 
 
@@ -265,12 +311,17 @@ local function process_quality_attempts(entity, attempts_count, quality_changes)
 
   for _ = 1, attempts_count do
     local change_result = attempt_quality_change(current_entity)
+
+    if change_result == nil then
+      -- entity is invalid, stop all attempts
+      break
+    end
+
     if change_result then
       successful_changes = successful_changes + 1
       current_entity = change_result
       quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-
-      -- If entity reached quality limit, stop attempting further changes
+      -- check if we've hit max quality and stop attempts if so
       if current_entity.quality == quality_limit then
         break
       end
@@ -346,7 +397,6 @@ function core.batch_process_entities()
 
           -- Consume exact credits
           if total_attempts > 0 then
-            local credits_before = storage.accumulated_upgrade_attempts
             storage.accumulated_upgrade_attempts = math.max(0, storage.accumulated_upgrade_attempts - total_attempts)
             process_quality_attempts(entity, total_attempts, quality_changes)
           end
