@@ -38,7 +38,7 @@ local function should_exclude_entity(entity)
   if history then
     for _, excluded_mod in ipairs(exclude_items_from_mods) do
       if history.created:find(excluded_mod, 1, true) ~= nil then
-        log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
+        -- log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
         return true
       end
     end

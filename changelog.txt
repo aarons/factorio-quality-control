@@ -2,12 +2,13 @@
 Version: 1.2.4
 Date: 19. 08. 2025
   Bugfixes:
-    - Fixed issue where entity properties were accessed after script.raise_script_destroy.
+    - Fixed issue where entity properties were accessed after script.raise_script_destroy. Thank you Smougtea (again!!)
   Modding:
     - Excludes entities that didn't upgrade well from:
       ControlTech updated for Factorio 2
       Circuit-Controlled Routers
       Bulk Rail Loader 2.0 Temporary Patch
+      Thank you Sangrias for the excellent save file that helped identify these!
 ---------------------------------------------------------------------------------------------------
 Version: 1.2.3
 Date: 19. 08. 2025
