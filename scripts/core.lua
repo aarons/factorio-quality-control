@@ -29,7 +29,7 @@ local function should_exclude_entity(entity)
   local exclude_items_from_mods = {
     "Warp-Drive-Machine",
     "quality-condenser",
-    "RealisticReactorsReborn", "ammo-loader",
+    "RealisticReactorsReborn",
     "railloader2-patch",
     "router",
     "fct-ControlTech", -- patch requested, can remove once they are greater than 2.0.5
