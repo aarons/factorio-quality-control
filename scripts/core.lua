@@ -348,6 +348,11 @@ end
 
 
 function core.batch_process_entities()
+  -- Early return if storage not ready (can happen during on_load)
+  if not storage.quality_control_data_structures_ready then
+    return
+  end
+
   local batch_size = settings.global["batch-entities-per-tick"].value
   local entities_processed = 0
   local quality_changes = {}
@@ -429,6 +434,11 @@ function core.batch_process_entities()
 end
 
 function core.on_entity_created(event)
+  -- Early return if storage not ready (can happen during on_load)
+  if not storage.quality_control_data_structures_ready then
+    return
+  end
+
   local entity = event.entity
 
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
@@ -437,6 +447,11 @@ function core.on_entity_created(event)
 end
 
 function core.on_entity_cloned(event)
+  -- Early return if storage not ready (can happen during on_load)
+  if not storage.quality_control_data_structures_ready then
+    return
+  end
+
   local entity = event.destination
 
   if not entity then
@@ -449,6 +464,11 @@ function core.on_entity_cloned(event)
 end
 
 function core.on_entity_destroyed(event)
+  -- Early return if storage not ready (can happen during on_load)
+  if not storage.quality_control_data_structures_ready then
+    return
+  end
+
   local entity = event.entity
   if entity and entity.valid and is_tracked_type[entity.type] then
     core.remove_entity_info(entity.unit_number)
@@ -456,6 +476,11 @@ function core.on_entity_destroyed(event)
 end
 
 function core.on_quality_control_inspect(event)
+  -- Early return if storage not ready (can happen during on_load)
+  if not storage.quality_control_data_structures_ready then
+    return
+  end
+
   local player = game.get_player(event.player_index)
   if player then
     notifications.show_entity_quality_info(

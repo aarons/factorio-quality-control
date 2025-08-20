@@ -9,12 +9,22 @@ Handles initialization, event registration, and orchestrates the modular compone
 local data_setup = require("scripts.data-setup")
 local core = require("scripts.core")
 
--- Module state
-local _, _, all_tracked_types = data_setup.build_entity_type_lists()
-local is_tracked_type = data_setup.build_is_tracked_type_lookup()
-local settings_data = data_setup.parse_settings()
-local previous_qualities = data_setup.build_previous_quality_lookup()
-local quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
+-- Module state (initialized by initialize_module_state function)
+local all_tracked_types
+local is_tracked_type
+local settings_data
+local previous_qualities
+local quality_limit
+
+--- Initialize module state variables (called from on_init and on_load)
+local function initialize_module_state()
+  local _, _, tracked_types = data_setup.build_entity_type_lists()
+  all_tracked_types = tracked_types
+  is_tracked_type = data_setup.build_is_tracked_type_lookup()
+  settings_data = data_setup.parse_settings()
+  previous_qualities = data_setup.build_previous_quality_lookup()
+  quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
+end
 
 
 --- Console command to reinitialize storage
@@ -47,6 +57,12 @@ end
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
   local tick_interval = settings.global["batch-ticks-between-processing"].value
+
+  -- Save the tick interval in storage for multiplayer consistency
+  if storage then
+    storage.quality_control_saved_tick_interval = tick_interval
+  end
+
   script.on_nth_tick(nil)
   script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
@@ -74,14 +90,16 @@ local function register_event_handlers()
   -- Runtime setting changes
   script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
     if event.setting == "batch-ticks-between-processing" then
-      if storage.data_structures_ready then
+      if storage.quality_control_data_structures_ready then
         register_main_loop()
       end
     end
   end)
 
   -- Start the main processing loop
-  register_main_loop()
+  -- Use saved tick interval if available (for on_load), otherwise use current setting
+  local tick_interval = (storage and storage.quality_control_saved_tick_interval) or settings.global["batch-ticks-between-processing"].value
+  script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
 -- Register console command
@@ -89,30 +107,40 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 
 -- Initialize on new game
 script.on_init(function()
+  initialize_module_state()
   data_setup.setup_data_structures()
   core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
   core.scan_and_populate_entities(all_tracked_types)
+
+  -- Save the initial tick interval and mark storage as ready
+  storage.quality_control_saved_tick_interval = settings.global["batch-ticks-between-processing"].value
+  storage.quality_control_data_structures_ready = true
+
   register_event_handlers()
 end)
 
 -- Handle startup setting changes and mod version updates
 script.on_configuration_changed(function(_)
+  initialize_module_state()
   reinitialize_quality_control_storage()
-  storage.data_structures_ready = false
+
+  -- Save the tick interval and mark storage as ready
+  storage.quality_control_saved_tick_interval = settings.global["batch-ticks-between-processing"].value
+  storage.quality_control_data_structures_ready = true
+
   register_event_handlers()
 end)
 
 -- Handle save game loading
--- Uses delayed initialization pattern because on_load has restrictions:
--- - No access to game object
--- - Storage table is read-only
--- - Can only set up metatables and event handlers
--- The first tick delay ensures full game access when initializing
+-- Must immediately re-register the same event handlers that were registered when saved
+-- to prevent multiplayer desync issues
 script.on_load(function()
-  script.on_nth_tick(120, function()
-    script.on_nth_tick(nil)  -- Unregister to run only once
-    data_setup.setup_data_structures()
-    core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
-    register_event_handlers()
-  end)
+  -- Re-initialize module state variables (not persisted between save/load)
+  initialize_module_state()
+
+  -- Initialize core module with read-only storage access
+  core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
+
+  -- Re-register all event handlers immediately (required for multiplayer compatibility)
+  register_event_handlers()
 end)
