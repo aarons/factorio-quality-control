@@ -25,13 +25,21 @@ local function should_exclude_entity(entity)
   --   return true
   -- end
 
-  -- Check if entity was created by an excluded mod
-  local excluded_mods = {"Warp-Drive-Machine", "quality-condenser", "RealisticReactorsReborn", "ammo-loader"}
+  -- Entities from these mods don't fast_replace well, so for now exclude them
+  local exclude_items_from_mods = {
+    "Warp-Drive-Machine",
+    "quality-condenser",
+    "RealisticReactorsReborn", "ammo-loader",
+    "railloader2-patch",
+    "router",
+    "fct-ControlTech", -- patch requested, can remove once they are greater than 2.0.5
+    "ammo-loader"
+  }
   local history = prototypes.get_history(entity.type, entity.name)
   if history then
-    for _, excluded_mod in ipairs(excluded_mods) do
+    for _, excluded_mod in ipairs(exclude_items_from_mods) do
       if history.created:find(excluded_mod, 1, true) ~= nil then
-        log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
+        -- log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
         return true
       end
     end
@@ -258,11 +266,15 @@ local function attempt_quality_change(entity)
     return false
   end
 
-  -- Save some info for logging in case of an issue
-  -- Entity may become invalid after fast_replace
-  local old_unit_number = entity.unit_number
-  local old_entity_type = entity.type
-  local old_entity_name = entity.name
+  -- Save all entity properties before script.raise_script_destroy
+  -- Entity may become invalid after script.raise_script_destroy
+  local unit_number = entity.unit_number
+  local entity_type = entity.type
+  local entity_name = entity.name
+  local entity_surface = entity.surface
+  local entity_position = entity.position
+  local entity_force = entity.force
+  local entity_direction = entity.direction
 
   local target_quality
   if settings_data.quality_change_direction == "increase" then
@@ -271,14 +283,15 @@ local function attempt_quality_change(entity)
     target_quality = get_previous_quality(entity.quality)
   end
 
-  -- Call script_raised_destroy before the replacement attempt
+  -- Need to call script_raised_destroy before the replacement attempt
+  -- After the fast replace the entity is no longer available
   script.raise_script_destroy{entity = entity}
 
-  local replacement_entity = entity.surface.create_entity {
-    name = entity.name,
-    position = entity.position,
-    force = entity.force,
-    direction = entity.direction,
+  local replacement_entity = entity_surface.create_entity {
+    name = entity_name,
+    position = entity_position,
+    force = entity_force,
+    direction = entity_direction,
     quality = target_quality,
     fast_replace = true,
     spill = false,
@@ -286,22 +299,22 @@ local function attempt_quality_change(entity)
   }
 
   if replacement_entity and replacement_entity.valid then
-    core.remove_entity_info(old_unit_number) -- may not be needed since we already did raise_script_destroy
+    core.remove_entity_info(unit_number) -- may not be needed since we already did raise_script_destroy
     update_module_quality(replacement_entity, target_quality, settings_data)
     notifications.show_entity_quality_alert(replacement_entity, settings_data.quality_change_direction)
     return replacement_entity
   else
     -- Unexpected failure after script_raised_destroy was called
     log("Quality Control - Unexpected Problem: Entity replacement failed")
-    log("  - Entity unit_number: " .. old_unit_number)
-    log("  - Entity type: " .. old_entity_type)
-    log("  - Entity name: " .. old_entity_name)
+    log("  - Entity unit_number: " .. unit_number)
+    log("  - Entity type: " .. entity_type)
+    log("  - Entity name: " .. entity_name)
     log("  - Target quality: " .. (target_quality and target_quality.name or "nil"))
-    local history = prototypes.get_history(old_entity_type, old_entity_name)
+    local history = prototypes.get_history(entity_type, entity_name)
     if history then
       log("  - From mod: " .. history.created)
     end
-    core.remove_entity_info(old_unit_number) -- don't try to replace again
+    core.remove_entity_info(unit_number) -- don't try to replace again
     return nil  -- signal to caller not to try again
   end
 end

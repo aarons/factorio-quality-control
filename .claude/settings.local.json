@@ -17,7 +17,8 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:docs.anthropic.com)",
       "Bash(./validate.sh)",
-      "WebFetch(domain:lua-api.factorio.com)"
+      "WebFetch(domain:lua-api.factorio.com)",
+      "Bash(./validate.sh:*)"
     ],
     "deny": []
   }
