@@ -1,5 +1,5 @@
 --[[
-Migration 1.2.4 - Fix ammo-loader compatibility
+Migration 1.2.5 - Fix ammo-loader compatibility
 This migration fixes broken ammo-loader entities that may have been upgraded by Quality Control
 before the ammo-loader exclusion was added.
 
@@ -24,7 +24,7 @@ local AMMO_LOADER_HIDDEN_ENTITIES = {
 
 -- Helper function to log with prefix
 local function migration_log(message)
-  log("[QC Migration 1.2.4] " .. message)
+  log("[Quality Control Migration 1.2.5] " .. message)
 end
 
 -- Helper function to check if ammo-loader mod is active
@@ -230,6 +230,12 @@ local function fix_ammo_loader_compatibility()
     end
 
     migration_log("Found " .. #containers .. " containers and " .. #hidden_entities .. " hidden entities")
+
+    -- Log details about hidden entities found without containers
+    if #containers == 0 and #hidden_entities > 0 then
+      migration_log("Found " .. #hidden_entities .. " orphaned hidden entities without corresponding containers on surface " .. surface.name)
+      goto continue_surface
+    end
 
     -- Check if there's a quality mismatch
     if not has_quality_mismatch(containers, hidden_entities) then
