@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.5
+Date: 20. 08. 2025
+  Modding:
+    - Excludes entities from ammo-loader mod to prevent compatibility issues
+    - Adds data migration to fix broken ammo-loader entities that may have been upgraded
+      by Quality Control before the exclusion was added
+---------------------------------------------------------------------------------------------------
 Version: 1.2.4
 Date: 19. 08. 2025
   Bugfixes:

@@ -32,7 +32,8 @@ local function should_exclude_entity(entity)
     "RealisticReactorsReborn",
     "railloader2-patch",
     "router",
-    "fct-ControlTech" -- patch requested, can remove once they are greater than 2.0.5
+    "fct-ControlTech", -- patch requested, may be able to remove once they are greater than version 2.0.5
+    "ammo-loader"
   }
   local history = prototypes.get_history(entity.type, entity.name)
   if history then
