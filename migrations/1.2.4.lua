@@ -148,20 +148,28 @@ local function check_hidden_entities_exist(surface, containers_data)
 
   for _, container_data in pairs(containers_data) do
     -- Search for hidden inserters near this container position
-    local inserters = surface.find_entities_filtered{
-      name = "ammo-loader-hidden-inserter",
+    local nearby_inserters = surface.find_entities_filtered{
+      type = "inserter",
       position = container_data.position,
       radius = 1.0
     }
-    found_inserters = found_inserters + #inserters
+    for _, inserter in pairs(nearby_inserters) do
+      if inserter.name == "ammo-loader-hidden-inserter" then
+        found_inserters = found_inserters + 1
+      end
+    end
 
     -- Search for range extenders near this container position
-    local extenders = surface.find_entities_filtered{
-      name = "ammo-loader-range-extender",
+    local nearby_poles = surface.find_entities_filtered{
+      type = "electric-pole",
       position = container_data.position,
       radius = 1.0
     }
-    found_extenders = found_extenders + #extenders
+    for _, pole in pairs(nearby_poles) do
+      if pole.name == "ammo-loader-range-extender" then
+        found_extenders = found_extenders + 1
+      end
+    end
   end
 
   migration_log("Found " .. found_inserters .. " hidden inserters and " .. found_extenders .. " range extenders after recreation")
@@ -185,15 +193,41 @@ local function fix_ammo_loader_compatibility()
     migration_log("Processing surface: " .. surface.name)
     total_surfaces_processed = total_surfaces_processed + 1
 
-    -- Find all ammo-loader containers
-    local containers = surface.find_entities_filtered{
-      name = AMMO_LOADER_CONTAINERS
+    -- Find all ammo-loader containers (chests)
+    local containers = {}
+    local all_chests = surface.find_entities_filtered{
+      type = "container"
     }
+    for _, chest in pairs(all_chests) do
+      for _, container_name in pairs(AMMO_LOADER_CONTAINERS) do
+        if chest.name == container_name then
+          table.insert(containers, chest)
+          break
+        end
+      end
+    end
 
     -- Find all ammo-loader hidden entities
-    local hidden_entities = surface.find_entities_filtered{
-      name = AMMO_LOADER_HIDDEN_ENTITIES
+    local hidden_entities = {}
+    -- Find inserters with ammo-loader names
+    local all_inserters = surface.find_entities_filtered{
+      type = "inserter"
     }
+    for _, inserter in pairs(all_inserters) do
+      if inserter.name == "ammo-loader-hidden-inserter" then
+        table.insert(hidden_entities, inserter)
+      end
+    end
+
+    -- Find electric-poles with ammo-loader names
+    local all_poles = surface.find_entities_filtered{
+      type = "electric-pole"
+    }
+    for _, pole in pairs(all_poles) do
+      if pole.name == "ammo-loader-range-extender" then
+        table.insert(hidden_entities, pole)
+      end
+    end
 
     migration_log("Found " .. #containers .. " containers and " .. #hidden_entities .. " hidden entities")
 
@@ -238,9 +272,26 @@ local function fix_ammo_loader_compatibility()
     migration_log("Destroyed " .. #containers .. " containers")
 
     -- Wait a bit and check if hidden entities were cleaned up
-    local remaining_hidden = surface.find_entities_filtered{
-      name = AMMO_LOADER_HIDDEN_ENTITIES
+    local remaining_hidden = {}
+    -- Find remaining inserters
+    local remaining_inserters = surface.find_entities_filtered{
+      type = "inserter"
     }
+    for _, inserter in pairs(remaining_inserters) do
+      if inserter.name == "ammo-loader-hidden-inserter" then
+        table.insert(remaining_hidden, inserter)
+      end
+    end
+
+    -- Find remaining electric-poles
+    local remaining_poles = surface.find_entities_filtered{
+      type = "electric-pole"
+    }
+    for _, pole in pairs(remaining_poles) do
+      if pole.name == "ammo-loader-range-extender" then
+        table.insert(remaining_hidden, pole)
+      end
+    end
 
     if #remaining_hidden > 0 then
       migration_log("WARNING: " .. #remaining_hidden .. " hidden entities not cleaned up by ammo-loader, manually destroying:")
