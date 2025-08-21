@@ -93,12 +93,11 @@ function core.get_entity_info(entity)
   end
 
   local id = entity.unit_number
-  local entity_type = entity.type
   local previous_quality = previous_qualities[entity.quality.name]
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
   local can_change_quality = can_increase or can_decrease
-  local is_primary = (entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo")
+  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace" or entity.type == "rocket-silo")
 
   if not can_change_quality then
     if settings_data.quality_change_direction == "increase" then
@@ -113,7 +112,6 @@ function core.get_entity_info(entity)
   if not tracked_entities[id] then
     tracked_entities[id] = {
       entity = entity,
-      entity_type = entity_type,
       is_primary = is_primary,
       chance_to_change = settings_data.base_percentage_chance,
       attempts_to_change = 0,
@@ -140,7 +138,6 @@ function core.get_entity_info(entity)
         recipe_time = entity.previous_recipe.name.energy
       end
 
-      local recipe_time = current_recipe.prototype.energy
       local current_hours = (entity.products_finished * recipe_time) / 3600
       tracked_entities[id].manufacturing_hours = current_hours
 
