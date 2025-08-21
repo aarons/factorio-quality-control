@@ -57,7 +57,6 @@ function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, q
   previous_qualities = quality_lookup
   quality_limit = quality_limit_setting
   tracked_entities = storage.quality_control_entities
-
 end
 
 local function get_previous_quality(quality_prototype)
@@ -349,7 +348,7 @@ end
 
 function core.batch_process_entities()
   -- Early return if storage not ready (can happen during on_load)
-  if not storage.quality_control_data_structures_ready then
+  if not storage.data_structures_ready then
     return
   end
 
@@ -435,7 +434,7 @@ end
 
 function core.on_entity_created(event)
   -- Early return if storage not ready (can happen during on_load)
-  if not storage.quality_control_data_structures_ready then
+  if not storage.data_structures_ready then
     return
   end
 
@@ -448,7 +447,7 @@ end
 
 function core.on_entity_cloned(event)
   -- Early return if storage not ready (can happen during on_load)
-  if not storage.quality_control_data_structures_ready then
+  if not storage.data_structures_ready then
     return
   end
 
@@ -465,7 +464,7 @@ end
 
 function core.on_entity_destroyed(event)
   -- Early return if storage not ready (can happen during on_load)
-  if not storage.quality_control_data_structures_ready then
+  if not storage.data_structures_ready then
     return
   end
 
@@ -477,7 +476,7 @@ end
 
 function core.on_quality_control_inspect(event)
   -- Early return if storage not ready (can happen during on_load)
-  if not storage.quality_control_data_structures_ready then
+  if not storage.data_structures_ready then
     return
   end
 

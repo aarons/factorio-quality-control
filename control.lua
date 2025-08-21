@@ -60,10 +60,9 @@ local function register_main_loop()
 
   -- Save the tick interval in storage for multiplayer consistency
   if storage then
-    storage.quality_control_saved_tick_interval = tick_interval
+    storage.saved_tick_interval = tick_interval
   end
 
-  script.on_nth_tick(nil)
   script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
@@ -90,7 +89,7 @@ local function register_event_handlers()
   -- Runtime setting changes
   script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
     if event.setting == "batch-ticks-between-processing" then
-      if storage.quality_control_data_structures_ready then
+      if storage.data_structures_ready then
         register_main_loop()
       end
     end
@@ -98,7 +97,7 @@ local function register_event_handlers()
 
   -- Start the main processing loop
   -- Use saved tick interval if available (for on_load), otherwise use current setting
-  local tick_interval = (storage and storage.quality_control_saved_tick_interval) or settings.global["batch-ticks-between-processing"].value
+  local tick_interval = (storage and storage.saved_tick_interval) or settings.global["batch-ticks-between-processing"].value
   script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
@@ -106,6 +105,8 @@ end
 commands.add_command("quality-control-init", "Reinitialize Quality Control storage and rescan all machines", reinitialize_quality_control_storage)
 
 -- Initialize on new game
+-- The mod has full access to the game object and its storage table and can change anything about the game state that it deems appropriate at this stage.
+-- no events will be raised for a mod it has finished on_init() or on_load()
 script.on_init(function()
   initialize_module_state()
   data_setup.setup_data_structures()
@@ -113,8 +114,8 @@ script.on_init(function()
   core.scan_and_populate_entities(all_tracked_types)
 
   -- Save the initial tick interval and mark storage as ready
-  storage.quality_control_saved_tick_interval = settings.global["batch-ticks-between-processing"].value
-  storage.quality_control_data_structures_ready = true
+  storage.saved_tick_interval = settings.global["batch-ticks-between-processing"].value
+  storage.data_structures_ready = true
 
   register_event_handlers()
 end)
@@ -125,15 +126,23 @@ script.on_configuration_changed(function(_)
   reinitialize_quality_control_storage()
 
   -- Save the tick interval and mark storage as ready
-  storage.quality_control_saved_tick_interval = settings.global["batch-ticks-between-processing"].value
-  storage.quality_control_data_structures_ready = true
+  storage.saved_tick_interval = settings.global["batch-ticks-between-processing"].value
+  storage.data_structures_ready = true
 
   register_event_handlers()
 end)
 
--- Handle save game loading
--- Must immediately re-register the same event handlers that were registered when saved
--- to prevent multiplayer desync issues
+-- Handle save game loading (on_load())
+-- It gives the mod the opportunity to rectify potential differences in local state introduced by the save/load cycle.
+-- Access to the game object is not available.
+-- The storage table can be accessed and is safe to read from, but not write to, as doing so will lead to an error.
+-- The only legitimate uses of this step are these:
+-- - Re-setup metatables not registered with LuaBootstrap::register_metatable, as they are not persisted through the save/load cycle.
+-- - Re-setup conditional event handlers, meaning subscribing to an event only when some condition is met to save processing time.
+-- - Create local references to data stored in the storage table.
+-- For all other purposes, LuaBootstrap::on_init, LuaBootstrap::on_configuration_changed, or migrations should be used instead.
+-- no events will be raised for a mod it has finished on_init() or on_load()
+-- storage is persisted between loaded games, but local variables that hook into storage need to be setup here
 script.on_load(function()
   -- Re-initialize module state variables (not persisted between save/load)
   initialize_module_state()
