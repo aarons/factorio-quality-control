@@ -18,6 +18,16 @@ local quality_limit = nil -- the quality limit (max for increase, min for decrea
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
 local function should_exclude_entity(entity)
+  -- Skip entities that aren't selectable
+  if not entity.prototype.selectable_in_game then
+    return true
+  end
+
+  -- Skip indestructible entities (protected/scenario entities)
+  if not entity.destructible then
+    return true
+  end
+
   -- Check if entity prototype is hidden in factoriopedia
   -- local entity_prototype = prototypes.entity[entity.name]
   -- if entity_prototype and entity_prototype.hidden_in_factoriopedia then
@@ -40,12 +50,33 @@ local function should_exclude_entity(entity)
   if history then
     for _, excluded_mod in ipairs(exclude_items_from_mods) do
       if history.created:find(excluded_mod, 1, true) ~= nil then
-        -- log("[QC] Excluding entity " .. entity.name .. " - created by mod: " .. history.created)
         return true
       end
     end
   end
   return false
+end
+
+-- Check for other entities at the location of the excluded entity
+-- If any overlap, it's probably a complex modded entity that we shouldn't mess with
+local function check_for_colocated_entities(entity)
+  local history = prototypes.get_history(entity.type, entity.name)
+
+  local entities_at_position = entity.surface.find_entities_filtered{
+    area = entity.bounding_box,
+    force = entity.force
+  }
+
+  if #entities_at_position <= 1 then return end
+
+  for _, found_entity in ipairs(entities_at_position) do
+    if found_entity.unit_number ~= entity.unit_number then
+      local found_history = prototypes.get_history(found_entity.type, found_entity.name)
+      if found_history.created == history.created then
+        core.remove_entity_info(found_entity.unit_number)
+      end
+    end
+  end
 end
 
 -- Settings (will be set by control.lua)
@@ -66,6 +97,7 @@ end
 
 function core.get_entity_info(entity)
   if should_exclude_entity(entity) then
+    check_for_colocated_entities(entity)
     return "entity excluded from quality control"
   end
 

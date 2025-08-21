@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.2.8
+Date: 21. 08. 2025
+  Modding:
+    - Enhanced entity filtering to exclude non-selectable and indestructible entities from quality tracking
+    - Added proactive detection and cleanup of colocated entities from the same mod to prevent compatibility issues
+---------------------------------------------------------------------------------------------------
 Version: 1.2.7
 Date: 21. 08. 2025
   Modding:
