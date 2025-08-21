@@ -3,7 +3,7 @@ Version: 1.2.6
 Date: 20. 08. 2025
   Changes:
     - Changed default setting for "Change modules with entity" from enabled to disabled to match documentation
-      Thank you Stargateur for pointing this out!
+      Thank you Stargateur for catching this!
   Bugfixes:
     - Enables multiplayer support by fixing a crash that occurred when players tried to join hosted games
       Thank you MrSilver2510 and Smougtea for reporting the issues and sharing save files & logs!
