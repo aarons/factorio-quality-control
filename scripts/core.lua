@@ -11,9 +11,20 @@ Contains the main processing logic for quality control:
 local notifications = require("scripts.notifications")
 local core = {}
 
-local tracked_entities -- lookup table for all the entities we might change the quality of
-local previous_qualities = {} -- lookup table for previous qualities in the chain
-local quality_limit = nil -- the quality limit (max for increase, min for decrease)
+local tracked_entities = {}
+local previous_qualities = {}
+local quality_limit = nil
+local settings_data = {}
+local is_tracked_type = {}
+
+-- called by control.lua once data structures are ready
+function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, quality_limit_setting)
+  settings_data = parsed_settings
+  is_tracked_type = tracked_type_lookup
+  previous_qualities = quality_lookup
+  quality_limit = quality_limit_setting
+  tracked_entities = storage.quality_control_entities
+end
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
 local function should_exclude_entity(entity)
@@ -76,22 +87,6 @@ local function remove_colocated_entity_info(entity)
   end
 end
 
--- Settings (will be set by control.lua)
-local settings_data = {}
-local is_tracked_type = {}
-
-function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, quality_limit_setting)
-  settings_data = parsed_settings
-  is_tracked_type = tracked_type_lookup
-  previous_qualities = quality_lookup
-  quality_limit = quality_limit_setting
-  tracked_entities = storage.quality_control_entities
-end
-
-local function get_previous_quality(quality_prototype)
-  return previous_qualities[quality_prototype.name]
-end
-
 function core.get_entity_info(entity)
   if should_exclude_entity(entity) then
     -- remove_colocated_entity_info(entity) -- not sure this is needed, trying without for now
@@ -100,7 +95,7 @@ function core.get_entity_info(entity)
 
   local id = entity.unit_number
   local entity_type = entity.type
-  local previous_quality = get_previous_quality(entity.quality)
+  local previous_quality = previous_qualities(entity.quality.name)
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
   local can_change_quality = can_increase or can_decrease
@@ -196,17 +191,20 @@ function core.remove_entity_info(id)
     -- O(1) removal using swap-with-last approach
     local index = storage.entity_list_index[id]
     if index then
-      local last_index = #storage.entity_list
-      local last_unit_number = storage.entity_list[last_index]
+      local entity_list = storage.entity_list
+      local batch_index = storage.batch_index
 
-      storage.entity_list[index] = last_unit_number
+      local last_index = #entity_list
+      local last_unit_number = entity_list[last_index]
+
+      entity_list[index] = last_unit_number
       storage.entity_list_index[last_unit_number] = index
 
-      storage.entity_list[last_index] = nil
+      entity_list[last_index] = nil
       storage.entity_list_index[id] = nil
 
-      if index < storage.batch_index then
-        storage.batch_index = storage.batch_index - 1
+      if index < batch_index then
+        storage.batch_index = batch_index - 1
       end
     end
   end
@@ -244,7 +242,7 @@ local function update_module_quality(replacement_entity, target_quality, setting
         if can_increase then
           new_module_quality = current_module_quality.next
         elseif can_decrease then
-          new_module_quality = get_previous_quality(current_module_quality)
+          new_module_quality = previous_qualities(current_module_quality.name)
         end
       end
 
@@ -295,7 +293,7 @@ local function attempt_quality_change(entity)
   if settings_data.quality_change_direction == "increase" then
     target_quality = entity.quality.next
   else -- decrease
-    target_quality = get_previous_quality(entity.quality)
+    target_quality = previous_qualities(entity.quality.name)
   end
 
   -- Need to call script_raised_destroy before the replacement attempt
@@ -366,15 +364,22 @@ function core.batch_process_entities()
   local entities_processed = 0
   local quality_changes = {}
 
+  -- Cache frequently accessed storage fields
+  local primary_count = storage.primary_entity_count
+  local secondary_count = storage.secondary_entity_count
+  local accumulated_attempts = storage.accumulated_upgrade_attempts
+  local batch_index = storage.batch_index
+  local entity_list = storage.entity_list
+
   while entities_processed < batch_size do
     -- Check for end of list (cycle complete)
-    if storage.batch_index > #storage.entity_list then
-      storage.batch_index = 1  -- Reset for next cycle
+    if batch_index > #entity_list then
+      batch_index = 1  -- Reset for next cycle
       break
     end
 
-    local unit_number = storage.entity_list[storage.batch_index]
-    storage.batch_index = storage.batch_index + 1
+    local unit_number = entity_list[batch_index]
+    batch_index = batch_index + 1
 
     local entity_info = tracked_entities[unit_number]
     if not entity_info or not entity_info.entity or not entity_info.entity.valid or not entity_info.can_change_quality then
@@ -396,10 +401,10 @@ function core.batch_process_entities()
 
           if thresholds_passed > 0 then
             -- Generate credits for secondary entities
-            if storage.secondary_entity_count > 0 then
-              local credit_ratio = storage.secondary_entity_count / math.max(storage.primary_entity_count, 1)
+            if secondary_count > 0 then
+              local credit_ratio = secondary_count / math.max(primary_count, 1)
               local credits_added = thresholds_passed * credit_ratio
-              storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
+              accumulated_attempts = accumulated_attempts + credits_added
             end
 
             local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
@@ -409,8 +414,8 @@ function core.batch_process_entities()
           end
         end
       else -- entity is a secondary entity type without hours
-        if storage.accumulated_upgrade_attempts > 0 and storage.secondary_entity_count > 0 then
-          local attempts_per_entity = storage.accumulated_upgrade_attempts / storage.secondary_entity_count
+        if accumulated_attempts > 0 and secondary_count > 0 then
+          local attempts_per_entity = accumulated_attempts / secondary_count
           local guaranteed_attempts = math.floor(attempts_per_entity)
           local fractional_chance = attempts_per_entity - guaranteed_attempts
 
@@ -420,7 +425,7 @@ function core.batch_process_entities()
           end
 
           if total_attempts > 0 then
-            storage.accumulated_upgrade_attempts = math.max(0, storage.accumulated_upgrade_attempts - total_attempts)
+            accumulated_attempts = math.max(0, accumulated_attempts - total_attempts)
             process_quality_attempts(entity, total_attempts, quality_changes)
           end
         end
@@ -429,6 +434,10 @@ function core.batch_process_entities()
     entities_processed = entities_processed + 1
     ::continue::
   end
+
+  -- Write back modified storage values
+  storage.accumulated_upgrade_attempts = accumulated_attempts
+  storage.batch_index = batch_index
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
