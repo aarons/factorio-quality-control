@@ -12,18 +12,17 @@ local notifications = require("scripts.notifications")
 local core = {}
 
 local tracked_entities = {}
-local previous_qualities = {}
-local quality_limit = nil
 local settings_data = {}
 local is_tracked_type = {}
+local previous_qualities = {}
+local quality_limit = nil
 
--- called by control.lua once data structures are ready
-function core.initialize(parsed_settings, tracked_type_lookup, quality_lookup, quality_limit_setting)
-  settings_data = parsed_settings
-  is_tracked_type = tracked_type_lookup
-  previous_qualities = quality_lookup
-  quality_limit = quality_limit_setting
+function core.initialize()
   tracked_entities = storage.quality_control_entities
+  settings_data = storage.config.settings_data
+  is_tracked_type = storage.config.is_tracked_type
+  previous_qualities = storage.config.previous_qualities
+  quality_limit = storage.config.quality_limit
 end
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
@@ -95,7 +94,7 @@ function core.get_entity_info(entity)
 
   local id = entity.unit_number
   local entity_type = entity.type
-  local previous_quality = previous_qualities(entity.quality.name)
+  local previous_quality = previous_qualities[entity.quality.name]
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
   local can_change_quality = can_increase or can_decrease
@@ -134,29 +133,31 @@ function core.get_entity_info(entity)
     if is_primary then
       -- Initialize manufacturing hours based on current products_finished
       -- This ensures we don't double-count hours for already-producing entities
-      local current_recipe = entity.get_recipe()
-      if current_recipe then
-        local recipe_time = current_recipe.prototype.energy
-        local current_hours = (entity.products_finished * recipe_time) / 3600
-        tracked_entities[id].manufacturing_hours = current_hours
+      local recipe_time = 0
+      if entity.get_recipe() then
+        recipe_time = entity.get_recipe().prototype.energy
+      elseif entity.type == "furnace" then
+        recipe_time = entity.previous_recipe.name.energy
+      end
 
-        -- Calculate how many quality attempts would have occurred in the past
-        -- and adjust the chance percentage accordingly
-        if current_hours > 0 then
-          local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
-          local past_attempts = math.floor(current_hours / hours_needed)
+      local recipe_time = current_recipe.prototype.energy
+      local current_hours = (entity.products_finished * recipe_time) / 3600
+      tracked_entities[id].manufacturing_hours = current_hours
 
-          -- Simulate the chance accumulation from missed attempts
-          if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
-            local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
-            tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-            tracked_entities[id].attempts_to_change = past_attempts
-          end
-          -- Not adding credits for past attempts; it's too hard to balance with secondary entities.
-          -- Basically everytime you do a quality-control-init it refills the credit pool; for easy upgrade farming
+      -- Calculate how many quality attempts would have occurred in the past
+      -- and adjust the chance percentage accordingly
+      if current_hours > 0 then
+        local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+        local past_attempts = math.floor(current_hours / hours_needed)
+
+        -- Simulate the chance accumulation from missed attempts
+        if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
+          local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+          tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
+          tracked_entities[id].attempts_to_change = past_attempts
         end
-      else
-        tracked_entities[id].manufacturing_hours = 0
+        -- Not adding credits for past attempts; it's too hard to balance with secondary entities.
+        -- Basically everytime you do a quality-control-init it refills the credit pool; for easy upgrade farming
       end
     end
   end
@@ -242,7 +243,7 @@ local function update_module_quality(replacement_entity, target_quality, setting
         if can_increase then
           new_module_quality = current_module_quality.next
         elseif can_decrease then
-          new_module_quality = previous_qualities(current_module_quality.name)
+          new_module_quality = previous_qualities[current_module_quality.name]
         end
       end
 
@@ -293,7 +294,7 @@ local function attempt_quality_change(entity)
   if settings_data.quality_change_direction == "increase" then
     target_quality = entity.quality.next
   else -- decrease
-    target_quality = previous_qualities(entity.quality.name)
+    target_quality = previous_qualities[entity.quality.name]
   end
 
   -- Need to call script_raised_destroy before the replacement attempt
@@ -390,27 +391,30 @@ function core.batch_process_entities()
     local entity = entity_info.entity
 
     if entity_info.is_primary then
-        local current_recipe = entity.get_recipe()
-        if current_recipe then
-          local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
-          local recipe_time = current_recipe.prototype.energy
-          local current_hours = (entity.products_finished * recipe_time) / 3600
-          local previous_hours = entity_info.manufacturing_hours or 0
-          local available_hours = current_hours - previous_hours
-          local thresholds_passed = math.floor(available_hours / hours_needed)
+        local recipe_time = 0
+        if entity.get_recipe() then
+          recipe_time = entity.get_recipe().prototype.energy
+        elseif entity.type == "furnace" then
+          recipe_time = entity.previous_recipe.name.energy
+        end
 
-          if thresholds_passed > 0 then
-            -- Generate credits for secondary entities
-            if secondary_count > 0 then
-              local credit_ratio = secondary_count / math.max(primary_count, 1)
-              local credits_added = thresholds_passed * credit_ratio
-              accumulated_attempts = accumulated_attempts + credits_added
-            end
+        local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+        local current_hours = (entity.products_finished * recipe_time) / 3600
+        local previous_hours = entity_info.manufacturing_hours or 0
+        local available_hours = current_hours - previous_hours
+        local thresholds_passed = math.floor(available_hours / hours_needed)
 
-            local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
-            if successful_changes == 0 and tracked_entities[unit_number] then
-              entity_info.manufacturing_hours = current_hours
-            end
+        if thresholds_passed > 0 then
+          -- Generate credits for secondary entities
+          if secondary_count > 0 then
+            local credit_ratio = secondary_count / math.max(primary_count, 1)
+            local credits_added = thresholds_passed * credit_ratio
+            accumulated_attempts = accumulated_attempts + credits_added
+          end
+
+          local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
+          if successful_changes == 0 and tracked_entities[unit_number] then
+            entity_info.manufacturing_hours = current_hours
           end
         end
       else -- entity is a secondary entity type without hours

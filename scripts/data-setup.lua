@@ -106,18 +106,23 @@ function data_setup.build_entity_type_lists()
   return primary_types, secondary_types, all_tracked_types
 end
 
-function data_setup.build_is_tracked_type_lookup()
-  local _, _, all_tracked_types = data_setup.build_entity_type_lists()
+function data_setup.build_and_store_config()
+  if not storage.config then
+    storage.config = {}
+  end
+
+  local primary_types, secondary_types, all_tracked_types = data_setup.build_entity_type_lists()
+  storage.config.primary_types = primary_types
+  storage.config.secondary_types = secondary_types
+  storage.config.all_tracked_types = all_tracked_types
+
   local is_tracked_type = {}
   for _, entity_type in ipairs(all_tracked_types) do
     is_tracked_type[entity_type] = true
   end
-  return is_tracked_type
-end
+  storage.config.is_tracked_type = is_tracked_type
 
-function data_setup.parse_settings()
   local settings_data = {}
-
   settings_data.quality_change_direction = settings.startup["quality-change-direction"].value
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
@@ -133,33 +138,29 @@ function data_setup.parse_settings()
   elseif accumulation_rate_setting == "high" then
     settings_data.accumulation_percentage = 100
   end
+  storage.config.settings_data = settings_data
 
-  return settings_data
-end
-
-function data_setup.build_previous_quality_lookup()
   local previous_qualities = {}
   for name, prototype in pairs(prototypes.quality) do
     if name ~= "quality-unknown" and prototype.next then
       previous_qualities[prototype.next.name] = prototype
     end
   end
-  return previous_qualities
-end
+  storage.config.previous_qualities = previous_qualities
 
-function data_setup.get_quality_limit(direction)
-  if direction == "increase" then
-    -- Find maximum quality by following the chain
+  local quality_limit
+  if settings_data.quality_change_direction == "increase" then
     local current = prototypes.quality["normal"]
     while current.next do
       current = current.next
     end
-    return current
-  else -- decrease
-    -- Minimum is always normal quality
-    return prototypes.quality["normal"]
+    quality_limit = current
+  else
+    quality_limit = prototypes.quality["normal"]
   end
+  storage.config.quality_limit = quality_limit
 end
+
 
 
 function data_setup.setup_data_structures(force_reset)

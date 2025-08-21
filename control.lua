@@ -8,22 +8,6 @@ Handles initialization, event registration, and orchestrates the modular compone
 local data_setup = require("scripts.data-setup")
 local core = require("scripts.core")
 
-local all_tracked_types
-local is_tracked_type
-local settings_data
-local previous_qualities
-local quality_limit
-
-local function initialize_module_state()
-  local _, _, tracked_types = data_setup.build_entity_type_lists()
-  all_tracked_types = tracked_types
-  is_tracked_type = data_setup.build_is_tracked_type_lookup()
-  settings_data = data_setup.parse_settings()
-  previous_qualities = data_setup.build_previous_quality_lookup()
-  quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
-end
-
---- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
   if command and command.player_index then
     local player = game.get_player(command.player_index)
@@ -33,8 +17,9 @@ local function reinitialize_quality_control_storage(command)
   end
 
   data_setup.setup_data_structures(true)
-  core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
-  core.scan_and_populate_entities(all_tracked_types)
+  data_setup.build_and_store_config()
+  core.initialize()
+  core.scan_and_populate_entities(storage.config.all_tracked_types)
 
   if command and command.player_index then
     local player = game.get_player(command.player_index)
@@ -77,26 +62,19 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 -- The mod has full access to the game object and its storage table and can change anything about the game state that it deems appropriate at this stage.
 -- no events will be raised for a mod it has finished on_init() or on_load()
 script.on_init(function()
-  initialize_module_state()
   data_setup.setup_data_structures()
-  core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
-  core.scan_and_populate_entities(all_tracked_types)
-
-  -- Save the initial tick interval and mark storage as ready
+  data_setup.build_and_store_config()
+  core.initialize()
+  core.scan_and_populate_entities(storage.config.all_tracked_types)
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
-
   register_event_handlers()
   register_main_loop()
 end)
 
 -- Handle startup setting changes and mod version updates
 script.on_configuration_changed(function(_)
-  initialize_module_state()
   reinitialize_quality_control_storage()
-
-  -- Save the tick interval and mark storage as ready
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
-
   register_event_handlers()
   register_main_loop()
 end)
@@ -113,13 +91,7 @@ end)
 -- no events will be raised for a mod it has finished on_init() or on_load()
 -- storage is persisted between loaded games, but local variables that hook into storage need to be setup here
 script.on_load(function()
-  -- Re-initialize module state variables (not persisted between save/load)
-  initialize_module_state()
-
-  -- Initialize core module with read-only storage access
-  core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
-
-  -- Re-register all event handlers immediately (required for multiplayer compatibility)
+  core.initialize()
   register_event_handlers()
   register_main_loop()
 end)
