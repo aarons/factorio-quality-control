@@ -217,8 +217,6 @@ function data_setup.setup_data_structures(force_reset)
   if not storage.accumulated_upgrade_attempts then
     storage.accumulated_upgrade_attempts = 0
   end
-
-  storage.data_structures_ready = true
 end
 
 return data_setup

@@ -46,14 +46,7 @@ end
 
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
-  local tick_interval = settings.global["batch-ticks-between-processing"].value
-
-  -- save the tick interval for multiplayer consistency
-  -- it may not be necessary, should look into removing
-  if storage then
-    storage.saved_tick_interval = tick_interval
-  end
-
+  local tick_interval = storage.ticks_between_batches
   script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
@@ -75,20 +68,6 @@ local function register_event_handlers()
 
   -- Quality control inspect shortcut
   script.on_event("quality-control-inspect-entity", core.on_quality_control_inspect)
-
-  -- Runtime setting changes
-  script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
-    if event.setting == "batch-ticks-between-processing" then
-      if storage.data_structures_ready then
-        register_main_loop()
-      end
-    end
-  end)
-
-  -- Start the main processing loop
-  -- Use saved tick interval if available (for on_load), otherwise use current setting
-  local tick_interval = (storage and storage.saved_tick_interval) or settings.global["batch-ticks-between-processing"].value
-  script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
 -- Register console command
@@ -104,10 +83,10 @@ script.on_init(function()
   core.scan_and_populate_entities(all_tracked_types)
 
   -- Save the initial tick interval and mark storage as ready
-  storage.saved_tick_interval = settings.global["batch-ticks-between-processing"].value
-  storage.data_structures_ready = true
+  storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
 
   register_event_handlers()
+  register_main_loop()
 end)
 
 -- Handle startup setting changes and mod version updates
@@ -116,10 +95,10 @@ script.on_configuration_changed(function(_)
   reinitialize_quality_control_storage()
 
   -- Save the tick interval and mark storage as ready
-  storage.saved_tick_interval = settings.global["batch-ticks-between-processing"].value
-  storage.data_structures_ready = true
+  storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
 
   register_event_handlers()
+  register_main_loop()
 end)
 
 -- Handle save game loading (on_load())
@@ -142,4 +121,5 @@ script.on_load(function()
 
   -- Re-register all event handlers immediately (required for multiplayer compatibility)
   register_event_handlers()
+  register_main_loop()
 end)
