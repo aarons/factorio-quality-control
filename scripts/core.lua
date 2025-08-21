@@ -134,7 +134,7 @@ function core.get_entity_info(entity)
       local recipe_time = 0
       if entity.get_recipe() then
         recipe_time = entity.get_recipe().prototype.energy
-      elseif entity.type == "furnace" then
+      elseif entity.type == "furnace" and entity.previous_recipe then
         recipe_time = entity.previous_recipe.name.energy
       end
 
@@ -391,7 +391,7 @@ function core.batch_process_entities()
         local recipe_time = 0
         if entity.get_recipe() then
           recipe_time = entity.get_recipe().prototype.energy
-        elseif entity.type == "furnace" then
+        elseif entity.type == "furnace" and entity.previous_recipe then
           recipe_time = entity.previous_recipe.name.energy
         end
 
