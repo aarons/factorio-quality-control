@@ -24,8 +24,6 @@ print_status() {
 cleanup_whitespace() {
     local files_cleaned=0
 
-    print_status $YELLOW "Cleaning up end-of-line whitespace..."
-
     # Find and clean up whitespace in relevant source files
     # Include Lua files, JSON files, configuration files, and text files
     local file_patterns=(
@@ -58,11 +56,9 @@ cleanup_whitespace() {
 
     if [ $files_cleaned -gt 0 ]; then
         print_status $GREEN "✓ Cleaned trailing whitespace from $files_cleaned file(s)"
-        return 0
-    else
-        print_status $GREEN "✓ No trailing whitespace found"
-        return 0
     fi
+
+    return 0
 }
 
 # Function to show usage
@@ -96,18 +92,9 @@ main() {
         esac
     done
 
-    print_status $YELLOW "🧹 Running whitespace cleanup..."
-    echo ""
-
-    if cleanup_whitespace; then
-        echo ""
-        print_status $GREEN "🎉 Whitespace cleanup completed!"
-        exit 0
-    else
-        echo ""
-        print_status $RED "❌ Whitespace cleanup failed"
-        exit 1
-    fi
+    # Run cleanup silently - only outputs if there are issues
+    cleanup_whitespace
+    exit $?
 }
 
 # Run main function with all arguments

@@ -33,7 +33,8 @@ local function should_exclude_entity(entity)
     "railloader2-patch",
     "router",
     "fct-ControlTech", -- patch requested, may be able to remove once they are greater than version 2.0.5
-    "ammo-loader"
+    "ammo-loader",
+    "miniloader-redux"
   }
   local history = prototypes.get_history(entity.type, entity.name)
   if history then

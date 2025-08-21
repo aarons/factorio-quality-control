@@ -70,7 +70,7 @@ test_valid() {
         print_status $GREEN "✓ PASS"
         return 0
     else
-        print_status $RED "✗ FAIL (expected to pass)"
+        print_status $RED "✗ FAIL (should have been accepted)"
         return 1
     fi
 }
@@ -82,7 +82,7 @@ test_invalid() {
 
     echo -n "Testing invalid: $description... "
     if $python_cmd "${PROJECT_DIR}/validate_changelog.py" "$file" >/dev/null 2>&1; then
-        print_status $RED "✗ FAIL (expected to fail)"
+        print_status $RED "✗ FAIL (should have been rejected)"
         return 1
     else
         print_status $GREEN "✓ PASS"
@@ -166,14 +166,9 @@ validate_locale_files() {
 
 # Function to run whitespace cleanup
 run_whitespace_cleanup() {
-    print_status $YELLOW "Running whitespace cleanup..."
-    if "${SCRIPT_DIR}/cleanup-whitespace.sh"; then
-        print_status $GREEN "✓ Whitespace cleanup completed"
-        return 0
-    else
-        print_status $RED "✗ Whitespace cleanup failed"
-        return 1
-    fi
+    # Run whitespace cleanup silently - it will only output if there are issues
+    "${SCRIPT_DIR}/cleanup-whitespace.sh"
+    return $?
 }
 
 # Function to run comprehensive validation
@@ -309,11 +304,14 @@ main() {
     print_status $YELLOW "🔍 Running Factorio mod validation..."
     echo ""
 
-    # Always run whitespace cleanup first
-    if ! run_whitespace_cleanup; then
-        print_status $YELLOW "⚠ Whitespace cleanup had issues, continuing with validation..."
+    # Always run whitespace cleanup first (silent unless there are issues)
+    # Capture output to check if we need to add spacing
+    local whitespace_output
+    whitespace_output=$("${SCRIPT_DIR}/cleanup-whitespace.sh" 2>&1)
+    if [ -n "$whitespace_output" ]; then
+        echo "$whitespace_output"
+        echo ""
     fi
-    echo ""
 
     # Run changelog validation
     if [ "$validate_changelog_only" = true ] || [ "$run_all" = true ]; then
