@@ -5,18 +5,15 @@ Main entry point for the Quality Control mod.
 Handles initialization, event registration, and orchestrates the modular components.
 ]]
 
--- Import modules
 local data_setup = require("scripts.data-setup")
 local core = require("scripts.core")
 
--- Module state (initialized by initialize_module_state function)
 local all_tracked_types
 local is_tracked_type
 local settings_data
 local previous_qualities
 local quality_limit
 
---- Initialize module state variables (called from on_init and on_load)
 local function initialize_module_state()
   local _, _, tracked_types = data_setup.build_entity_type_lists()
   all_tracked_types = tracked_types
@@ -26,10 +23,8 @@ local function initialize_module_state()
   quality_limit = data_setup.get_quality_limit(settings_data.quality_change_direction)
 end
 
-
 --- Console command to reinitialize storage
 local function reinitialize_quality_control_storage(command)
-  -- Notify player that rebuild is starting
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
@@ -37,13 +32,10 @@ local function reinitialize_quality_control_storage(command)
     end
   end
 
-  -- Full reinitialization: setup data structures and rescan entities
-  data_setup.setup_data_structures(true)  -- Clear existing data
+  data_setup.setup_data_structures(true)
   core.initialize(settings_data, is_tracked_type, previous_qualities, quality_limit)
   core.scan_and_populate_entities(all_tracked_types)
 
-
-  -- Notify player that rebuild is complete
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
@@ -52,13 +44,12 @@ local function reinitialize_quality_control_storage(command)
   end
 end
 
-
-
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
   local tick_interval = settings.global["batch-ticks-between-processing"].value
 
-  -- Save the tick interval in storage for multiplayer consistency
+  -- save the tick interval for multiplayer consistency
+  -- it may not be necessary, should look into removing
   if storage then
     storage.saved_tick_interval = tick_interval
   end
@@ -66,7 +57,6 @@ local function register_main_loop()
   script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
---- Initialize all event handlers
 local function register_event_handlers()
   -- Entity creation events (with player force filter where supported)
   script.on_event(defines.events.on_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})

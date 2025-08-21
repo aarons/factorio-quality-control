@@ -8,7 +8,7 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 local notifications = {}
 
 -- Aggregate notification throttling (5 minutes = 18000 ticks)
-local AGGREGATE_NOTIFICATION_COOLDOWN_TICKS = 18000
+local cooldown_ticks = 18000
 
 function notifications.accumulate_quality_changes(quality_changes)
   for entity_name, count in pairs(quality_changes) do
@@ -21,7 +21,7 @@ function notifications.try_show_accumulated_notifications(quality_change_directi
   local current_tick = game.tick
   local time_since_last = current_tick - storage.aggregate_notifications.last_notification_tick
 
-  if time_since_last >= AGGREGATE_NOTIFICATION_COOLDOWN_TICKS and
+  if time_since_last >= cooldown_ticks and
      next(storage.aggregate_notifications.accumulated_changes) then
 
     local player = game.players[1]
