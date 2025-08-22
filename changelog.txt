@@ -9,6 +9,8 @@ Date: 21. 08. 2025
   Optimizations:
     - Refactored code to improve readability and remove some unecessary complexity
     - Cached frequently accessed storage fields for minor performance improvement
+  Changes:
+    - Updated the machine inspection output to be easier to understand
   Bugfixes:
     - Removed cargo landing pad as a target for quality changes (containers aren't supported yet)
 ---------------------------------------------------------------------------------------------------
