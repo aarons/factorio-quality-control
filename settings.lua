@@ -264,5 +264,21 @@ data:extend({
         setting_type = "startup",
         default_value = true,
         order = "d-25"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-player-equipment",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-26"
+    },
+    {
+        type = "double-setting",
+        name = "handcrafting-hours-for-change",
+        setting_type = "startup",
+        default_value = 1,
+        min_value = 0.001,
+        max_value = 1000,
+        order = "e-0"
     }
 })

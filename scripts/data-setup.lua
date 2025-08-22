@@ -9,6 +9,8 @@ local data_setup = {}
 
 -- Entity type to setting name mappings
 local entity_to_setting_map = {
+  -- Players (special case)
+  ["character"] = "enable-player-equipment",
   -- Production entities (includes primary entities)
   ["assembling-machine"] = "enable-assembly-machines",
   ["furnace"] = "enable-furnaces",
@@ -113,6 +115,7 @@ function data_setup.build_and_store_config()
   local settings_data = {}
   settings_data.quality_change_direction = settings.startup["quality-change-direction"].value
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
+  settings_data.handcrafting_hours_for_change = settings.startup["handcrafting-hours-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
 
@@ -205,6 +208,11 @@ function data_setup.setup_data_structures(force_reset)
 
   if not storage.accumulated_upgrade_attempts then
     storage.accumulated_upgrade_attempts = 0
+  end
+
+  -- Initialize player tracking
+  if not storage.player_tracking then
+    storage.player_tracking = {}
   end
 end
 

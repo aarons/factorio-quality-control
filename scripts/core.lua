@@ -12,6 +12,7 @@ local notifications = require("scripts.notifications")
 local core = {}
 
 local tracked_entities = {}
+local player_tracking = {}
 local settings_data = {}
 local is_tracked_type = {}
 local can_attempt_quality_change = {}
@@ -20,6 +21,7 @@ local quality_limit = nil
 
 function core.initialize()
   tracked_entities = storage.quality_control_entities
+  player_tracking = storage.player_tracking
   settings_data = storage.config.settings_data
   is_tracked_type = storage.config.is_tracked_type
   can_attempt_quality_change = storage.config.can_attempt_quality_change
@@ -358,6 +360,200 @@ local function process_quality_attempts(entity, attempts_count, quality_changes)
   return successful_changes
 end
 
+-- Player tracking functions
+function core.get_player_info(player)
+  if not can_attempt_quality_change["character"] then
+    return "player equipment upgrades disabled"
+  end
+
+  local player_index = player.index
+
+  if not player_tracking[player_index] then
+    player_tracking[player_index] = {
+      player = player,
+      handcrafting_hours = 0,
+      chance_to_change = settings_data.base_percentage_chance,
+      attempts_to_change = 0
+    }
+  end
+
+  return player_tracking[player_index]
+end
+
+function core.remove_player_info(player_index)
+  if player_tracking and player_tracking[player_index] then
+    player_tracking[player_index] = nil
+  end
+end
+
+-- Helper function to check if an item can be upgraded
+local function can_upgrade_item(item_quality)
+  local can_increase = settings_data.quality_change_direction == "increase" and item_quality.next ~= nil
+  local can_decrease = settings_data.quality_change_direction == "decrease" and previous_qualities[item_quality.name] ~= nil
+
+  -- Respect quality limit for increases
+  if can_increase and quality_limit and item_quality == quality_limit then
+    can_increase = false
+  end
+
+  return can_increase or can_decrease
+end
+
+-- Helper function to add inventory items to equipment list
+local function add_inventory_items(equipment_list, inventory, item_type)
+  if not inventory or not inventory.valid then
+    return
+  end
+
+  for i = 1, #inventory do
+    local stack = inventory[i]
+    if stack.valid_for_read and can_upgrade_item(stack.quality) then
+      table.insert(equipment_list, {inventory = inventory, index = i, stack = stack, type = item_type})
+    end
+  end
+end
+
+-- Helper function to add equipment grid items to equipment list
+local function add_equipment_grid_items(equipment_list, grid)
+  if not grid then
+    return
+  end
+
+  for _, equipment in pairs(grid.equipment) do
+    if can_upgrade_item(equipment.quality) then
+      table.insert(equipment_list, {grid = grid, equipment = equipment, type = "equipment"})
+    end
+  end
+end
+
+-- Get all equipment items that can be upgraded
+local function get_upgradeable_equipment(player)
+  local equipment_list = {}
+
+  -- Check armor slot
+  local armor_inventory = player.get_inventory(defines.inventory.character_armor)
+  if armor_inventory and armor_inventory.valid then
+    for i = 1, #armor_inventory do
+      local stack = armor_inventory[i]
+      if stack.valid_for_read then
+        if can_upgrade_item(stack.quality) then
+          table.insert(equipment_list, {inventory = armor_inventory, index = i, stack = stack, type = "armor"})
+        end
+        add_equipment_grid_items(equipment_list, stack.grid)
+      end
+    end
+  end
+
+  -- Check weapon and ammo slots
+  add_inventory_items(equipment_list, player.get_inventory(defines.inventory.character_guns), "weapon")
+  add_inventory_items(equipment_list, player.get_inventory(defines.inventory.character_ammo), "ammo")
+
+  return equipment_list
+end
+
+-- Attempt to upgrade player equipment
+local function attempt_player_equipment_quality_change(player)
+  local player_index = player.index
+  local player_info = player_tracking[player_index]
+
+  if not player_info then
+    return nil
+  end
+
+  -- Early exit if no upgradeable equipment
+  local equipment_list = get_upgradeable_equipment(player)
+  if #equipment_list == 0 then
+    return false  -- No upgradeable equipment
+  end
+
+  local random_roll = math.random()
+  player_info.attempts_to_change = player_info.attempts_to_change + 1
+
+  if random_roll >= (player_info.chance_to_change / 100) then
+    -- Roll failed; improve chance for next time
+    if settings_data.accumulation_percentage > 0 then
+      player_info.chance_to_change = player_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+    end
+    return false
+  end
+
+  -- Roll succeeded, equipment already found above
+
+  -- Select random equipment to upgrade
+  local selected_equipment = equipment_list[math.random(#equipment_list)]
+  local target_quality
+
+  if settings_data.quality_change_direction == "increase" then
+    target_quality = selected_equipment.stack and selected_equipment.stack.quality.next or selected_equipment.equipment.quality.next
+  else
+    target_quality = selected_equipment.stack and previous_qualities[selected_equipment.stack.quality.name] or previous_qualities[selected_equipment.equipment.quality.name]
+  end
+
+  -- Perform the upgrade
+  if selected_equipment.type == "equipment" then
+    -- Equipment grid item
+    local old_name = selected_equipment.equipment.name
+    local old_position = selected_equipment.equipment.position
+    local old_quality = selected_equipment.equipment.quality
+
+    selected_equipment.grid.take{equipment = selected_equipment.equipment}
+    local new_equipment = selected_equipment.grid.put{name = old_name, position = old_position, quality = target_quality}
+
+    if new_equipment then
+      -- Reset chance after successful upgrade
+      player_info.chance_to_change = settings_data.base_percentage_chance
+      notifications.show_player_quality_alert(player, settings_data.quality_change_direction)
+      return true
+    else
+      -- Failed to insert new equipment, try to restore original
+      selected_equipment.grid.put{name = old_name, position = old_position, quality = old_quality}
+    end
+  else
+    -- Inventory item (armor, weapon, ammo)
+    local old_name = selected_equipment.stack.name
+    local old_count = selected_equipment.stack.count
+    local old_stack = selected_equipment.stack
+    local slot = selected_equipment.inventory[selected_equipment.index]
+
+    -- For armor with equipment grid, preserve the equipment
+    local equipment_to_preserve = nil
+    if selected_equipment.type == "armor" and old_stack.grid then
+      equipment_to_preserve = {}
+      for _, equipment in pairs(old_stack.grid.equipment) do
+        table.insert(equipment_to_preserve, {
+          name = equipment.name,
+          quality = equipment.quality,
+          position = equipment.position
+        })
+      end
+    end
+
+    -- Check if we can insert the upgraded item in the same slot
+    slot.clear()
+    if slot.set_stack{name = old_name, count = old_count, quality = target_quality} then
+      -- Restore equipment grid if needed
+      if equipment_to_preserve and slot.valid_for_read and slot.grid then
+        for _, eq_data in ipairs(equipment_to_preserve) do
+          slot.grid.put{name = eq_data.name, quality = eq_data.quality, position = eq_data.position}
+        end
+      end
+
+      -- Reset chance after successful upgrade
+      player_info.chance_to_change = settings_data.base_percentage_chance
+      notifications.show_player_quality_alert(player, settings_data.quality_change_direction)
+      return true
+    else
+      -- Failed to set stack, try to restore original with equipment
+      if slot.set_stack{name = old_name, count = old_count} and equipment_to_preserve and slot.valid_for_read and slot.grid then
+        for _, eq_data in ipairs(equipment_to_preserve) do
+          slot.grid.put{name = eq_data.name, quality = eq_data.quality, position = eq_data.position}
+        end
+      end
+    end
+  end
+
+  return false
+end
 
 function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
@@ -484,6 +680,52 @@ function core.on_quality_control_inspect(event)
       settings_data.quality_increase_cost,
       can_attempt_quality_change
     )
+  end
+end
+
+function core.on_player_removed(event)
+  core.remove_player_info(event.player_index)
+end
+
+function core.on_player_crafted_item(event)
+  if not can_attempt_quality_change["character"] then
+    return
+  end
+
+  local player = game.get_player(event.player_index)
+  if not player or not player.valid then
+    return
+  end
+
+  local player_info = core.get_player_info(player)
+  if player_info == "player equipment upgrades disabled" then
+    return
+  end
+
+  -- Add crafted item time to handcrafting hours
+  local recipe = event.recipe
+  if recipe then
+    local recipe_prototype = game.prototypes.recipe[recipe]
+    if recipe_prototype then
+      local recipe_time_hours = (recipe_prototype.energy * event.item_stack.count) / 3600 -- Convert to hours
+      player_info.handcrafting_hours = player_info.handcrafting_hours + recipe_time_hours
+
+      -- Check if enough hours have passed for an upgrade attempt
+      local hours_needed = settings_data.handcrafting_hours_for_change
+
+      if player_info.handcrafting_hours >= hours_needed then
+        local attempts_count = math.floor(player_info.handcrafting_hours / hours_needed)
+        player_info.handcrafting_hours = player_info.handcrafting_hours - (attempts_count * hours_needed)
+
+        -- Attempt quality changes
+        for _ = 1, attempts_count do
+          local result = attempt_player_equipment_quality_change(player)
+          if result then
+            break  -- Stop after first successful upgrade
+          end
+        end
+      end
+    end
   end
 end
 

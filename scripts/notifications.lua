@@ -56,6 +56,15 @@ function notifications.show_entity_quality_alert(entity, change_type)
   end
 end
 
+function notifications.show_player_quality_alert(player, change_type)
+  if player and player.valid and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
+    local action = change_type == "increase" and "upgrade" or "downgrade"
+    local message_key = "alert-message.quality-" .. action .. "-player-equipment"
+
+    player.add_alert(player.character, defines.alert_type.custom, {message_key}, true)
+  end
+end
+
 function notifications.show_quality_notifications(quality_changes, quality_change_direction)
   if next(quality_changes) then
     notifications.accumulate_quality_changes(quality_changes)

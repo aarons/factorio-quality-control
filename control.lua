@@ -53,6 +53,12 @@ local function register_event_handlers()
 
   -- Quality control inspect shortcut
   script.on_event("quality-control-inspect-entity", core.on_quality_control_inspect)
+
+  -- Player crafting events
+  script.on_event(defines.events.on_player_crafted_item, core.on_player_crafted_item)
+
+  -- Player lifecycle events
+  script.on_event(defines.events.on_player_removed, core.on_player_removed)
 end
 
 -- Register console command
