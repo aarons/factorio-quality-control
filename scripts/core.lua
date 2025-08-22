@@ -704,7 +704,7 @@ function core.on_player_crafted_item(event)
 
   -- Add crafted item time to handcrafting hours
   local recipe = event.recipe
-  if recipe then
+  if recipe and game.prototypes and game.prototypes.recipe then
     local recipe_prototype = game.prototypes.recipe[recipe]
     if recipe_prototype then
       local recipe_time_hours = (recipe_prototype.energy * event.item_stack.count) / 3600 -- Convert to hours
