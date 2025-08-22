@@ -7,98 +7,79 @@ This separates the configuration logic from the main processing loop.
 
 local data_setup = {}
 
--- Entity categories configuration
-local entity_categories = {
-  primary = {
-    ["assembling-machine"] = "assembly-machines",
-    ["furnace"] = "furnaces",
-    ["rocket-silo"] = "other-production"
-  },
-  electrical = {
-    "electric-pole", "solar-panel", "accumulator", "generator", "reactor", "boiler", "heat-pipe",
-    "power-switch", "lightning-rod"
-  },
-  other_production = {
-    "agricultural-tower", "mining-drill"
-  },
-  defense = {
-    "turret", "ammo-turret", "electric-turret", "fluid-turret", "artillery-turret", "wall", "gate"
-  },
-  space = {
-    "asteroid-collector", "thruster", "cargo-landing-pad"
-  },
-  other = {
-    "lamp", "arithmetic-combinator", "decider-combinator", "constant-combinator", "programmable-speaker"
-  },
-  standalone = {
-    lab = "enable-labs",
-    roboport = "enable-roboports",
-    beacon = "enable-beacons",
-    pump = "enable-pumps",
-    ["offshore-pump"] = "enable-pumps",
-    radar = "enable-radar",
-    inserter = "enable-inserters"
-  }
+-- Entity type to setting name mappings
+local entity_to_setting_map = {
+  -- Production entities (includes primary entities)
+  ["assembling-machine"] = "enable-production-assembly-machines",
+  ["furnace"] = "enable-production-furnaces",
+  ["rocket-silo"] = "enable-production-rocket-silos",
+  ["agricultural-tower"] = "enable-production-agricultural-towers",
+  ["mining-drill"] = "enable-production-mining-drills",
+
+  -- Electrical infrastructure
+  ["electric-pole"] = "enable-electrical-poles",
+  ["solar-panel"] = "enable-electrical-solar-panels",
+  ["accumulator"] = "enable-electrical-accumulators",
+  ["generator"] = "enable-electrical-generators",
+  ["reactor"] = "enable-electrical-reactors",
+  ["boiler"] = "enable-electrical-boilers",
+  ["heat-pipe"] = "enable-electrical-heat-pipes",
+  ["power-switch"] = "enable-electrical-power-switches",
+  ["lightning-rod"] = "enable-electrical-lightning-rods",
+
+  -- Defense entities
+  ["turret"] = "enable-defense-turrets",
+  ["ammo-turret"] = "enable-defense-turrets",
+  ["electric-turret"] = "enable-defense-turrets",
+  ["fluid-turret"] = "enable-defense-turrets",
+  ["artillery-turret"] = "enable-defense-turrets",
+  ["wall"] = "enable-defense-walls-and-gates",
+  ["gate"] = "enable-defense-walls-and-gates",
+
+  -- Space platform entities
+  ["asteroid-collector"] = "enable-space-asteroid-collectors",
+  ["thruster"] = "enable-space-thrusters",
+
+  -- Other entities
+  ["lamp"] = "enable-other-lamps",
+  ["arithmetic-combinator"] = "enable-other-combinators-and-speakers",
+  ["decider-combinator"] = "enable-other-combinators-and-speakers",
+  ["constant-combinator"] = "enable-other-combinators-and-speakers",
+  ["programmable-speaker"] = "enable-other-combinators-and-speakers",
+  ["lab"] = "enable-other-labs",
+  ["roboport"] = "enable-other-roboports",
+  ["beacon"] = "enable-other-beacons",
+  ["pump"] = "enable-other-pumps",
+  ["offshore-pump"] = "enable-other-pumps",
+  ["radar"] = "enable-other-radar",
+  ["inserter"] = "enable-other-inserters"
 }
+
+-- Primary entity types for determining manufacturing hours logic
+local primary_entity_types = {"assembling-machine", "furnace", "rocket-silo"}
 
 function data_setup.build_entity_type_lists()
   local primary_types = {}
   local secondary_types = {}
-  local all_tracked_types = {}
+  local all_tracked_types = {table.unpack(primary_entity_types)} -- include primary types since they are the only ones to generate qauality change events
 
-  local primary_setting = settings.startup["primary-entities-selection"].value
-  if primary_setting == "both" or primary_setting == "assembly-machines-only" then
-    table.insert(primary_types, "assembling-machine")
-    table.insert(all_tracked_types, "assembling-machine")
-  end
-  if primary_setting == "both" or primary_setting == "furnaces-only" then
-    table.insert(primary_types, "furnace")
-    table.insert(all_tracked_types, "furnace")
-  end
-
-  if settings.startup["enable-other-production-entities"].value then
-    table.insert(primary_types, "rocket-silo")
-    table.insert(all_tracked_types, "rocket-silo")
-  end
-
-  if settings.startup["enable-electrical-entities"].value then
-    for _, entity_type in ipairs(entity_categories.electrical) do
-      table.insert(secondary_types, entity_type)
-      table.insert(all_tracked_types, entity_type)
-    end
-  end
-
-  if settings.startup["enable-other-production-entities"].value then
-    for _, entity_type in ipairs(entity_categories.other_production) do
-      table.insert(secondary_types, entity_type)
-      table.insert(all_tracked_types, entity_type)
-    end
-  end
-
-  if settings.startup["enable-defense-entities"].value then
-    for _, entity_type in ipairs(entity_categories.defense) do
-      table.insert(secondary_types, entity_type)
-      table.insert(all_tracked_types, entity_type)
-    end
-  end
-
-  if settings.startup["enable-space-entities"].value then
-    for _, entity_type in ipairs(entity_categories.space) do
-      table.insert(secondary_types, entity_type)
-      table.insert(all_tracked_types, entity_type)
-    end
-  end
-
-  if settings.startup["enable-other-entities"].value then
-    for _, entity_type in ipairs(entity_categories.other) do
-      table.insert(secondary_types, entity_type)
-      table.insert(all_tracked_types, entity_type)
-    end
-  end
-
-  for entity_type, setting_name in pairs(entity_categories.standalone) do
+  -- Build lists by checking individual entity type settings
+  for entity_type, setting_name in pairs(entity_to_setting_map) do
     if settings.startup[setting_name].value then
-      table.insert(secondary_types, entity_type)
+      -- Check if this is a primary entity type
+      local is_primary = false
+      for _, primary_type in ipairs(primary_entity_types) do
+        if entity_type == primary_type then
+          is_primary = true
+          break
+        end
+      end
+
+      if is_primary then
+        table.insert(primary_types, entity_type)
+      else
+        table.insert(secondary_types, entity_type)
+      end
       table.insert(all_tracked_types, entity_type)
     end
   end
@@ -121,6 +102,13 @@ function data_setup.build_and_store_config()
     is_tracked_type[entity_type] = true
   end
   storage.config.is_tracked_type = is_tracked_type
+
+  -- Store which entity types should be allowed to have quality changes attempted
+  local can_attempt_quality_change = {}
+  for entity_type, setting_name in pairs(entity_to_setting_map) do
+    can_attempt_quality_change[entity_type] = settings.startup[setting_name].value
+  end
+  storage.config.can_attempt_quality_change = can_attempt_quality_change
 
   local settings_data = {}
   settings_data.quality_change_direction = settings.startup["quality-change-direction"].value

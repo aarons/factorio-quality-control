@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.3.0
+Date: 22. 08. 2025
+  Features:
+    - Added fine control over which entity types can change quality (in startup settings)
+    - Added the ability to turn off assemblers and furnaces as upgrade targets.
+      They are still used to generate upgrade attempts for other entities, they are just
+      not a target for upgrades themselves.
+  Ease of use:
+    - Preserves existing settings when upgrading from previous versions
+  Bugfixes:
+    - Removed cargo landing pad as a target for quality changes (containers aren't supported yet)
+---------------------------------------------------------------------------------------------------
 Version: 1.2.8
 Date: 21. 08. 2025
   Modding:

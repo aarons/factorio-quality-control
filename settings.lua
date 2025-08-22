@@ -82,92 +82,187 @@ data:extend({
         default_value = true,
         order = "c-1"
     },
-    -- Entity type selection settings
-    {
-        type = "string-setting",
-        name = "primary-entities-selection",
-        setting_type = "startup",
-        default_value = "both",
-        allowed_values = {"both", "assembly-machines-only", "furnaces-only"},
-        order = "d-0"
-    },
-    -- Secondary entity categories
+    -- Entity types (alphabetized)
     {
         type = "bool-setting",
-        name = "enable-electrical-entities",
+        name = "enable-electrical-accumulators",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-0"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-production-agricultural-towers",
         setting_type = "startup",
         default_value = true,
         order = "d-1"
     },
     {
         type = "bool-setting",
-        name = "enable-other-production-entities",
+        name = "enable-production-assembly-machines",
         setting_type = "startup",
         default_value = true,
         order = "d-2"
     },
     {
         type = "bool-setting",
-        name = "enable-defense-entities",
+        name = "enable-space-asteroid-collectors",
         setting_type = "startup",
         default_value = true,
         order = "d-3"
     },
     {
         type = "bool-setting",
-        name = "enable-space-entities",
+        name = "enable-other-beacons",
         setting_type = "startup",
         default_value = true,
         order = "d-4"
     },
     {
         type = "bool-setting",
-        name = "enable-other-entities",
+        name = "enable-electrical-boilers",
         setting_type = "startup",
         default_value = true,
         order = "d-5"
     },
-    -- Standalone entity types
     {
         type = "bool-setting",
-        name = "enable-labs",
+        name = "enable-other-combinators-and-speakers",
         setting_type = "startup",
         default_value = true,
         order = "d-6"
     },
     {
         type = "bool-setting",
-        name = "enable-roboports",
+        name = "enable-other-pumps",
         setting_type = "startup",
         default_value = true,
         order = "d-7"
     },
     {
         type = "bool-setting",
-        name = "enable-beacons",
+        name = "enable-production-furnaces",
         setting_type = "startup",
         default_value = true,
         order = "d-8"
     },
     {
         type = "bool-setting",
-        name = "enable-pumps",
+        name = "enable-electrical-generators",
         setting_type = "startup",
         default_value = true,
         order = "d-9"
     },
     {
         type = "bool-setting",
-        name = "enable-radar",
+        name = "enable-electrical-heat-pipes",
         setting_type = "startup",
         default_value = true,
         order = "d-10"
     },
     {
         type = "bool-setting",
-        name = "enable-inserters",
+        name = "enable-other-inserters",
         setting_type = "startup",
         default_value = true,
         order = "d-11"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-labs",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-12"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-lamps",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-13"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-electrical-lightning-rods",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-14"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-production-mining-drills",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-15"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-electrical-poles",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-16"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-electrical-power-switches",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-17"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-radar",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-18"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-electrical-reactors",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-19"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-other-roboports",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-20"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-production-rocket-silos",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-21"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-electrical-solar-panels",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-22"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-space-thrusters",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-23"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-defense-turrets",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-24"
+    },
+    {
+        type = "bool-setting",
+        name = "enable-defense-walls-and-gates",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-25"
     }
 })

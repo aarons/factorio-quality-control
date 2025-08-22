@@ -14,6 +14,7 @@ local core = {}
 local tracked_entities = {}
 local settings_data = {}
 local is_tracked_type = {}
+local can_attempt_quality_change = {}
 local previous_qualities = {}
 local quality_limit = nil
 
@@ -21,6 +22,7 @@ function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
   is_tracked_type = storage.config.is_tracked_type
+  can_attempt_quality_change = storage.config.can_attempt_quality_change
   previous_qualities = storage.config.previous_qualities
   quality_limit = storage.config.quality_limit
 end
@@ -409,7 +411,12 @@ function core.batch_process_entities()
             accumulated_attempts = accumulated_attempts + credits_added
           end
 
-          local successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
+          -- Only attempt quality changes if this entity type is enabled for quality changes
+          local successful_changes = 0
+          if can_attempt_quality_change[entity.type] then
+            successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
+          end
+
           if successful_changes == 0 and tracked_entities[unit_number] then
             entity_info.manufacturing_hours = current_hours
           end
@@ -474,7 +481,8 @@ function core.on_quality_control_inspect(event)
       is_tracked_type,
       core.get_entity_info,
       settings_data.manufacturing_hours_for_change,
-      settings_data.quality_increase_cost
+      settings_data.quality_increase_cost,
+      can_attempt_quality_change
     )
   end
 end

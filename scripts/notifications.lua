@@ -63,7 +63,7 @@ function notifications.show_quality_notifications(quality_changes, quality_chang
   end
 end
 
-function notifications.show_entity_quality_info(player, is_tracked_type, get_entity_info, manufacturing_hours_for_change, quality_increase_cost)
+function notifications.show_entity_quality_info(player, is_tracked_type, get_entity_info, manufacturing_hours_for_change, quality_increase_cost, can_attempt_quality_change)
   local selected_entity = player.selected
 
   if not selected_entity or not selected_entity.valid then
@@ -72,12 +72,7 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
   end
 
   if not is_tracked_type[selected_entity.type] then
-    player.print("selected_entity.type: " .. selected_entity.type)
-    player.print("is_tracked_type table contents:")
-    for key, value in pairs(is_tracked_type) do
-      player.print("  " .. key .. " = " .. tostring(value))
-    end
-    player.print({"quality-control.entity-not-tracked", selected_entity.localised_name or selected_entity.name})
+    player.print({"quality-control.entity-not-supported", selected_entity.localised_name or selected_entity.name})
     return
   end
 
@@ -97,24 +92,44 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
     -- Normal entity_info table - show tracking data
     local is_primary_type = entity_info.is_primary
     local current_recipe = is_primary_type and selected_entity.get_recipe and selected_entity.get_recipe()
+    local is_enabled = can_attempt_quality_change[selected_entity.type]
 
-    -- Attempts to change
-    table.insert(info_parts, {"quality-control.attempts-to-change", entity_info.attempts_to_change})
+    -- Show enabled/disabled status
+    local enabled_text = is_enabled and "Yes" or "No"
+    table.insert(info_parts, {"quality-control.enabled-for-quality-changes", enabled_text})
 
-    -- Current chance of change (capped at 100% for display)
-    table.insert(info_parts, {"quality-control.current-chance", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
+    if is_enabled then
+      -- For enabled entities - show actual attempts and success chance
+      table.insert(info_parts, {"quality-control.upgrades-attempted", entity_info.attempts_to_change})
 
-    -- Progress to next attempt (for primary types with manufacturing hours)
-    if is_primary_type and current_recipe then
-      local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ selected_entity.quality.level
-      local recipe_time = current_recipe.prototype.energy
-      local current_hours = (selected_entity.products_finished * recipe_time) / 3600
-      local previous_hours = entity_info.manufacturing_hours or 0
-      local progress_hours = current_hours - previous_hours
-      local progress_percentage = math.min(100, (progress_hours / hours_needed) * 100)
+      -- Progress to next attempt (for primary types with manufacturing hours)
+      if is_primary_type and current_recipe then
+        local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ selected_entity.quality.level
+        local recipe_time = current_recipe.prototype.energy
+        local current_hours = (selected_entity.products_finished * recipe_time) / 3600
+        local previous_hours = entity_info.manufacturing_hours or 0
+        local progress_hours = current_hours - previous_hours
+        local progress_percentage = math.min(100, (progress_hours / hours_needed) * 100)
 
-      table.insert(info_parts, {"quality-control.manufacturing-hours", string.format("%.2f", current_hours), string.format("%.2f", hours_needed)})
-      table.insert(info_parts, {"quality-control.progress-to-next", string.format("%.1f", progress_percentage)})
+        table.insert(info_parts, {"quality-control.progress-to-next-attempt", string.format("%.0f", progress_percentage)})
+      end
+
+      -- Current chance of change (capped at 100% for display)
+      table.insert(info_parts, {"quality-control.chance-of-success", string.format("%.0f", math.min(100, entity_info.chance_to_change))})
+    else
+      -- For disabled entities - show virtual attempts that would have been generated
+      if is_primary_type and current_recipe then
+        local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ selected_entity.quality.level
+        local recipe_time = current_recipe.prototype.energy
+        local current_hours = (selected_entity.products_finished * recipe_time) / 3600
+        local previous_hours = entity_info.manufacturing_hours or 0
+        local progress_hours = current_hours - previous_hours
+        local virtual_attempts = math.floor(current_hours / hours_needed)
+        local progress_percentage = math.min(100, (progress_hours / hours_needed - virtual_attempts) * 100)
+
+        table.insert(info_parts, {"quality-control.upgrade-attempts-generated", virtual_attempts})
+        table.insert(info_parts, {"quality-control.progress-to-next-attempt", string.format("%.0f", progress_percentage)})
+      end
     end
   end
 
