@@ -98,8 +98,10 @@ if #newly_enabled_entities > 0 then
 
   -- Build user-friendly message
   local message = "Quality Control's startup settings changed to be more granular.\n"
+  message = message .. "Unfortunately this change reset your previous selections.\n"
+  message = message .. "These entities are now enabled for upgrades:\n"
   for _, entity_name in ipairs(newly_enabled_entities) do
-    message = message .. "    " .. entity_name .. " are now enabled\n"
+    message = message .. "  - " .. entity_name .. "\n"
   end
   message = message .. "If you do not want these enabled, please exit back to menu, go to settings, and disable these entities.\n"
   message = message .. "This should be a one time change, sorry about that! >.<"
