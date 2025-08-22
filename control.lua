@@ -12,7 +12,7 @@ local function reinitialize_quality_control_storage(command)
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
-      player.print("Quality Control: Rebuilding cache, scanning entities...")
+      player.print("Quality Control: Rebuilding cache, scanning entities and players...")
     end
   end
 
@@ -20,11 +20,12 @@ local function reinitialize_quality_control_storage(command)
   data_setup.build_and_store_config()
   core.initialize()
   core.scan_and_populate_entities(storage.config.all_tracked_types)
+  core.scan_and_populate_players()
 
   if command and command.player_index then
     local player = game.get_player(command.player_index)
     if player then
-      player.print("Quality Control: Cache rebuild complete. All entities have been scanned.")
+      player.print("Quality Control: Cache rebuild complete. All entities and players have been scanned.")
     end
   end
 end
@@ -72,6 +73,7 @@ script.on_init(function()
   data_setup.build_and_store_config()
   core.initialize()
   core.scan_and_populate_entities(storage.config.all_tracked_types)
+  core.scan_and_populate_players()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()
   register_main_loop()

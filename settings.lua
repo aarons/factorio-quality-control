@@ -266,10 +266,11 @@ data:extend({
         order = "d-25"
     },
     {
-        type = "bool-setting",
-        name = "enable-player-equipment",
+        type = "string-setting",
+        name = "player-upgrade-mode",
         setting_type = "startup",
-        default_value = true,
+        default_value = "disabled",
+        allowed_values = {"disabled", "primary", "secondary"},
         order = "d-26"
     },
     {

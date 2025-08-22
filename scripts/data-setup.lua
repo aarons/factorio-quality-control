@@ -9,8 +9,8 @@ local data_setup = {}
 
 -- Entity type to setting name mappings
 local entity_to_setting_map = {
-  -- Players (special case)
-  ["character"] = "enable-player-equipment",
+  -- Players (special case - handled differently)
+  ["character"] = "player-upgrade-mode",
   -- Production entities (includes primary entities)
   ["assembling-machine"] = "enable-assembly-machines",
   ["furnace"] = "enable-furnaces",
@@ -108,7 +108,13 @@ function data_setup.build_and_store_config()
   -- Store which entity types should be allowed to have quality changes attempted
   local can_attempt_quality_change = {}
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    can_attempt_quality_change[entity_type] = settings.startup[setting_name].value
+    if entity_type == "character" then
+      -- Special handling for player upgrade mode (not a boolean setting)
+      local player_mode = settings.startup[setting_name].value
+      can_attempt_quality_change[entity_type] = (player_mode ~= "disabled")
+    else
+      can_attempt_quality_change[entity_type] = settings.startup[setting_name].value
+    end
   end
   storage.config.can_attempt_quality_change = can_attempt_quality_change
 
@@ -116,6 +122,7 @@ function data_setup.build_and_store_config()
   settings_data.quality_change_direction = settings.startup["quality-change-direction"].value
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   settings_data.handcrafting_hours_for_change = settings.startup["handcrafting-hours-for-change"].value
+  settings_data.player_upgrade_mode = settings.startup["player-upgrade-mode"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
 

@@ -178,6 +178,17 @@ function core.scan_and_populate_entities(all_tracked_types)
   end
 end
 
+function core.scan_and_populate_players()
+  -- Initialize player tracking for secondary mode if enabled
+  if settings_data.player_upgrade_mode == "secondary" then
+    for _, player in pairs(game.players) do
+      if player.valid then
+        core.get_player_info(player)
+      end
+    end
+  end
+end
+
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
     local entity_info = tracked_entities[id]
@@ -373,8 +384,14 @@ function core.get_player_info(player)
       player = player,
       handcrafting_hours = 0,
       chance_to_change = settings_data.base_percentage_chance,
-      attempts_to_change = 0
+      attempts_to_change = 0,
+      is_secondary = (settings_data.player_upgrade_mode == "secondary")
     }
+
+    -- For secondary mode, add to secondary entity count
+    if settings_data.player_upgrade_mode == "secondary" then
+      storage.secondary_entity_count = storage.secondary_entity_count + 1
+    end
   end
 
   return player_tracking[player_index]
@@ -382,6 +399,13 @@ end
 
 function core.remove_player_info(player_index)
   if player_tracking and player_tracking[player_index] then
+    local player_info = player_tracking[player_index]
+
+    -- For secondary mode, remove from secondary entity count
+    if player_info.is_secondary then
+      storage.secondary_entity_count = math.max(0, storage.secondary_entity_count - 1)
+    end
+
     player_tracking[player_index] = nil
   end
 end
@@ -555,6 +579,28 @@ local function attempt_player_equipment_quality_change(player)
   return false
 end
 
+-- Process multiple player equipment quality attempts (for secondary mode)
+local function process_player_quality_attempts(player, attempts_count)
+  local successful_changes = 0
+
+  for _ = 1, attempts_count do
+    local change_result = attempt_player_equipment_quality_change(player)
+
+    if change_result == nil then
+      -- Player is invalid, stop all attempts
+      break
+    end
+
+    if change_result then
+      successful_changes = successful_changes + 1
+      -- For players, we don't track quality_changes like entities since there's no aggregate notification
+      -- Individual notifications are handled within attempt_player_equipment_quality_change
+    end
+  end
+
+  return successful_changes
+end
+
 function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
   local entities_processed = 0
@@ -639,6 +685,27 @@ function core.batch_process_entities()
     ::continue::
   end
 
+  -- Process players in secondary mode
+  if settings_data.player_upgrade_mode == "secondary" and accumulated_attempts > 0 and secondary_count > 0 then
+    for player_index, player_info in pairs(player_tracking) do
+      if player_info.is_secondary and player_info.player and player_info.player.valid then
+        local attempts_per_entity = accumulated_attempts / secondary_count
+        local guaranteed_attempts = math.floor(attempts_per_entity)
+        local fractional_chance = attempts_per_entity - guaranteed_attempts
+
+        local total_attempts = guaranteed_attempts
+        if fractional_chance > 0 and math.random() < fractional_chance then
+          total_attempts = total_attempts + 1
+        end
+
+        if total_attempts > 0 then
+          accumulated_attempts = math.max(0, accumulated_attempts - total_attempts)
+          process_player_quality_attempts(player_info.player, total_attempts)
+        end
+      end
+    end
+  end
+
   -- Write back modified storage values
   storage.accumulated_upgrade_attempts = accumulated_attempts
   storage.batch_index = batch_index
@@ -688,7 +755,8 @@ function core.on_player_removed(event)
 end
 
 function core.on_player_crafted_item(event)
-  if not can_attempt_quality_change["character"] then
+  -- Only process handcrafting when player mode is "primary"
+  if not can_attempt_quality_change["character"] or settings_data.player_upgrade_mode ~= "primary" then
     return
   end
 
