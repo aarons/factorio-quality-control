@@ -125,7 +125,8 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
         local previous_hours = entity_info.manufacturing_hours or 0
         local progress_hours = current_hours - previous_hours
         local virtual_attempts = math.floor(current_hours / hours_needed)
-        local progress_percentage = math.min(100, (progress_hours / hours_needed - virtual_attempts) * 100)
+        local remaining_hours = current_hours - (virtual_attempts * hours_needed)
+        local progress_percentage = math.min(100, (remaining_hours / hours_needed) * 100)
 
         table.insert(info_parts, {"quality-control.upgrade-attempts-generated", virtual_attempts})
         table.insert(info_parts, {"quality-control.progress-to-next-attempt", string.format("%.0f", progress_percentage)})

@@ -1,8 +1,27 @@
--- Migration for v1.3.0: Transition from category-based to individual entity settings
--- This migration attempts to preserve user preferences when migrating from the old
--- category system to the new individual entity type system.
+--[[
+Migration 1.3.0 - Transition from category-based to individual entity settings
 
--- Read the old settings if they exist
+This migration handles the transition from the old category-based entity selection system
+to the new individual entity type toggles. All new settings default to enabled (true),
+so we only need to alert users when their old preferences would have disabled entities
+that are now enabled by default.
+
+The old system had these categories:
+- primary-entities-selection: "both", "assembly-machines-only", or "furnaces-only"
+- enable-electrical-entities: poles, solar panels, accumulators, generators, reactors, boilers, heat pipes, power switches, lightning rods
+- enable-other-production-entities: rocket silos, agricultural towers, mining drills
+- enable-defense-entities: turrets, walls, gates
+- enable-space-entities: asteroid collectors, thrusters
+- enable-other-entities: lamps, combinators, speakers
+- Plus standalone settings for: labs, roboports, beacons, pumps, radar, inserters
+]]
+
+log("[Quality Control Migration 1.3.0] Starting migration to individual entity settings")
+
+-- Import required module to rebuild config
+local data_setup = require("scripts/data-setup")
+
+-- Check if old category settings exist (they won't in new installs)
 local primary_setting = settings.startup["primary-entities-selection"]
 local electrical_enabled = settings.startup["enable-electrical-entities"]
 local other_production_enabled = settings.startup["enable-other-production-entities"]
@@ -10,82 +29,91 @@ local defense_enabled = settings.startup["enable-defense-entities"]
 local space_enabled = settings.startup["enable-space-entities"]
 local other_enabled = settings.startup["enable-other-entities"]
 
--- Map old category settings to new individual settings if the old settings exist
+-- Build list of entities that would be newly enabled compared to old preferences
+local newly_enabled_entities = {}
+
+-- Check primary entities (assembly machines and furnaces)
 if primary_setting then
   local primary_value = primary_setting.value
-  if primary_value == "both" or primary_value == "assembly-machines-only" then
-    settings.startup["enable-production-assembly-machines"] = {value = true}
+  if primary_value == "assembly-machines-only" then
+    -- Furnaces would be newly enabled
+    table.insert(newly_enabled_entities, "furnaces")
+  elseif primary_value == "furnaces-only" then
+    -- Assembly machines would be newly enabled
+    table.insert(newly_enabled_entities, "assembly machines")
   end
-  if primary_value == "both" or primary_value == "furnaces-only" then
-    settings.startup["enable-production-furnaces"] = {value = true}
+  -- If "both", no change needed
+end
+
+-- Check electrical entities
+if electrical_enabled and not electrical_enabled.value then
+  -- All electrical entities are now enabled by default but were disabled
+  table.insert(newly_enabled_entities, "electrical entities (poles, solar panels, accumulators, generators, reactors, boilers, heat pipes, power switches, lightning rods)")
+end
+
+-- Check other production entities
+if other_production_enabled and not other_production_enabled.value then
+  -- Rocket silos, agricultural towers, mining drills now enabled
+  table.insert(newly_enabled_entities, "other production entities (rocket silos, agricultural towers, mining drills)")
+end
+
+-- Check defense entities
+if defense_enabled and not defense_enabled.value then
+  -- Turrets, walls, gates now enabled
+  table.insert(newly_enabled_entities, "defense entities (turrets, walls, gates)")
+end
+
+-- Check space entities
+if space_enabled and not space_enabled.value then
+  -- Asteroid collectors, thrusters now enabled
+  table.insert(newly_enabled_entities, "space entities (asteroid collectors, thrusters)")
+end
+
+-- Check other entities
+if other_enabled and not other_enabled.value then
+  -- Lamps, combinators, speakers now enabled
+  table.insert(newly_enabled_entities, "other entities (lamps, combinators, speakers)")
+end
+
+-- Check standalone entities (these persist with same names, so only notify if they existed and were disabled)
+local standalone_checks = {
+  {setting = "enable-labs", name = "labs"},
+  {setting = "enable-roboports", name = "roboports"},
+  {setting = "enable-beacons", name = "beacons"},
+  {setting = "enable-pumps", name = "pumps"},
+  {setting = "enable-radar", name = "radar"},
+  {setting = "enable-inserters", name = "inserters"}
+}
+
+for _, check in ipairs(standalone_checks) do
+  local old_setting = settings.startup[check.setting]
+  if old_setting and not old_setting.value then
+    table.insert(newly_enabled_entities, check.name)
   end
 end
 
--- Apply category-based settings to individual entity types
-if electrical_enabled then
-  local enabled = electrical_enabled.value
-  settings.startup["enable-electrical-poles"] = {value = enabled}
-  settings.startup["enable-electrical-solar-panels"] = {value = enabled}
-  settings.startup["enable-electrical-accumulators"] = {value = enabled}
-  settings.startup["enable-electrical-generators"] = {value = enabled}
-  settings.startup["enable-electrical-reactors"] = {value = enabled}
-  settings.startup["enable-electrical-boilers"] = {value = enabled}
-  settings.startup["enable-electrical-heat-pipes"] = {value = enabled}
-  settings.startup["enable-electrical-power-switches"] = {value = enabled}
-  settings.startup["enable-electrical-lightning-rods"] = {value = enabled}
+-- Only show message if there are entities that would be newly enabled
+if #newly_enabled_entities > 0 then
+  log("[Quality Control Migration 1.3.0] Settings changes detected - notifying user")
+
+  -- Build user-friendly message
+  local message = "Quality Control's startup settings changed to be more granular.\n"
+  for _, entity_name in ipairs(newly_enabled_entities) do
+    message = message .. "    " .. entity_name .. " are now enabled\n"
+  end
+  message = message .. "If you do not want these enabled, please exit back to menu, go to settings, and disable these entities.\n"
+  message = message .. "This should be a one time change, sorry about that! >.<"
+
+  -- Show message to all players
+  game.print(message)
+  log("[Quality Control Migration 1.3.0] User notification: " .. message)
+else
+  log("[Quality Control Migration 1.3.0] No settings changes detected - no user notification needed")
 end
 
-if other_production_enabled then
-  local enabled = other_production_enabled.value
-  settings.startup["enable-production-rocket-silos"] = {value = enabled}
-  settings.startup["enable-production-agricultural-towers"] = {value = enabled}
-  settings.startup["enable-production-mining-drills"] = {value = enabled}
-end
+-- Always rebuild storage.config to ensure it has the new structure
+-- This is required because the new version adds can_attempt_quality_change field
+log("[Quality Control Migration 1.3.0] Rebuilding storage.config with new structure")
+data_setup.build_and_store_config()
 
-if defense_enabled then
-  local enabled = defense_enabled.value
-  settings.startup["enable-defense-turrets"] = {value = enabled}
-  settings.startup["enable-defense-walls-and-gates"] = {value = enabled}
-end
-
-if space_enabled then
-  local enabled = space_enabled.value
-  settings.startup["enable-space-asteroid-collectors"] = {value = enabled}
-  settings.startup["enable-space-thrusters"] = {value = enabled}
-end
-
-if other_enabled then
-  local enabled = other_enabled.value
-  settings.startup["enable-other-lamps"] = {value = enabled}
-  settings.startup["enable-other-combinators-and-speakers"] = {value = enabled}
-end
-
--- Map existing standalone settings to new names
-local labs_enabled = settings.startup["enable-labs"]
-local roboports_enabled = settings.startup["enable-roboports"]
-local beacons_enabled = settings.startup["enable-beacons"]
-local pumps_enabled = settings.startup["enable-pumps"]
-local radar_enabled = settings.startup["enable-radar"]
-local inserters_enabled = settings.startup["enable-inserters"]
-
-if labs_enabled then
-  settings.startup["enable-other-labs"] = {value = labs_enabled.value}
-end
-if roboports_enabled then
-  settings.startup["enable-other-roboports"] = {value = roboports_enabled.value}
-end
-if beacons_enabled then
-  settings.startup["enable-other-beacons"] = {value = beacons_enabled.value}
-end
-if pumps_enabled then
-  settings.startup["enable-other-pumps"] = {value = pumps_enabled.value}
-end
-if radar_enabled then
-  settings.startup["enable-other-radar"] = {value = radar_enabled.value}
-end
-if inserters_enabled then
-  settings.startup["enable-other-inserters"] = {value = inserters_enabled.value}
-end
-
--- Force rebuild the configuration with new settings
-log("Quality Control: Migrated to individual entity settings.")
+log("[Quality Control Migration 1.3.0] Migration completed successfully")

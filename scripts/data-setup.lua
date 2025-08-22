@@ -10,49 +10,49 @@ local data_setup = {}
 -- Entity type to setting name mappings
 local entity_to_setting_map = {
   -- Production entities (includes primary entities)
-  ["assembling-machine"] = "enable-production-assembly-machines",
-  ["furnace"] = "enable-production-furnaces",
-  ["rocket-silo"] = "enable-production-rocket-silos",
-  ["agricultural-tower"] = "enable-production-agricultural-towers",
-  ["mining-drill"] = "enable-production-mining-drills",
+  ["assembling-machine"] = "enable-assembly-machines",
+  ["furnace"] = "enable-furnaces",
+  ["rocket-silo"] = "enable-rocket-silos",
+  ["agricultural-tower"] = "enable-agricultural-towers",
+  ["mining-drill"] = "enable-mining-drills",
 
   -- Electrical infrastructure
-  ["electric-pole"] = "enable-electrical-poles",
-  ["solar-panel"] = "enable-electrical-solar-panels",
-  ["accumulator"] = "enable-electrical-accumulators",
-  ["generator"] = "enable-electrical-generators",
-  ["reactor"] = "enable-electrical-reactors",
-  ["boiler"] = "enable-electrical-boilers",
-  ["heat-pipe"] = "enable-electrical-heat-pipes",
-  ["power-switch"] = "enable-electrical-power-switches",
-  ["lightning-rod"] = "enable-electrical-lightning-rods",
+  ["electric-pole"] = "enable-poles",
+  ["solar-panel"] = "enable-solar-panels",
+  ["accumulator"] = "enable-accumulators",
+  ["generator"] = "enable-generators",
+  ["reactor"] = "enable-reactors",
+  ["boiler"] = "enable-boilers",
+  ["heat-pipe"] = "enable-heat-pipes",
+  ["power-switch"] = "enable-power-switches",
+  ["lightning-rod"] = "enable-lightning-rods",
 
   -- Defense entities
-  ["turret"] = "enable-defense-turrets",
-  ["ammo-turret"] = "enable-defense-turrets",
-  ["electric-turret"] = "enable-defense-turrets",
-  ["fluid-turret"] = "enable-defense-turrets",
-  ["artillery-turret"] = "enable-defense-turrets",
+  ["turret"] = "enable-turrets",
+  ["ammo-turret"] = "enable-turrets",
+  ["electric-turret"] = "enable-turrets",
+  ["fluid-turret"] = "enable-turrets",
+  ["artillery-turret"] = "enable-turrets",
   ["wall"] = "enable-defense-walls-and-gates",
   ["gate"] = "enable-defense-walls-and-gates",
 
   -- Space platform entities
-  ["asteroid-collector"] = "enable-space-asteroid-collectors",
-  ["thruster"] = "enable-space-thrusters",
+  ["asteroid-collector"] = "enable-asteroid-collectors",
+  ["thruster"] = "enable-thrusters",
 
   -- Other entities
-  ["lamp"] = "enable-other-lamps",
-  ["arithmetic-combinator"] = "enable-other-combinators-and-speakers",
-  ["decider-combinator"] = "enable-other-combinators-and-speakers",
-  ["constant-combinator"] = "enable-other-combinators-and-speakers",
-  ["programmable-speaker"] = "enable-other-combinators-and-speakers",
-  ["lab"] = "enable-other-labs",
-  ["roboport"] = "enable-other-roboports",
-  ["beacon"] = "enable-other-beacons",
-  ["pump"] = "enable-other-pumps",
-  ["offshore-pump"] = "enable-other-pumps",
-  ["radar"] = "enable-other-radar",
-  ["inserter"] = "enable-other-inserters"
+  ["lamp"] = "enable-lamps",
+  ["arithmetic-combinator"] = "enable-combinators-and-speakers",
+  ["decider-combinator"] = "enable-combinators-and-speakers",
+  ["constant-combinator"] = "enable-combinators-and-speakers",
+  ["programmable-speaker"] = "enable-combinators-and-speakers",
+  ["lab"] = "enable-labs",
+  ["roboport"] = "enable-roboports",
+  ["beacon"] = "enable-beacons",
+  ["pump"] = "enable-pumps",
+  ["offshore-pump"] = "enable-pumps",
+  ["radar"] = "enable-radar",
+  ["inserter"] = "enable-inserters"
 }
 
 -- Primary entity types for determining manufacturing hours logic
