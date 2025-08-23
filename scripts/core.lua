@@ -288,6 +288,7 @@ local function attempt_quality_change(entity)
   local entity_position = entity.position
   local entity_force = entity.force
   local entity_direction = entity.direction
+  local entity_mirroring = entity.mirroring -- wether the entity is flipped on it's axis or not
 
   local target_quality
   if settings_data.quality_change_direction == "increase" then
@@ -311,6 +312,10 @@ local function attempt_quality_change(entity)
   }
 
   if replacement_entity and replacement_entity.valid then
+    if entity_mirroring ~= nil then
+      replacement_entity.mirroring = entity_mirroring
+    end
+
     core.remove_entity_info(unit_number) -- may not be needed since we already did raise_script_destroy
     update_module_quality(replacement_entity, target_quality, settings_data)
     notifications.show_entity_quality_alert(replacement_entity, settings_data.quality_change_direction)

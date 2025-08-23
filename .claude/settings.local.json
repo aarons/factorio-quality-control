@@ -7,7 +7,9 @@
       "Bash(grep:*)",
       "Bash(chmod:*)",
       "Bash(./validate.sh)",
-      "Bash(./validate.sh:*)"
+      "Bash(./validate.sh:*)",
+      "mcp__context7__get-library-docs",
+      "mcp__context7__resolve-library-id"
     ],
     "deny": []
   }
