@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.3.1
+Date: 22. 08. 2025
+  Bugfixes:
+    - Fixed machines losing their flipped status when their quality is changed
+    - Machines marked for deconstruction are no longer targets for quality change events
+      Thank you Stargateur for finding these issues!
+---------------------------------------------------------------------------------------------------
 Version: 1.3.0
 Date: 21. 08. 2025
   Features:

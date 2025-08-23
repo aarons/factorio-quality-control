@@ -394,6 +394,11 @@ function core.batch_process_entities()
 
     local entity = entity_info.entity
 
+    -- Skip entities marked for deconstruction to avoid losing the deconstruction mark
+    if entity.to_be_deconstructed() then
+      goto continue
+    end
+
     if entity_info.is_primary then
         local recipe_time = 0
         if entity.get_recipe() then
