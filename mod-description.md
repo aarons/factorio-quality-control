@@ -18,7 +18,7 @@ Crafting speed does impact progression though; an assembler with crafting speed 
 
 Just about all unit types are supported. Here's the full list:
 
-- Manufacturing: assembling machines, furnaces, rocket silos
+- Manufacturing: assembling machines, furnaces
 - Mining: mining drills, agricultural towers
 - Fluids: pumps, offshore pumps
 - Power: electric poles, solar panels, accumulators, generators, reactors, boilers, heat pipes, power switches, lightning rods

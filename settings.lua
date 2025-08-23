@@ -239,13 +239,6 @@ data:extend({
     },
     {
         type = "bool-setting",
-        name = "enable-rocket-silos",
-        setting_type = "startup",
-        default_value = false,
-        order = "d-22"
-    },
-    {
-        type = "bool-setting",
         name = "enable-solar-panels",
         setting_type = "startup",
         default_value = true,

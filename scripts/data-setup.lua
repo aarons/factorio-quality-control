@@ -12,7 +12,6 @@ local entity_to_setting_map = {
   -- Production entities (includes primary entities)
   ["assembling-machine"] = "enable-assembly-machines",
   ["furnace"] = "enable-furnaces",
-  ["rocket-silo"] = "enable-rocket-silos",
   ["agricultural-tower"] = "enable-agricultural-towers",
   ["mining-drill"] = "enable-mining-drills",
 
@@ -56,7 +55,7 @@ local entity_to_setting_map = {
 }
 
 -- Primary entity types for determining manufacturing hours logic
-local primary_entity_types = {"assembling-machine", "furnace", "rocket-silo"}
+local primary_entity_types = {"assembling-machine", "furnace"}
 
 function data_setup.build_entity_type_lists()
   local primary_types = {}

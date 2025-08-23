@@ -99,7 +99,7 @@ function core.get_entity_info(entity)
   local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
   local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
   local can_change_quality = can_increase or can_decrease
-  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace" or entity.type == "rocket-silo")
+  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
   if not can_change_quality then
     if settings_data.quality_change_direction == "increase" then
