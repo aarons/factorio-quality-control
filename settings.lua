@@ -241,7 +241,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-rocket-silos",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-22"
     },
     {
