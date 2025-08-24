@@ -389,7 +389,11 @@ function core.batch_process_entities()
     batch_index = batch_index + 1
 
     local entity_info = tracked_entities[unit_number]
-    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not entity_info.can_change_quality then
+    -- Check if entity should remain tracked
+    local should_stay_tracked = entity_info and entity_info.can_change_quality or
+      (entity_info and entity_info.is_primary and settings_data.accumulate_at_max_quality)
+
+    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
     end
@@ -423,9 +427,9 @@ function core.batch_process_entities()
             accumulated_attempts = accumulated_attempts + credits_added
           end
 
-          -- Only attempt quality changes if this entity type is enabled for quality changes
+          -- Only attempt quality changes if entity type is enabled AND entity can actually change quality
           local successful_changes = 0
-          if can_attempt_quality_change[entity.type] then
+          if can_attempt_quality_change[entity.type] and entity_info.can_change_quality then
             successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
           end
 
