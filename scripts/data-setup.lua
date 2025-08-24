@@ -114,6 +114,7 @@ function data_setup.build_and_store_config()
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
+  settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
 
   local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
   settings_data.accumulation_percentage = 0

@@ -101,7 +101,9 @@ function core.get_entity_info(entity)
   local can_change_quality = can_increase or can_decrease
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
-  if not can_change_quality then
+  -- Only track entities that can change quality OR are primary entities with accumulation enabled
+  local should_track = can_change_quality or (is_primary and settings_data.accumulate_at_max_quality)
+  if not should_track then
     if settings_data.quality_change_direction == "increase" then
       return "at max quality"
     elseif settings_data.quality_change_direction == "decrease" then
@@ -126,7 +128,7 @@ function core.get_entity_info(entity)
       storage.secondary_entity_count = storage.secondary_entity_count + 1
     end
 
-    -- Use ordered list for batch processing: O(1) lookup
+    -- Use ordered list for O(1) lookup in batch processing
     table.insert(storage.entity_list, id)
     storage.entity_list_index[id] = #storage.entity_list
 
