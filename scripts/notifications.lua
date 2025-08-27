@@ -17,7 +17,7 @@ function notifications.accumulate_quality_changes(quality_changes)
   end
 end
 
-function notifications.try_show_accumulated_notifications(quality_change_direction)
+function notifications.try_show_accumulated_notifications()
   local current_tick = game.tick
   local time_since_last = current_tick - storage.aggregate_notifications.last_notification_tick
 
@@ -29,10 +29,9 @@ function notifications.try_show_accumulated_notifications(quality_change_directi
       local messages = {}
 
       for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
-        local action = quality_change_direction == "increase" and "upgraded" or "downgraded"
         local plural = count > 1 and "s" or ""
 
-        table.insert(messages, count .. " " .. entity_name .. plural .. " " .. action)
+        table.insert(messages, count .. " " .. entity_name .. plural .. " upgraded")
       end
 
       if #messages > 0 then
@@ -46,20 +45,19 @@ function notifications.try_show_accumulated_notifications(quality_change_directi
   end
 end
 
-function notifications.show_entity_quality_alert(entity, change_type)
+function notifications.show_entity_quality_alert(entity)
   local player = game.players[1] -- In single player, this is the player
   if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
-    local action = change_type == "increase" and "upgraded" or "downgraded"
-    local message = action .. " quality to " .. entity.quality.name
+    local message = "upgraded quality to " .. entity.quality.name
 
     player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = entity.quality.name}, message, true)
   end
 end
 
-function notifications.show_quality_notifications(quality_changes, quality_change_direction)
+function notifications.show_quality_notifications(quality_changes)
   if next(quality_changes) then
     notifications.accumulate_quality_changes(quality_changes)
-    notifications.try_show_accumulated_notifications(quality_change_direction)
+    notifications.try_show_accumulated_notifications()
   end
 end
 

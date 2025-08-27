@@ -1,20 +1,12 @@
 data:extend({
     {
-        type = "string-setting",
-        name = "quality-change-direction",
-        setting_type = "startup",
-        default_value = "increase",
-        allowed_values = {"increase", "decrease"},
-        order = "a-0"
-    },
-    {
         type = "double-setting",
         name = "manufacturing-hours-for-change",
         setting_type = "startup",
         default_value = 3,
         min_value = 0.001,
         max_value = 1000,
-        order = "a-1"
+        order = "a-0"
     },
     {
         type = "double-setting",
@@ -23,7 +15,7 @@ data:extend({
         default_value = 1,
         min_value = 0.0001,
         max_value = 100,
-        order = "a-2"
+        order = "a-1"
     },
     {
         type = "double-setting",
@@ -32,7 +24,7 @@ data:extend({
         default_value = 50,
         min_value = 0,
         max_value = 100000,
-        order = "a-3"
+        order = "a-2"
     },
     {
         type = "string-setting",
@@ -40,14 +32,14 @@ data:extend({
         setting_type = "startup",
         default_value = "low",
         allowed_values = {"none", "low", "medium", "high"},
-        order = "a-4"
+        order = "a-3"
     },
     {
         type = "bool-setting",
         name = "accumulate-at-max-quality",
         setting_type = "startup",
         default_value = true,
-        order = "a-4a"
+        order = "a-3a"
     },
     {
         type = "string-setting",
@@ -55,7 +47,7 @@ data:extend({
         setting_type = "startup",
         default_value = "disabled",
         allowed_values = {"disabled", "enabled", "extra-enabled"},
-        order = "a-5"
+        order = "a-4"
     },
     {
         type = "int-setting",

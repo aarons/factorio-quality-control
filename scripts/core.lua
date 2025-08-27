@@ -15,7 +15,6 @@ local tracked_entities = {}
 local settings_data = {}
 local is_tracked_type = {}
 local can_attempt_quality_change = {}
-local previous_qualities = {}
 local quality_limit = nil
 
 function core.initialize()
@@ -23,7 +22,6 @@ function core.initialize()
   settings_data = storage.config.settings_data
   is_tracked_type = storage.config.is_tracked_type
   can_attempt_quality_change = storage.config.can_attempt_quality_change
-  previous_qualities = storage.config.previous_qualities
   quality_limit = storage.config.quality_limit
 end
 
@@ -95,22 +93,13 @@ function core.get_entity_info(entity)
   end
 
   local id = entity.unit_number
-  local previous_quality = previous_qualities[entity.quality.name]
-  local can_increase = settings_data.quality_change_direction == "increase" and entity.quality.next ~= nil
-  local can_decrease = settings_data.quality_change_direction == "decrease" and previous_quality ~= nil
-  local can_change_quality = can_increase or can_decrease
+  local can_change_quality = entity.quality.next ~= nil
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
   local should_track = can_change_quality or (is_primary and settings_data.accumulate_at_max_quality)
   if not should_track then
-    if settings_data.quality_change_direction == "increase" then
-      return "at max quality"
-    elseif settings_data.quality_change_direction == "decrease" then
-      return "at min quality"
-    else
-      return "unable to change quality"
-    end
+    return "at max quality"
   end
 
   if not tracked_entities[id] then
@@ -212,7 +201,7 @@ function core.remove_entity_info(id)
   end
 end
 
-local function update_module_quality(replacement_entity, target_quality, settings_data)
+local function update_module_quality(replacement_entity, target_quality)
   local module_setting = settings.startup["change-modules-with-entity"].value
 
   if module_setting == "disabled" then
@@ -237,14 +226,10 @@ local function update_module_quality(replacement_entity, target_quality, setting
           new_module_quality = target_quality
         end
       elseif module_setting == "enabled" then
-        local is_increasing = settings_data.quality_change_direction == "increase"
-        local can_increase = is_increasing and current_module_quality.level < target_quality.level and current_module_quality.next
-        local can_decrease = not is_increasing and current_module_quality.level > target_quality.level
+        local can_increase = current_module_quality.level < target_quality.level and current_module_quality.next
 
         if can_increase then
           new_module_quality = current_module_quality.next
-        elseif can_decrease then
-          new_module_quality = previous_qualities[current_module_quality.name]
         end
       end
 
@@ -292,12 +277,7 @@ local function attempt_quality_change(entity)
   local entity_direction = entity.direction
   local entity_mirroring = entity.mirroring -- wether the entity is flipped on it's axis or not
 
-  local target_quality
-  if settings_data.quality_change_direction == "increase" then
-    target_quality = entity.quality.next
-  else -- decrease
-    target_quality = previous_qualities[entity.quality.name]
-  end
+  local target_quality = entity.quality.next
 
   -- Need to call script_raised_destroy before the replacement attempt
   script.raise_script_destroy{entity = entity}
@@ -319,8 +299,8 @@ local function attempt_quality_change(entity)
     end
 
     core.remove_entity_info(unit_number) -- may not be needed since we already did raise_script_destroy
-    update_module_quality(replacement_entity, target_quality, settings_data)
-    notifications.show_entity_quality_alert(replacement_entity, settings_data.quality_change_direction)
+    update_module_quality(replacement_entity, target_quality)
+    notifications.show_entity_quality_alert(replacement_entity)
     return replacement_entity
   else
     -- Unexpected failure after script_raised_destroy was called
@@ -464,7 +444,7 @@ function core.batch_process_entities()
   storage.batch_index = batch_index
 
   if next(quality_changes) then
-    notifications.show_quality_notifications(quality_changes, settings_data.quality_change_direction)
+    notifications.show_quality_notifications(quality_changes)
   end
 end
 

@@ -1,8 +1,5 @@
 This adds a chance for machines to upgrade in quality as they work. The harder they work, the more opportunities they get to change quality levels.
 
-If you feel extra spicy you can change the settings to degrade in quality instead.
-
-
 ## Gacha-style progression
 ---
 Individual machines roll for quality upgrades when they hit work milestones, similar to the chance-based progression of Factorio's quality system. By default there's a 1% chance per attempt, but you can adjust this up to 100% for guaranteed upgrades.

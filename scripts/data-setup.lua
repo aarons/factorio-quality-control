@@ -110,7 +110,6 @@ function data_setup.build_and_store_config()
   storage.config.can_attempt_quality_change = can_attempt_quality_change
 
   local settings_data = {}
-  settings_data.quality_change_direction = settings.startup["quality-change-direction"].value
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
@@ -128,23 +127,9 @@ function data_setup.build_and_store_config()
   end
   storage.config.settings_data = settings_data
 
-  local previous_qualities = {}
-  for name, prototype in pairs(prototypes.quality) do
-    if name ~= "quality-unknown" and prototype.next then
-      previous_qualities[prototype.next.name] = prototype
-    end
-  end
-  storage.config.previous_qualities = previous_qualities
-
-  local quality_limit
-  if settings_data.quality_change_direction == "increase" then
-    local current = prototypes.quality["normal"]
-    while current.next do
-      current = current.next
-    end
-    quality_limit = current
-  else
-    quality_limit = prototypes.quality["normal"]
+  local quality_limit = prototypes.quality["normal"]
+  while quality_limit.next do
+    quality_limit = quality_limit.next
   end
   storage.config.quality_limit = quality_limit
 end

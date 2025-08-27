@@ -1,12 +1,12 @@
 # Quality Control - Factorio Mod
 
-A Factorio mod that automatically changes machine quality based on how hard they are working. You choose whether they should upgrade, downgrade, or a mix of both.
+A Factorio mod that automatically upgrades machine quality based on how hard they are working.
 
 ## How It Works
 
-Quality Control will attempt to change the quality of machines based on how hard they are working. The mod tracks actual manufacturing hours by accounting for recipe duration, ensuring fair progression - an assembler making gears will advance at the same rate as one making science packs.
+Quality Control will attempt to upgrade machines based on how hard they are working. The mod tracks actual manufacturing hours by accounting for recipe duration, ensuring fair progression - an assembler making gears will advance at the same rate as one making science packs.
 
-The default configuration retains the gacha spirit of Factorio's quality mechanic; machines have a chance to change quality when the hours worked threshold is met; if the change fails then its quality will stay stable until the next threshold of hours worked is passed.
+The default configuration retains the gacha spirit of Factorio's quality mechanic; machines have a chance to upgrade when the hours worked threshold is met; if the upgrade fails then its quality will stay stable until the next threshold of hours worked is passed.
 
 The mod is highly configurable so that it's impact on gameplay can be tuned to your liking.
 
@@ -19,10 +19,11 @@ The mod tracks two categories of entities with different quality management appr
 **Primary Entities** (scripts/data-setup.lua):
 - Assembling machines, furnaces, and rocket silos
 - Track exact manufacturing hours based on items produced × recipe duration
-- Quality changes are deterministic based on accumulated work time
-- Each machine independently tracks its progress toward the next quality change
+- Quality upgrade attempts are based on accumulated work time
+- Each machine independently tracks its progress toward the next attempt
 
 **Secondary Entities** (scripts/data-setup.lua):
+- Entities that don't have a way to measure amount of work completed
 - Infrastructure: mining drills, labs, inserters, pumps, radar, roboports
 - Power: electric poles, solar panels, accumulators, generators, reactors
 - Defense: turrets, walls, gates
@@ -30,14 +31,6 @@ The mod tracks two categories of entities with different quality management appr
 - Space Age: lightning rods, asteroid collectors, thrusters, cargo landing pads
 
 Secondary entities use a credit-based system - when primary entities reach upgrade thresholds, they generate credits proportional to the ratio of secondary to primary entities. Secondary entities consume these credits for upgrade attempts. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
-
-### Direction of Changes
-
-Configure whether machines improve or degrade over time:
-- **Quality Increase**: Machines become more efficient with use, representing experience and optimization
-- **Quality Decrease**: Machines wear down and require replacement, adding a maintenance gameplay element
-
-The mod automatically handles quality boundaries - machines at legendary quality won't attempt upgrades, and normal quality machines won't attempt downgrades.
 
 ### Manufacturing Hours
 
@@ -56,7 +49,7 @@ The system tracks the delta between checks, allowing machines to accumulate mult
 
 ### Chance-Based Changes
 
-When a machine reaches the hour threshold, a quality change attempt occurs (scripts/core.lua):
+When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/core.lua):
 
 1. A random roll (0-100) is compared against the configured percentage chance
 2. If successful, the machine is replaced with the same type at the new quality level
@@ -69,7 +62,7 @@ This maintains Factorio's "gacha" spirit while providing predictable progression
 
 Optional system to ensure fairness over time (scripts/core.lua):
 
-After each failed quality change attempt, the chance increases by:
+After each failed quality upgrade attempt, the chance increases by:
 ```
 New Chance = Current Chance + (Base Chance × Accumulation Rate)
 ```
@@ -103,7 +96,7 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself changes quality - modules inside remain at their original quality level. However, there's an optional setting to automatically change modules when their host entity's quality changes (scripts/core.lua).
+By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/core.lua).
 
 The `change-modules-with-entity` setting has three options:
 
@@ -111,14 +104,12 @@ The `change-modules-with-entity` setting has three options:
 - Modules keep their original quality when entities change
 
 **Enabled**:
-- Modules move one quality tier in the same direction as the entity change
-    - When entities upgrade: modules below the new entity quality move up one tier
-    - When entities downgrade: modules above the new entity quality move down one tier
+- Modules below the new entity quality move up one tier when entities upgrade
 - Modules at or equal to the target entity quality remain unchanged
 
 **Extra Enabled**:
-- Modules are changed to match their host when their host's quality changes
-- Ensures modules stay at the same quality as their host machine after changes
+- Modules are upgraded to match their host when their host's quality upgrades
+- Ensures modules stay at the same quality as their host machine after upgrades
 
 
 ### In-Game Notifications
@@ -126,14 +117,14 @@ The `change-modules-with-entity` setting has three options:
 Two notification systems keep you informed (scripts/notifications.lua):
 
 **Entity-Specific Alerts**:
-- Map pings at the machine's location when quality changes
+- Map pings at the machine's location when quality upgrades
 - Shows entity icon with new quality level
 - Customizable per-player setting
 
 **Aggregate Console Messages**:
-- Summarizes all quality changes with a 5-minute cooldown to prevent spam
-- Accumulates changes across multiple processing cycles until cooldown expires
-- Example: "3 assembling-machines upgraded, 1 furnace downgraded"
+- Summarizes all quality upgrades with a 5-minute cooldown to prevent spam
+- Accumulates upgrades across multiple processing cycles until cooldown expires
+- Example: "3 assembling-machines upgraded, 2 inserters upgraded"
 - Prevents console flooding while maintaining useful feedback
 
 Both can be independently enabled/disabled in runtime settings.
@@ -163,7 +154,6 @@ The mod also automatically reinitializes if it detects corruption in the trackin
 
 All settings are configurable at game startup:
 
-- **Quality Change Direction**: Increase or decrease quality over time
 - **Manufacturing Hours for Change**: Base hours required before a quality change (0.001 - 1000 hours)
 - **Percentage Chance**: Likelihood of quality change when hours are met (0.0001% - 100%)
 - **Cost Increases per Quality Level**: Compounds the hour requirement at higher quality levels
@@ -173,7 +163,7 @@ All settings are configurable at game startup:
 
 ## Performance
 
-A late game base doing 1,000 spm can have ~100,000 units. At the default rate of 10 units per tick, it would take about 3 minutes to check everything. If a unit has passed several thresholds between checks it's fine; no progress will be lost. All the attempted upgrades/downgrades it has earned will be applied at once. So a fast machine can be upgraded multiple times in a single pass.
+A late game base doing 1,000 spm can have ~100,000 units. At the default rate of 10 units per tick, it would take about 3 minutes to check everything. If a unit has passed several thresholds between checks it's fine; no progress will be lost. All the attempted upgrades it has earned will be applied at once. So a fast machine can be upgraded multiple times in a single pass.
 
 Some test results on an m2 mac:
 
@@ -192,7 +182,7 @@ Some test results on an m2 mac:
 
 This may be interesting to only a few, but here is how the upgrade system works.
 
-The mod tracks two types of entities: primary entities (assemblers, furnaces, rocket silos) that have a way to measure their manufacturing time, and secondary entities (like inserters, power poles, etc.) that don't have a way to track work. The goal is to keep secondary entities upgrading at about the same rate, so that if all assemblers worked their way up to legendary then other entities would also be achieving legendary at about the same time.
+The mod tracks two types of entities: primary entities (assemblers, furnaces, rocket silos) that have a way to measure their manufacturing time, and secondary entities (like inserters, power poles, etc.) that don't have a way to track work. The goal is to keep secondary entities upgrading at about the same rate, so that if all assemblers work their way up to legendary then other entities will also achieve legendary at about the same time.
 
 When a primary entity earns an upgrade we generate a credit for secondary entities to use. There are usually more secondaries than primaries, so that credit is multiplied by a ratio of secondaries to primaries. Credits then accumulate in a global pool that each secondary has an equal chance to pull from in a round-robin process.
 
