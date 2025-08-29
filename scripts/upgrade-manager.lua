@@ -1,21 +1,23 @@
 --[[
-quality-processor.lua
+upgrade-manager.lua
 
-Handles quality change attempts, dice rolls, and module quality updates.
-Contains the core logic for attempting quality upgrades on entities.
+Handles both the credit system and quality upgrade processing.
+Combines credit generation/consumption with actual quality upgrade attempts.
 ]]
 
 local notifications = require("scripts.notifications")
-local quality_processor = {}
+local upgrade_manager = {}
 
 local tracked_entities = {}
 local settings_data = {}
 local quality_limit = nil
+local can_attempt_quality_change = {}
 
-function quality_processor.initialize()
+function upgrade_manager.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
   quality_limit = storage.config.quality_limit
+  can_attempt_quality_change = storage.config.can_attempt_quality_change
 end
 
 local function update_module_quality(replacement_entity, target_quality)
@@ -59,7 +61,6 @@ local function update_module_quality(replacement_entity, target_quality)
 end
 
 local function attempt_quality_change(entity, entity_tracker)
-  -- not sure how we can get here with an invalid entity
   if not entity.valid then
     log("Quality Control - attempt quality change called with invalid entity")
     return nil
@@ -69,22 +70,19 @@ local function attempt_quality_change(entity, entity_tracker)
 
   if not entity_info then
     log("Quality Control - attempt quality change skipped since no entity info was available")
-    return nil  -- entity not tracked, invalid state
+    return nil
   end
 
   local random_roll = math.random()
   entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
-    -- roll failed; improve it's chance for next time and return
     if settings_data.accumulation_percentage > 0 then
       entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
     end
     return false
   end
 
-  -- Save all entity properties before script.raise_script_destroy
-  -- After the fast replace the entity is no longer available
   local unit_number = entity.unit_number
   local entity_type = entity.type
   local entity_name = entity.name
@@ -92,11 +90,10 @@ local function attempt_quality_change(entity, entity_tracker)
   local entity_position = entity.position
   local entity_force = entity.force
   local entity_direction = entity.direction
-  local entity_mirroring = entity.mirroring -- wether the entity is flipped on it's axis or not
+  local entity_mirroring = entity.mirroring
 
   local target_quality = entity.quality.next
 
-  -- Need to call script_raised_destroy before the replacement attempt
   script.raise_script_destroy{entity = entity}
 
   local replacement_entity = entity_surface.create_entity {
@@ -115,12 +112,11 @@ local function attempt_quality_change(entity, entity_tracker)
       replacement_entity.mirroring = entity_mirroring
     end
 
-    entity_tracker.remove_entity_info(unit_number) -- may not be needed since we already did raise_script_destroy
+    entity_tracker.remove_entity_info(unit_number)
     update_module_quality(replacement_entity, target_quality)
     notifications.show_entity_quality_alert(replacement_entity)
     return replacement_entity
   else
-    -- Unexpected failure after script_raised_destroy was called
     log("Quality Control - Unexpected Problem: Entity replacement failed")
     log("  - Entity unit_number: " .. unit_number)
     log("  - Entity type: " .. entity_type)
@@ -130,12 +126,12 @@ local function attempt_quality_change(entity, entity_tracker)
     if history then
       log("  - From mod: " .. history.created)
     end
-    entity_tracker.remove_entity_info(unit_number) -- don't try to replace again
-    return nil  -- signal to caller not to try again
+    entity_tracker.remove_entity_info(unit_number)
+    return nil
   end
 end
 
-function quality_processor.process_quality_attempts(entity, attempts_count, quality_changes, entity_tracker)
+function upgrade_manager.process_quality_attempts(entity, attempts_count, quality_changes, entity_tracker)
   local successful_changes = 0
   local current_entity = entity
 
@@ -143,7 +139,6 @@ function quality_processor.process_quality_attempts(entity, attempts_count, qual
     local change_result = attempt_quality_change(current_entity, entity_tracker)
 
     if change_result == nil then
-      -- entity is invalid, stop all attempts
       break
     end
 
@@ -151,7 +146,6 @@ function quality_processor.process_quality_attempts(entity, attempts_count, qual
       successful_changes = successful_changes + 1
       current_entity = change_result
       quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-      -- check if we've hit max quality and stop attempts if so
       if current_entity.quality == quality_limit then
         break
       end
@@ -161,4 +155,66 @@ function quality_processor.process_quality_attempts(entity, attempts_count, qual
   return successful_changes
 end
 
-return quality_processor
+function upgrade_manager.process_primary_entity(entity_info, entity)
+  local recipe_time = 0
+  if entity.get_recipe() then
+    recipe_time = entity.get_recipe().prototype.energy
+  elseif entity.type == "furnace" and entity.previous_recipe then
+    recipe_time = entity.previous_recipe.name.energy
+  end
+
+  local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+  local current_hours = (entity.products_finished * recipe_time) / 3600
+  local previous_hours = entity_info.manufacturing_hours or 0
+  local available_hours = current_hours - previous_hours
+  local thresholds_passed = math.floor(available_hours / hours_needed)
+
+  if thresholds_passed > 0 then
+    local secondary_count = storage.secondary_entity_count
+    if secondary_count > 0 then
+      local primary_count = storage.primary_entity_count
+      local credit_ratio = secondary_count / math.max(primary_count, 1)
+      local credits_added = thresholds_passed * credit_ratio
+      storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
+    end
+
+    return {
+      thresholds_passed = thresholds_passed,
+      current_hours = current_hours,
+      should_attempt_quality_change = can_attempt_quality_change[entity.type] and entity_info.can_change_quality
+    }
+  end
+
+  return nil
+end
+
+function upgrade_manager.process_secondary_entity()
+  local accumulated_attempts = storage.accumulated_upgrade_attempts
+  local secondary_count = storage.secondary_entity_count
+
+  if accumulated_attempts > 0 and secondary_count > 0 then
+    local attempts_per_entity = accumulated_attempts / secondary_count
+    local guaranteed_attempts = math.floor(attempts_per_entity)
+    local fractional_chance = attempts_per_entity - guaranteed_attempts
+
+    local total_attempts = guaranteed_attempts
+    if fractional_chance > 0 and math.random() < fractional_chance then
+      total_attempts = total_attempts + 1
+    end
+
+    if total_attempts > 0 then
+      storage.accumulated_upgrade_attempts = math.max(0, accumulated_attempts - total_attempts)
+      return { total_attempts = total_attempts }
+    end
+  end
+
+  return nil
+end
+
+function upgrade_manager.update_manufacturing_hours(entity_info, current_hours)
+  if tracked_entities[entity_info.entity.unit_number] then
+    entity_info.manufacturing_hours = current_hours
+  end
+end
+
+return upgrade_manager

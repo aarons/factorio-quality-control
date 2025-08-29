@@ -7,9 +7,7 @@ Handles initialization, event registration, and orchestrates the modular compone
 
 local config = require("scripts.config")
 local entity_tracker = require("scripts.entity-tracker")
-local quality_processor = require("scripts.quality-processor")
-local credits = require("scripts.credits")
-local orchestrator = require("scripts.orchestrator")
+local upgrade_manager = require("scripts.upgrade-manager")
 local notifications = require("scripts.notifications")
 
 local function reinitialize_quality_control_storage(command)
@@ -23,9 +21,7 @@ local function reinitialize_quality_control_storage(command)
   config.setup_data_structures(true)
   config.build_and_store_config()
   entity_tracker.initialize()
-  quality_processor.initialize()
-  credits.initialize()
-  orchestrator.initialize()
+  upgrade_manager.initialize()
   entity_tracker.scan_and_populate_entities(storage.config.all_tracked_types)
 
   if command and command.player_index then
@@ -36,12 +32,74 @@ local function reinitialize_quality_control_storage(command)
   end
 end
 
+local function batch_process_entities()
+  local batch_size = settings.global["batch-entities-per-tick"].value
+  local entities_processed = 0
+  local quality_changes = {}
+
+  local batch_index = storage.batch_index
+  local entity_list = storage.entity_list
+  local tracked_entities = storage.quality_control_entities
+  local settings_data = storage.config.settings_data
+
+  while entities_processed < batch_size do
+    if batch_index > #entity_list then
+      batch_index = 1
+      break
+    end
+
+    local unit_number = entity_list[batch_index]
+    batch_index = batch_index + 1
+
+    local entity_info = tracked_entities[unit_number]
+    local should_stay_tracked = entity_info and entity_info.can_change_quality or
+      (entity_info and entity_info.is_primary and settings_data.accumulate_at_max_quality)
+
+    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
+      entity_tracker.remove_entity_info(unit_number)
+      goto continue
+    end
+
+    local entity = entity_info.entity
+
+    if entity.to_be_deconstructed() then
+      goto continue
+    end
+
+    if entity_info.is_primary then
+      local credit_result = upgrade_manager.process_primary_entity(entity_info, entity)
+      if credit_result then
+        local successful_changes = 0
+        if credit_result.should_attempt_quality_change then
+          successful_changes = upgrade_manager.process_quality_attempts(entity, credit_result.thresholds_passed, quality_changes, entity_tracker)
+        end
+
+        if successful_changes == 0 then
+          upgrade_manager.update_manufacturing_hours(entity_info, credit_result.current_hours)
+        end
+      end
+    else
+      local secondary_result = upgrade_manager.process_secondary_entity()
+      if secondary_result then
+        upgrade_manager.process_quality_attempts(entity, secondary_result.total_attempts, quality_changes, entity_tracker)
+      end
+    end
+
+    entities_processed = entities_processed + 1
+    ::continue::
+  end
+
+  storage.batch_index = batch_index
+
+  if next(quality_changes) then
+    notifications.show_quality_notifications(quality_changes)
+  end
+end
+
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
   local tick_interval = storage.ticks_between_batches
-  script.on_nth_tick(tick_interval, function()
-    orchestrator.batch_process_entities(entity_tracker, credits, quality_processor)
-  end)
+  script.on_nth_tick(tick_interval, batch_process_entities)
 end
 
 local function register_event_handlers()
@@ -86,9 +144,7 @@ script.on_init(function()
   config.setup_data_structures()
   config.build_and_store_config()
   entity_tracker.initialize()
-  quality_processor.initialize()
-  credits.initialize()
-  orchestrator.initialize()
+  upgrade_manager.initialize()
   entity_tracker.scan_and_populate_entities(storage.config.all_tracked_types)
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()
@@ -116,9 +172,7 @@ end)
 -- storage is persisted between loaded games, but local variables that hook into storage need to be setup here
 script.on_load(function()
   entity_tracker.initialize()
-  quality_processor.initialize()
-  credits.initialize()
-  orchestrator.initialize()
+  upgrade_manager.initialize()
   register_event_handlers()
   register_main_loop()
 end)

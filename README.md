@@ -49,7 +49,7 @@ The system tracks the delta between checks, allowing machines to accumulate mult
 
 ### Chance-Based Changes
 
-When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/quality-processor.lua):
+When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/upgrade-manager.lua):
 
 1. A random roll (0-100) is compared against the configured percentage chance
 2. If successful, the machine is replaced with the same type at the new quality level
@@ -60,7 +60,7 @@ This maintains Factorio's "gacha" spirit while providing predictable progression
 
 ### Chance Accumulation
 
-Optional system to ensure fairness over time (scripts/quality-processor.lua):
+Optional system to ensure fairness over time (scripts/upgrade-manager.lua):
 
 After each failed quality upgrade attempt, the chance increases by:
 ```
@@ -80,7 +80,7 @@ Example with 10% base chance and Medium accumulation:
 
 ### Cost Scaling
 
-Higher quality levels require more manufacturing hours (scripts/quality-processor.lua):
+Higher quality levels require more manufacturing hours (scripts/upgrade-manager.lua):
 
 ```
 Required Hours = Base Hours × (1 + Cost Scaling Factor)^Quality Level
@@ -96,7 +96,7 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/quality-processor.lua).
+By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/upgrade-manager.lua).
 
 The `change-modules-with-entity` setting has three options:
 
@@ -131,7 +131,7 @@ Both can be independently enabled/disabled in runtime settings.
 
 ### Inspection Tools
 
-**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/quality-processor.lua):
+**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/upgrade-manager.lua):
 Select any tracked entity and press the hotkey to see:
 - Current quality level and entity name
 - Total quality change attempts
@@ -247,10 +247,8 @@ quality-control/
 ├── info.json            # Mod metadata and dependencies
 ├── scripts/             # Core mod logic (modular architecture)
 │   ├── config.lua           # Data structure initialization and configuration
-│   ├── orchestrator.lua     # Batch processing coordination and main loop
 │   ├── entity-tracker.lua   # Entity tracking and management
-│   ├── credits.lua         # Credit pool for secondary entity upgrades
-│   ├── quality-processor.lua # Quality upgrade attempts and entity replacement
+│   ├── upgrade-manager.lua  # Quality upgrade attempts and entity replacement
 │   └── notifications.lua    # Notification and UI systems
 ├── locale/
 │   └── en/

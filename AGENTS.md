@@ -20,12 +20,15 @@ Factorio's API and best practices are available via answer-agent.
 - `control.lua` - main entry point and event handlers, coordinates all modules
 
 ### Core Modules
-- `config.lua` - handles initialization of data structures
-- `orchestrator.lua` - manages batch processing loop and coordinates between modules
+- `config.lua` - handles initialization of data structures, settings mapping, and configuration
 - `entity-tracker.lua` - tracking for entities that will be managed
-- `credits.lua` - manages the credit pool for upgrade distribution
-- `quality-processor.lua` - handles upgrade attempts and entity replacement
+- `upgrade-manager.lua` - handles upgrade attempts and entity replacement
 - `notifications.lua` - manages notifications and alerts
+
+### Development & Testing
+- `validate.sh` - runs all validations and tests
+- `package.sh` - packages the mod for distribution
+- `migrations/` - database migration scripts for version updates
 
 ## Core Functionality
 
@@ -40,7 +43,7 @@ The mod distinguishes between two entity categories:
 
 Primary Entities (assemblers, furnaces) which have a way to track exact manufacturing hours, and secondary entities which have no way to measure work (power poles, inserters, etc.)
 
-Primary entities generate upgrdae credits that are used by themselves and secondary entities. Secondary entities consume these in a round-robin process. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
+Primary entities generate upgrade credits that are used by themselves and secondary entities. Secondary entities consume these in a round-robin process. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
 
 ## Mod Exclusion Logic
 
