@@ -6,6 +6,7 @@ Combines credit generation/consumption with actual quality upgrade attempts.
 ]]
 
 local notifications = require("scripts.notifications")
+local network_cache = require("scripts.network-cache")
 local upgrade_manager = {}
 
 local tracked_entities = {}
@@ -18,6 +19,7 @@ function upgrade_manager.initialize()
   settings_data = storage.config.settings_data
   quality_limit = storage.config.quality_limit
   can_attempt_quality_change = storage.config.can_attempt_quality_change
+  network_cache.initialize()
 end
 
 local function update_module_quality(replacement_entity, target_quality)
@@ -152,13 +154,10 @@ local function attempt_quality_change_uncommon(entity, _)
     return nil
   end
 
-  local target_quality = entity.quality.next
-  local available = network.get_item_count({
-    name = entity.name,
-    quality = target_quality
-  })
+  -- Use network cache to find the best available quality upgrade
+  local target_quality = network_cache.find_available_upgrade(network, entity.name, entity.quality)
 
-  if available > 0 then
+  if target_quality then
     local random_roll = math.random()
     entity_info.attempts_to_change = entity_info.attempts_to_change + 1
 
@@ -169,13 +168,16 @@ local function attempt_quality_change_uncommon(entity, _)
       return false
     end
 
+    -- Track the pending order to maintain accurate cache
+    network_cache.track_pending_order(network, entity, target_quality, entity.quality)
+
     local success = entity.order_upgrade({
       target = {name = entity.name, quality = target_quality},
       force = entity.force
     })
 
     if success then
-      -- Handle module upgrades if enabled
+      -- Handle module upgrades if enabled (also using cache for efficiency)
       local module_setting = settings.startup["change-modules-with-entity"].value
       if module_setting ~= "disabled" then
         local module_inventory = entity.get_module_inventory()
@@ -185,18 +187,43 @@ local function attempt_quality_change_uncommon(entity, _)
             if stack.valid_for_read and stack.is_module then
               local module_name = stack.name
               local current_module_quality = stack.quality
-              local next_module_quality = current_module_quality.next
 
-              if next_module_quality then
-                local module_available = network.get_item_count({
-                  name = module_name,
-                  quality = next_module_quality
-                })
-
-                if module_available > 0 then
-                  stack.clear()
-                  module_inventory.insert({name = module_name, count = 1, quality = next_module_quality.name})
+              local module_target_quality = nil
+              if module_setting == "extra-enabled" then
+                -- Upgrade module to same quality as entity
+                module_target_quality = network_cache.find_available_upgrade(network, module_name, current_module_quality)
+                -- Try to find the exact target quality if available
+                local cache_entry = network_cache.get_network_cache(network)
+                if cache_entry and cache_entry.item_quality_map[module_name] then
+                  local target_level_count = cache_entry.item_quality_map[module_name][target_quality.level] or 0
+                  local pending_key = module_name .. "#" .. target_quality.level
+                  local pending_count = cache_entry.pending_orders[pending_key] or 0
+                  if target_level_count - pending_count > 0 then
+                    module_target_quality = target_quality
+                  end
                 end
+              elseif module_setting == "enabled" then
+                -- Only upgrade to next quality level
+                local next_module_quality = current_module_quality.next
+                if next_module_quality then
+                  local cache_entry = network_cache.get_network_cache(network)
+                  if cache_entry and cache_entry.item_quality_map[module_name] then
+                    local next_level_count = cache_entry.item_quality_map[module_name][next_module_quality.level] or 0
+                    local pending_key = module_name .. "#" .. next_module_quality.level
+                    local pending_count = cache_entry.pending_orders[pending_key] or 0
+                    if next_level_count - pending_count > 0 then
+                      module_target_quality = next_module_quality
+                    end
+                  end
+                end
+              end
+
+              if module_target_quality then
+                -- Create a temporary entity-like object for tracking module orders
+                local module_entity = {name = module_name, unit_number = entity.unit_number * 1000 + i}
+                network_cache.track_pending_order(network, module_entity, module_target_quality, current_module_quality)
+                stack.clear()
+                module_inventory.insert({name = module_name, count = 1, quality = module_target_quality.name})
               end
             end
           end

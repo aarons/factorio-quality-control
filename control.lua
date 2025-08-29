@@ -9,6 +9,7 @@ local config = require("scripts.config")
 local entity_tracker = require("scripts.entity-tracker")
 local upgrade_manager = require("scripts.upgrade-manager")
 local notifications = require("scripts.notifications")
+local network_cache = require("scripts.network-cache")
 
 local function reinitialize_quality_control_storage(command)
   if command and command.player_index then
@@ -45,6 +46,8 @@ local function batch_process_entities()
   while entities_processed < batch_size do
     if batch_index > #entity_list then
       batch_index = 1
+      -- Clean up orphaned network caches after completing a full cycle
+      network_cache.cleanup_invalid_networks()
       break
     end
 
@@ -109,7 +112,29 @@ end
 local function register_event_handlers()
   -- Entity creation events (with player force filter where supported)
   script.on_event(defines.events.on_built_entity, entity_tracker.on_entity_created, {{filter = "force", force = "player"}})
-  script.on_event(defines.events.on_robot_built_entity, entity_tracker.on_entity_created, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.on_robot_built_entity, function(event)
+    local entity = event.entity
+    if entity.valid and storage.config.is_tracked_type[entity.type] and entity.force == game.forces.player then
+      -- Check if this might be an upgrade completion by looking for old entity unit number
+      -- We check all pending upgrades to see if any have the same name/position
+      local old_unit_number = nil
+      for unit_number, upgrade_info in pairs(storage.pending_upgrades or {}) do
+        if upgrade_info.entity_name == entity.name then
+          -- This could be our upgrade - we'll use the first match
+          -- In practice, upgrades happen quickly so this should be accurate
+          old_unit_number = unit_number
+          break
+        end
+      end
+
+      if old_unit_number then
+        network_cache.on_upgrade_completed(old_unit_number, entity)
+      end
+
+      -- Always track the new entity
+      entity_tracker.get_entity_info(entity)
+    end
+  end, {{filter = "force", force = "player"}})
   script.on_event(defines.events.on_space_platform_built_entity, entity_tracker.on_entity_created, {{filter = "force", force = "player"}})
   script.on_event(defines.events.script_raised_built, entity_tracker.on_entity_created)
   script.on_event(defines.events.script_raised_revive, entity_tracker.on_entity_created)
@@ -121,6 +146,11 @@ local function register_event_handlers()
   script.on_event(defines.events.on_space_platform_mined_entity, entity_tracker.on_entity_destroyed)
   script.on_event(defines.events.on_entity_died, entity_tracker.on_entity_destroyed, {{filter = "force", force = "player"}})
   script.on_event(defines.events.script_raised_destroy, entity_tracker.on_entity_destroyed)
+
+  -- Upgrade tracking events
+  script.on_event(defines.events.on_cancelled_upgrade, function(event)
+    network_cache.on_upgrade_cancelled(event.entity)
+  end)
 
   -- Quality control inspect shortcut
   script.on_event("quality-control-inspect-entity", function(event)
