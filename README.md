@@ -16,13 +16,13 @@ The mod is highly configurable so that it's impact on gameplay can be tuned to y
 
 The mod tracks two categories of entities with different quality management approaches:
 
-**Primary Entities** (scripts/data-setup.lua):
+**Primary Entities** (scripts/config.lua):
 - Assembling machines, furnaces, and rocket silos
 - Track exact manufacturing hours based on items produced × recipe duration
 - Quality upgrade attempts are based on accumulated work time
 - Each machine independently tracks its progress toward the next attempt
 
-**Secondary Entities** (scripts/data-setup.lua):
+**Secondary Entities** (scripts/config.lua):
 - Entities that don't have a way to measure amount of work completed
 - Infrastructure: mining drills, labs, inserters, pumps, radar, roboports
 - Power: electric poles, solar panels, accumulators, generators, reactors
@@ -34,7 +34,7 @@ Secondary entities use a credit-based system - when primary entities reach upgra
 
 ### Manufacturing Hours
 
-The core metric for quality progression (scripts/core.lua):
+The core metric for quality progression:
 
 ```
 Manufacturing Hours = (Items Produced × Recipe Duration) / 3600
@@ -49,7 +49,7 @@ The system tracks the delta between checks, allowing machines to accumulate mult
 
 ### Chance-Based Changes
 
-When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/core.lua):
+When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/quality-processor.lua):
 
 1. A random roll (0-100) is compared against the configured percentage chance
 2. If successful, the machine is replaced with the same type at the new quality level
@@ -60,7 +60,7 @@ This maintains Factorio's "gacha" spirit while providing predictable progression
 
 ### Chance Accumulation
 
-Optional system to ensure fairness over time (scripts/core.lua):
+Optional system to ensure fairness over time (scripts/quality-processor.lua):
 
 After each failed quality upgrade attempt, the chance increases by:
 ```
@@ -80,7 +80,7 @@ Example with 10% base chance and Medium accumulation:
 
 ### Cost Scaling
 
-Higher quality levels require more manufacturing hours (scripts/core.lua):
+Higher quality levels require more manufacturing hours (scripts/quality-processor.lua):
 
 ```
 Required Hours = Base Hours × (1 + Cost Scaling Factor)^Quality Level
@@ -96,7 +96,7 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/core.lua).
+By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/quality-processor.lua).
 
 The `change-modules-with-entity` setting has three options:
 
@@ -114,7 +114,7 @@ The `change-modules-with-entity` setting has three options:
 
 ### In-Game Notifications
 
-Two notification systems keep you informed (scripts/notifications.lua):
+Two notification systems keep you informed:
 
 **Entity-Specific Alerts**:
 - Map pings at the machine's location when quality upgrades
@@ -131,7 +131,7 @@ Both can be independently enabled/disabled in runtime settings.
 
 ### Inspection Tools
 
-**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/core.lua):
+**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/quality-processor.lua):
 Select any tracked entity and press the hotkey to see:
 - Current quality level and entity name
 - Total quality change attempts
@@ -232,10 +232,10 @@ Copy the generated zip file to the factorio mods folder to test any changes.
 
 ### Development Tips
 
+0. Run `./validate.sh` to ensure there are no Lua issues
 1. After making changes, run `./package.sh` to build and deploy
 2. Restart Factorio to load the updated mod
-3. Enable debug mode in `scripts/core.lua` (set `debug_enabled = true`) for detailed logging to factorio-current.log
-4. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
+3. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
 
 ### Project Structure
 
@@ -246,9 +246,12 @@ quality-control/
 ├── settings.lua         # Mod settings definitions
 ├── info.json            # Mod metadata and dependencies
 ├── scripts/             # Core mod logic (modular architecture)
-│   ├── core.lua         # Quality control processing and entity tracking
-│   ├── data-setup.lua   # Data structure initialization and configuration
-│   └── notifications.lua # Notification and UI systems
+│   ├── config.lua           # Data structure initialization and configuration
+│   ├── orchestrator.lua     # Batch processing coordination and main loop
+│   ├── entity-tracker.lua   # Entity tracking and management
+│   ├── credits.lua         # Credit pool for secondary entity upgrades
+│   ├── quality-processor.lua # Quality upgrade attempts and entity replacement
+│   └── notifications.lua    # Notification and UI systems
 ├── locale/
 │   └── en/
 │       └── locale.cfg  # English localization strings

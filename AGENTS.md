@@ -10,16 +10,21 @@ Factorio's API and best practices are available via answer-agent.
 
 ## Repository Structure
 
-- `control.lua` - main entry point and event handlers
-- `settings.lua` - cofigurable options available to the end user
-- `data.lua` - custom input prototypes (keyboard shortcuts bound to mod functions)
+### Configuration & Metadata
 - `info.json` - metadata including name, version, dependencies, and version requirements
+- `settings.lua` - configurable options available to the end user
+- `data.lua` - custom input prototypes (keyboard shortcuts bound to mod functions)
 - `locale/en/locale.cfg` - localization strings
+
+### Main Entry Point
+- `control.lua` - main entry point and event handlers, coordinates all modules
+
+### Core Modules
+- `config.lua` - handles initialization of data structures
 - `orchestrator.lua` - manages batch processing loop and coordinates between modules
-- `entity-tracker.lua` - Tracking for entities that will be managed
+- `entity-tracker.lua` - tracking for entities that will be managed
 - `credits.lua` - manages the credit pool for upgrade distribution
 - `quality-processor.lua` - handles upgrade attempts and entity replacement
-- `config.lua` - handles initialization of data structures
 - `notifications.lua` - manages notifications and alerts
 
 ## Core Functionality
