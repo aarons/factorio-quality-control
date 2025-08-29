@@ -60,7 +60,7 @@ local function update_module_quality(replacement_entity, target_quality)
   end
 end
 
-local function attempt_quality_change(entity, entity_tracker)
+local function attempt_quality_change_normal(entity, entity_tracker)
   if not entity.valid then
     log("Quality Control - attempt quality change called with invalid entity")
     return nil
@@ -128,6 +128,96 @@ local function attempt_quality_change(entity, entity_tracker)
     end
     entity_tracker.remove_entity_info(unit_number)
     return nil
+  end
+end
+
+local function attempt_quality_change_uncommon(entity, _)
+  if not entity.valid then
+    log("Quality Control - attempt quality change called with invalid entity")
+    return nil
+  end
+
+  if entity.to_be_upgraded() then
+    return false
+  end
+
+  local network = entity.logistic_network
+  if not network then
+    return false
+  end
+
+  local entity_info = tracked_entities[entity.unit_number]
+  if not entity_info then
+    log("Quality Control - attempt quality change skipped since no entity info was available")
+    return nil
+  end
+
+  local target_quality = entity.quality.next
+  local available = network.get_item_count({
+    name = entity.name,
+    quality = target_quality
+  })
+
+  if available > 0 then
+    local random_roll = math.random()
+    entity_info.attempts_to_change = entity_info.attempts_to_change + 1
+
+    if random_roll >= (entity_info.chance_to_change / 100) then
+      if settings_data.accumulation_percentage > 0 then
+        entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+      end
+      return false
+    end
+
+    local success = entity.order_upgrade({
+      target = {name = entity.name, quality = target_quality},
+      force = entity.force
+    })
+
+    if success then
+      -- Handle module upgrades if enabled
+      local module_setting = settings.startup["change-modules-with-entity"].value
+      if module_setting ~= "disabled" then
+        local module_inventory = entity.get_module_inventory()
+        if module_inventory then
+          for i = 1, #module_inventory do
+            local stack = module_inventory[i]
+            if stack.valid_for_read and stack.is_module then
+              local module_name = stack.name
+              local current_module_quality = stack.quality
+              local next_module_quality = current_module_quality.next
+
+              if next_module_quality then
+                local module_available = network.get_item_count({
+                  name = module_name,
+                  quality = next_module_quality
+                })
+
+                if module_available > 0 then
+                  stack.clear()
+                  module_inventory.insert({name = module_name, count = 1, quality = next_module_quality.name})
+                end
+              end
+            end
+          end
+        end
+      end
+
+      notifications.show_entity_quality_alert(entity)
+    end
+
+    return success
+  end
+
+  return false
+end
+
+local function attempt_quality_change(entity, entity_tracker)
+  local difficulty = storage.config.mod_difficulty
+  if difficulty == "Uncommon" then
+    return attempt_quality_change_uncommon(entity, entity_tracker)
+  else
+    return attempt_quality_change_normal(entity, entity_tracker)
   end
 end
 

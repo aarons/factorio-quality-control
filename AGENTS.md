@@ -20,10 +20,10 @@ Factorio's API and best practices are available via answer-agent.
 - `control.lua` - main entry point and event handlers, coordinates all modules
 
 ### Core Modules
-- `config.lua` - handles initialization of data structures, settings mapping, and configuration
-- `entity-tracker.lua` - tracking for entities that will be managed
-- `upgrade-manager.lua` - handles upgrade attempts and entity replacement
-- `notifications.lua` - manages notifications and alerts
+- `scripts/config.lua` - handles initialization of data structures, settings mapping, and configuration
+- `scripts/entity-tracker.lua` - tracking for entities that will be managed
+- `scripts/upgrade-manager.lua` - handles upgrade attempts and entity replacement
+- `scripts/notifications.lua` - manages notifications and alerts
 
 ### Development & Testing
 - `validate.sh` - runs all validations and tests

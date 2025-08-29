@@ -115,6 +115,8 @@ function data_setup.build_and_store_config()
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
 
+  storage.config.mod_difficulty = settings.startup["mod-difficulty"].value
+
   local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
   settings_data.accumulation_percentage = 0
 

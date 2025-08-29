@@ -66,6 +66,10 @@ local function batch_process_entities()
       goto continue
     end
 
+    if entity.to_be_upgraded() then
+      goto continue
+    end
+
     if entity_info.is_primary then
       local credit_result = upgrade_manager.process_primary_entity(entity_info, entity)
       if credit_result then
