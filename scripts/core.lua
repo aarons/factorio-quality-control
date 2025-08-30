@@ -460,17 +460,20 @@ function core.process_secondary_entity()
 
   if accumulated_credits > 0 and secondary_count > 0 then
     local credits_per_entity = accumulated_credits / secondary_count
-    local guaranteed_attempts = math.floor(credits_per_entity)
-    local fractional_chance = credits_per_entity - guaranteed_attempts
+    local credits_earned = math.floor(credits_per_entity)
+    local fractional_chance = credits_per_entity - credits_earned
 
-    local total_attempts = guaranteed_attempts
     if fractional_chance > 0 and math.random() < fractional_chance then
-      total_attempts = total_attempts + 1
+      credits_earned = credits_earned + 1
     end
 
-    if total_attempts > 0 then
-      storage.accumulated_credits = math.max(0, accumulated_credits - total_attempts)
-      return { total_attempts = total_attempts }
+    if credits_earned > 0 then
+      storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
+      return {
+        credits_earned = credits_earned,
+        current_hours = nil,
+        should_attempt_quality_change = true
+      }
     end
   end
 
@@ -493,7 +496,7 @@ function core.batch_process_entities()
   local batch_index = storage.batch_index
   local entity_list = storage.entity_list
   local tracked_entities_ref = storage.quality_control_entities
-  local settings_data_ref = storage.config.settings_data
+  local settings = storage.config.settings_data
 
   while entities_processed < batch_size do
     if batch_index > #entity_list then
@@ -506,8 +509,10 @@ function core.batch_process_entities()
     batch_index = batch_index + 1
 
     local entity_info = tracked_entities_ref[unit_number]
+    -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
+    -- or if the entity can change quality still
     local should_stay_tracked = entity_info and entity_info.can_change_quality or
-      (entity_info and entity_info.is_primary and settings_data_ref.accumulate_at_max_quality)
+      (entity_info and entity_info.is_primary and settings.accumulate_at_max_quality)
 
     if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)
@@ -524,22 +529,17 @@ function core.batch_process_entities()
       goto continue
     end
 
+    local result
     if entity_info.is_primary then
-      local credit_result = core.process_primary_entity(entity_info, entity)
-      if credit_result then
-        local successful_changes = 0
-        if credit_result.should_attempt_quality_change then
-          successful_changes = core.process_upgrade_attempts(entity, credit_result.credits_earned, quality_changes)
-        end
-
-        if successful_changes == 0 then
-          core.update_manufacturing_hours(entity_info, credit_result.current_hours)
-        end
-      end
+      result = core.process_primary_entity(entity_info, entity)
     else
-      local secondary_result = core.process_secondary_entity()
-      if secondary_result then
-        core.process_upgrade_attempts(entity, secondary_result.total_attempts, quality_changes)
+      result = core.process_secondary_entity()
+    end
+
+    if result and result.should_attempt_quality_change then
+      local change_count = core.process_upgrade_attempts(entity, result.credits_earned, quality_changes)
+      if change_count == 0 and entity_info.is_primary then
+        core.update_manufacturing_hours(entity_info, result.current_hours)
       end
     end
 
