@@ -16,13 +16,13 @@ The mod is highly configurable so that it's impact on gameplay can be tuned to y
 
 The mod tracks two categories of entities with different quality management approaches:
 
-**Primary Entities** (scripts/config.lua):
+**Primary Entities** (control.lua):
 - Assembling machines, furnaces, and rocket silos
 - Track exact manufacturing hours based on items produced × recipe duration
 - Quality upgrade attempts are based on accumulated work time
 - Each machine independently tracks its progress toward the next attempt
 
-**Secondary Entities** (scripts/config.lua):
+**Secondary Entities** (control.lua):
 - Entities that don't have a way to measure amount of work completed
 - Infrastructure: mining drills, labs, inserters, pumps, radar, roboports
 - Power: electric poles, solar panels, accumulators, generators, reactors
@@ -49,7 +49,7 @@ The system tracks the delta between checks, allowing machines to accumulate mult
 
 ### Chance-Based Changes
 
-When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/upgrade-manager.lua):
+When a machine reaches the hours worked threshold, an upgrade attempt occurs (scripts/core.lua):
 
 1. A random roll (0-100) is compared against the configured percentage chance
 2. If successful, the machine is replaced with the same type at the new quality level
@@ -60,7 +60,7 @@ This maintains Factorio's "gacha" spirit while providing predictable progression
 
 ### Chance Accumulation
 
-Optional system to ensure fairness over time (scripts/upgrade-manager.lua):
+Optional system to ensure fairness over time (scripts/core.lua):
 
 After each failed quality upgrade attempt, the chance increases by:
 ```
@@ -80,7 +80,7 @@ Example with 10% base chance and Medium accumulation:
 
 ### Cost Scaling
 
-Higher quality levels require more manufacturing hours (scripts/upgrade-manager.lua):
+Higher quality levels require more manufacturing hours (scripts/core.lua):
 
 ```
 Required Hours = Base Hours × (1 + Cost Scaling Factor)^Quality Level
@@ -96,7 +96,7 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/upgrade-manager.lua).
+By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/core.lua).
 
 The `change-modules-with-entity` setting has three options:
 
@@ -131,7 +131,7 @@ Both can be independently enabled/disabled in runtime settings.
 
 ### Inspection Tools
 
-**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/upgrade-manager.lua):
+**Hotkey Inspection** (Ctrl+Shift+Q) (scripts/core.lua):
 Select any tracked entity and press the hotkey to see:
 - Current quality level and entity name
 - Total quality change attempts
@@ -241,18 +241,18 @@ Copy the generated zip file to the factorio mods folder to test any changes.
 
 ```
 quality-control/
-├── control.lua          # Main entry point and event handlers
+├── control.lua          # Main entry point, event handlers, and configuration
 ├── data.lua             # Data stage definitions and prototypes
 ├── settings.lua         # Mod settings definitions
 ├── info.json            # Mod metadata and dependencies
 ├── scripts/             # Core mod logic (modular architecture)
-│   ├── config.lua           # Data structure initialization and configuration
-│   ├── entity-tracker.lua   # Entity tracking and management
-│   ├── upgrade-manager.lua  # Quality upgrade attempts and entity replacement
-│   └── notifications.lua    # Notification and UI systems
+│   ├── core.lua             # Entity tracking, quality upgrade management, and batch processing
+│   ├── notifications.lua    # Notification and UI systems
+│   └── inventory.lua        # Inventory tracking for logistic networks
 ├── locale/
 │   └── en/
 │       └── locale.cfg  # English localization strings
+├── migrations/          # Database migration scripts for version updates
 ├── changelog.txt       # Version history
 ├── package.sh          # Build and deployment script
 └── README.md           # This file

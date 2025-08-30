@@ -10,11 +10,6 @@ hours for potential future downgrades, but requires a full rescan to ensure all
 max quality entities are captured in the tracking system.
 ]]
 
-local data_setup = require("scripts.data-setup")
-local core = require("scripts.core")
-
 -- Reinitialize storage and rescan all entities (same as quality-control-init command)
-data_setup.setup_data_structures(true)
-data_setup.build_and_store_config()
-core.initialize()
-core.scan_and_populate_entities(storage.config.all_tracked_types)
+-- This will be handled by the on_configuration_changed event in control.lua
+log("[Quality Control Migration 1.4.0] Entity rescanning will be handled by control.lua on_configuration_changed")

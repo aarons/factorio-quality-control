@@ -17,12 +17,10 @@ Factorio's API and best practices are available via answer-agent.
 - `locale/en/locale.cfg` - localization strings
 
 ### Main Entry Point
-- `control.lua` - main entry point and event handlers, coordinates all modules
+- `control.lua` - main entry point, event handlers, initialization, and configuration setup
 
 ### Core Modules
-- `scripts/config.lua` - handles initialization of data structures, settings mapping, and configuration
-- `scripts/entity-tracker.lua` - tracking for entities that will be managed
-- `scripts/upgrade-manager.lua` - handles upgrade attempts and entity replacement
+- `scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
 - `scripts/notifications.lua` - manages notifications and alerts
 - `scripts/inventory.lua` - used to track inventory within logistic networks
 

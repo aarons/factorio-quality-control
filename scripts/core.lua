@@ -1,25 +1,209 @@
 --[[
-upgrade-manager.lua
+core.lua
 
-Handles both the credit system and quality upgrade processing.
-Combines credit generation/consumption with actual quality upgrade attempts.
+Core processing engine for Quality Control mod.
+Handles entity quality management, credit system, and main processing loop.
+Combines upgrade processing, entity tracking, and batch processing functionality.
 ]]
 
 local notifications = require("scripts.notifications")
 local inventory = require("scripts.inventory")
-local upgrade_manager = {}
+local core = {}
 
 local tracked_entities = {}
 local settings_data = {}
 local quality_limit = nil
 local can_attempt_quality_change = {}
+local is_tracked_type = {}
 
-function upgrade_manager.initialize()
+function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
   quality_limit = storage.config.quality_limit
   can_attempt_quality_change = storage.config.can_attempt_quality_change
+  is_tracked_type = storage.config.is_tracked_type
 end
+
+-- Entity tracking functionality
+
+-- Exclude entities that don't work well with fast_replace or should be excluded
+local function should_exclude_entity(entity)
+  if not entity.prototype.selectable_in_game then
+    return true
+  end
+
+  if not entity.destructible then
+    return true
+  end
+
+  -- Entities from these mods don't fast_replace well, so for now exclude them
+  local exclude_items_from_mods = {
+    "Warp-Drive-Machine",
+    "quality-condenser",
+    "RealisticReactorsReborn",
+    "railloader2-patch",
+    "router",
+    "fct-ControlTech", -- patch requested, may be able to remove once they are greater than version 2.0.5
+    "ammo-loader",
+    "miniloader-redux"
+  }
+  local history = prototypes.get_history(entity.type, entity.name)
+  if history then
+    for _, excluded_mod in ipairs(exclude_items_from_mods) do
+      if history.created:find(excluded_mod, 1, true) ~= nil then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+function core.get_entity_info(entity)
+  if should_exclude_entity(entity) then
+    return "entity excluded from quality control"
+  end
+
+  local id = entity.unit_number
+  local can_change_quality = entity.quality.next ~= nil
+  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
+
+  -- Only track entities that can change quality OR are primary entities with accumulation enabled
+  local should_track = can_change_quality or (is_primary and settings_data.accumulate_at_max_quality)
+  if not should_track then
+    return "at max quality"
+  end
+
+  if not tracked_entities[id] then
+    tracked_entities[id] = {
+      entity = entity,
+      is_primary = is_primary,
+      chance_to_change = settings_data.base_percentage_chance,
+      attempts_to_change = 0,
+      can_change_quality = can_change_quality
+    }
+
+    if is_primary then
+      storage.primary_entity_count = storage.primary_entity_count + 1
+    else
+      storage.secondary_entity_count = storage.secondary_entity_count + 1
+    end
+
+    -- Use ordered list for O(1) lookup in batch processing
+    table.insert(storage.entity_list, id)
+    storage.entity_list_index[id] = #storage.entity_list
+
+    if is_primary then
+      -- Initialize manufacturing hours based on current products_finished
+      -- This ensures we don't double-count hours for already-producing entities
+      local recipe_time = 0
+      if entity.get_recipe() then
+        recipe_time = entity.get_recipe().prototype.energy
+      elseif entity.type == "furnace" and entity.previous_recipe then
+        recipe_time = entity.previous_recipe.name.energy
+      end
+
+      local current_hours = (entity.products_finished * recipe_time) / 3600
+      tracked_entities[id].manufacturing_hours = current_hours
+
+      -- Calculate how many quality attempts would have occurred in the past
+      -- and adjust the chance percentage accordingly
+      if current_hours > 0 then
+        local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+        local past_attempts = math.floor(current_hours / hours_needed)
+
+        -- Simulate the chance accumulation from missed attempts
+        if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
+          local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+          tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
+          tracked_entities[id].attempts_to_change = past_attempts
+        end
+        -- Not adding credits for past attempts; it's too hard to balance with secondary entities.
+        -- Basically everytime you do a quality-control-init it refills the credit pool; for easy upgrade farming
+      end
+    end
+  end
+  return tracked_entities[id]
+end
+
+function core.scan_and_populate_entities(all_tracked_types)
+  for _, surface in pairs(game.surfaces) do
+    local entities = surface.find_entities_filtered{
+      type = all_tracked_types,
+      force = game.forces.player
+    }
+
+    for _, entity in ipairs(entities) do
+      core.get_entity_info(entity)
+    end
+  end
+end
+
+function core.remove_entity_info(id)
+  if tracked_entities and tracked_entities[id] then
+    local entity_info = tracked_entities[id]
+
+    if entity_info.is_primary then
+      storage.primary_entity_count = math.max(0, storage.primary_entity_count - 1)
+    else
+      storage.secondary_entity_count = math.max(0, storage.secondary_entity_count - 1)
+    end
+
+    tracked_entities[id] = nil
+
+    -- O(1) removal using swap-with-last approach
+    local index = storage.entity_list_index[id]
+    if index then
+      local entity_list = storage.entity_list
+      local batch_index = storage.batch_index
+
+      local last_index = #entity_list
+      local last_unit_number = entity_list[last_index]
+
+      entity_list[index] = last_unit_number
+      storage.entity_list_index[last_unit_number] = index
+
+      entity_list[last_index] = nil
+      storage.entity_list_index[id] = nil
+
+      if index < batch_index then
+        storage.batch_index = batch_index - 1
+      end
+    end
+  end
+end
+
+-- Event handlers for entity lifecycle
+
+function core.on_entity_created(event)
+  local entity = event.entity
+  if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    core.get_entity_info(entity)
+  end
+end
+
+function core.on_robot_built_entity(event)
+  local entity = event.entity
+  if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    inventory.check_and_complete_upgrade(entity)
+    core.get_entity_info(entity)
+  end
+end
+
+function core.on_entity_cloned(event)
+  local entity = event.destination
+  if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    core.get_entity_info(entity)
+  end
+end
+
+function core.on_entity_destroyed(event)
+  local entity = event.entity
+  if entity and entity.valid and is_tracked_type[entity.type] then
+    core.remove_entity_info(entity.unit_number)
+  end
+end
+
+-- Quality upgrade processing
 
 local function update_module_quality(replacement_entity, target_quality)
   local module_setting = settings.startup["change-modules-with-entity"].value
@@ -61,7 +245,7 @@ local function update_module_quality(replacement_entity, target_quality)
   end
 end
 
-local function attempt_quality_change_normal(entity, entity_tracker)
+local function attempt_quality_change_normal(entity)
   if not entity.valid then
     log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
     return nil
@@ -113,7 +297,7 @@ local function attempt_quality_change_normal(entity, entity_tracker)
       replacement_entity.mirroring = entity_mirroring
     end
 
-    entity_tracker.remove_entity_info(unit_number)
+    core.remove_entity_info(unit_number)
     update_module_quality(replacement_entity, target_quality)
     notifications.show_entity_quality_alert(replacement_entity)
     return replacement_entity
@@ -127,12 +311,12 @@ local function attempt_quality_change_normal(entity, entity_tracker)
     if history then
       log("  - From mod: " .. history.created)
     end
-    entity_tracker.remove_entity_info(unit_number)
+    core.remove_entity_info(unit_number)
     return nil
   end
 end
 
-local function attempt_quality_change_uncommon(entity, _)
+local function attempt_quality_change_uncommon(entity)
   if not entity.valid then
     log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
     return nil
@@ -204,21 +388,21 @@ local function attempt_quality_change_uncommon(entity, _)
   return false
 end
 
-local function attempt_quality_change(entity, entity_tracker)
+local function attempt_quality_change(entity)
   local difficulty = storage.config.mod_difficulty
   if difficulty == "Uncommon" then
-    return attempt_quality_change_uncommon(entity, entity_tracker)
+    return attempt_quality_change_uncommon(entity)
   else
-    return attempt_quality_change_normal(entity, entity_tracker)
+    return attempt_quality_change_normal(entity)
   end
 end
 
-function upgrade_manager.process_quality_attempts(entity, attempts_count, quality_changes, entity_tracker)
+function core.process_quality_attempts(entity, attempts_count, quality_changes)
   local successful_changes = 0
   local current_entity = entity
 
   for _ = 1, attempts_count do
-    local change_result = attempt_quality_change(current_entity, entity_tracker)
+    local change_result = attempt_quality_change(current_entity)
 
     if change_result == nil then
       break
@@ -237,7 +421,7 @@ function upgrade_manager.process_quality_attempts(entity, attempts_count, qualit
   return successful_changes
 end
 
-function upgrade_manager.process_primary_entity(entity_info, entity)
+function core.process_primary_entity(entity_info, entity)
   local recipe_time = 0
   if entity.get_recipe() then
     recipe_time = entity.get_recipe().prototype.energy
@@ -270,7 +454,7 @@ function upgrade_manager.process_primary_entity(entity_info, entity)
   return nil
 end
 
-function upgrade_manager.process_secondary_entity()
+function core.process_secondary_entity()
   local accumulated_attempts = storage.accumulated_upgrade_attempts
   local secondary_count = storage.secondary_entity_count
 
@@ -293,10 +477,81 @@ function upgrade_manager.process_secondary_entity()
   return nil
 end
 
-function upgrade_manager.update_manufacturing_hours(entity_info, current_hours)
+function core.update_manufacturing_hours(entity_info, current_hours)
   if tracked_entities[entity_info.entity.unit_number] then
     entity_info.manufacturing_hours = current_hours
   end
 end
 
-return upgrade_manager
+-- Main batch processing loop
+
+function core.batch_process_entities()
+  local batch_size = settings.global["batch-entities-per-tick"].value
+  local entities_processed = 0
+  local quality_changes = {}
+
+  local batch_index = storage.batch_index
+  local entity_list = storage.entity_list
+  local tracked_entities_ref = storage.quality_control_entities
+  local settings_data_ref = storage.config.settings_data
+
+  while entities_processed < batch_size do
+    if batch_index > #entity_list then
+      batch_index = 1
+      inventory.cleanup_pending_upgrades()
+      break
+    end
+
+    local unit_number = entity_list[batch_index]
+    batch_index = batch_index + 1
+
+    local entity_info = tracked_entities_ref[unit_number]
+    local should_stay_tracked = entity_info and entity_info.can_change_quality or
+      (entity_info and entity_info.is_primary and settings_data_ref.accumulate_at_max_quality)
+
+    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
+      core.remove_entity_info(unit_number)
+      goto continue
+    end
+
+    local entity = entity_info.entity
+
+    if entity.to_be_deconstructed() then
+      goto continue
+    end
+
+    if entity.to_be_upgraded() then
+      goto continue
+    end
+
+    if entity_info.is_primary then
+      local credit_result = core.process_primary_entity(entity_info, entity)
+      if credit_result then
+        local successful_changes = 0
+        if credit_result.should_attempt_quality_change then
+          successful_changes = core.process_quality_attempts(entity, credit_result.thresholds_passed, quality_changes)
+        end
+
+        if successful_changes == 0 then
+          core.update_manufacturing_hours(entity_info, credit_result.current_hours)
+        end
+      end
+    else
+      local secondary_result = core.process_secondary_entity()
+      if secondary_result then
+        core.process_quality_attempts(entity, secondary_result.total_attempts, quality_changes)
+      end
+    end
+
+    entities_processed = entities_processed + 1
+    ::continue::
+  end
+
+  storage.batch_index = batch_index
+
+  if next(quality_changes) then
+    notifications.show_quality_notifications(quality_changes)
+  end
+end
+
+return core

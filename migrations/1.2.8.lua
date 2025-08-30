@@ -18,8 +18,7 @@ data_setup.build_and_store_config() which populates all required fields.
 
 log("[Quality Control Migration 1.2.8] Starting storage.config initialization")
 
--- Import required module
-local data_setup = require("scripts/data-setup")
+-- This migration will be handled by the on_configuration_changed event in control.lua
 
 -- Check if storage.config exists and has the required structure
 local needs_migration = false
@@ -54,8 +53,7 @@ end
 if needs_migration then
   log("[Quality Control Migration 1.2.8] Initializing storage.config structure...")
 
-  -- Build and store the config using the same function used in on_init
-  data_setup.build_and_store_config()
+  -- The config rebuild will happen in the on_configuration_changed event in control.lua
 
   -- Also initialize ticks_between_batches if missing
   if not storage.ticks_between_batches then

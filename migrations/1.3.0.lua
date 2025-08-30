@@ -18,9 +18,6 @@ The old system had these categories:
 
 log("[Quality Control Migration 1.3.0] Starting migration to individual entity settings")
 
--- Import required module to rebuild config
-local data_setup = require("scripts/data-setup")
-
 -- Check if old category settings exist (they won't in new installs)
 local primary_setting = settings.startup["primary-entities-selection"]
 local electrical_enabled = settings.startup["enable-electrical-entities"]
@@ -116,6 +113,6 @@ end
 -- Always rebuild storage.config to ensure it has the new structure
 -- This is required because the new version adds can_attempt_quality_change field
 log("[Quality Control Migration 1.3.0] Rebuilding storage.config with new structure")
-data_setup.build_and_store_config()
+-- The config rebuild will happen in the on_configuration_changed event in control.lua
 
 log("[Quality Control Migration 1.3.0] Migration completed successfully")

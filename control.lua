@@ -2,14 +2,207 @@
 control.lua
 
 Main entry point for the Quality Control mod.
-Handles initialization, event registration, and orchestrates the modular components.
+Handles initialization, event registration, configuration setup, and orchestrates core processing.
 ]]
 
-local config = require("scripts.config")
-local entity_tracker = require("scripts.entity-tracker")
-local upgrade_manager = require("scripts.upgrade-manager")
+local core = require("scripts.core")
 local notifications = require("scripts.notifications")
 local inventory = require("scripts.inventory")
+
+-- Entity type to setting name mappings
+local entity_to_setting_map = {
+  -- Production entities (includes primary entities)
+  ["assembling-machine"] = "enable-assembly-machines",
+  ["furnace"] = "enable-furnaces",
+  ["agricultural-tower"] = "enable-agricultural-towers",
+  ["mining-drill"] = "enable-mining-drills",
+
+  -- Electrical infrastructure
+  ["electric-pole"] = "enable-poles",
+  ["solar-panel"] = "enable-solar-panels",
+  ["accumulator"] = "enable-accumulators",
+  ["generator"] = "enable-generators",
+  ["reactor"] = "enable-reactors",
+  ["boiler"] = "enable-boilers",
+  ["heat-pipe"] = "enable-heat-pipes",
+  ["power-switch"] = "enable-power-switches",
+  ["lightning-rod"] = "enable-lightning-rods",
+
+  -- Defense entities
+  ["turret"] = "enable-turrets",
+  ["ammo-turret"] = "enable-turrets",
+  ["electric-turret"] = "enable-turrets",
+  ["fluid-turret"] = "enable-turrets",
+  ["artillery-turret"] = "enable-turrets",
+  ["wall"] = "enable-defense-walls-and-gates",
+  ["gate"] = "enable-defense-walls-and-gates",
+
+  -- Space platform entities
+  ["asteroid-collector"] = "enable-asteroid-collectors",
+  ["thruster"] = "enable-thrusters",
+
+  -- Other entities
+  ["lamp"] = "enable-lamps",
+  ["arithmetic-combinator"] = "enable-combinators-and-speakers",
+  ["decider-combinator"] = "enable-combinators-and-speakers",
+  ["constant-combinator"] = "enable-combinators-and-speakers",
+  ["programmable-speaker"] = "enable-combinators-and-speakers",
+  ["lab"] = "enable-labs",
+  ["roboport"] = "enable-roboports",
+  ["beacon"] = "enable-beacons",
+  ["pump"] = "enable-pumps",
+  ["offshore-pump"] = "enable-pumps",
+  ["radar"] = "enable-radar",
+  ["inserter"] = "enable-inserters"
+}
+
+-- Primary entity types for determining manufacturing hours logic
+local primary_entity_types = {"assembling-machine", "furnace"}
+
+local function build_entity_type_lists()
+  local primary_types = {}
+  local secondary_types = {}
+  local all_tracked_types = {table.unpack(primary_entity_types)} -- include primary types since they are the only ones to generate quality change events
+
+  -- Build lists by checking individual entity type settings
+  for entity_type, setting_name in pairs(entity_to_setting_map) do
+    if settings.startup[setting_name].value then
+      -- Check if this is a primary entity type
+      local is_primary = false
+      for _, primary_type in ipairs(primary_entity_types) do
+        if entity_type == primary_type then
+          is_primary = true
+          break
+        end
+      end
+
+      if is_primary then
+        table.insert(primary_types, entity_type)
+      else
+        table.insert(secondary_types, entity_type)
+      end
+      table.insert(all_tracked_types, entity_type)
+    end
+  end
+
+  return primary_types, secondary_types, all_tracked_types
+end
+
+local function build_and_store_config()
+  if not storage.config then
+    storage.config = {}
+  end
+
+  local primary_types, secondary_types, all_tracked_types = build_entity_type_lists()
+  storage.config.primary_types = primary_types
+  storage.config.secondary_types = secondary_types
+  storage.config.all_tracked_types = all_tracked_types
+
+  local is_tracked_type = {}
+  for _, entity_type in ipairs(all_tracked_types) do
+    is_tracked_type[entity_type] = true
+  end
+  storage.config.is_tracked_type = is_tracked_type
+
+  -- Store which entity types should be allowed to have quality changes attempted
+  local can_attempt_quality_change = {}
+  for entity_type, setting_name in pairs(entity_to_setting_map) do
+    can_attempt_quality_change[entity_type] = settings.startup[setting_name].value
+  end
+  storage.config.can_attempt_quality_change = can_attempt_quality_change
+
+  local settings_data = {}
+  settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
+  settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
+  settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
+  settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
+
+  storage.config.mod_difficulty = settings.startup["mod-difficulty"].value
+
+  local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
+  settings_data.accumulation_percentage = 0
+
+  if accumulation_rate_setting == "low" then
+    settings_data.accumulation_percentage = 20
+  elseif accumulation_rate_setting == "medium" then
+    settings_data.accumulation_percentage = 50
+  elseif accumulation_rate_setting == "high" then
+    settings_data.accumulation_percentage = 100
+  end
+  storage.config.settings_data = settings_data
+
+  local quality_limit = prototypes.quality["normal"]
+  while quality_limit.next do
+    quality_limit = quality_limit.next
+  end
+  storage.config.quality_limit = quality_limit
+end
+
+local function setup_data_structures(force_reset)
+  -- Handle force reset by clearing everything
+  if force_reset then
+    storage.quality_control_entities = {}
+    storage.entity_list = {}
+    storage.entity_list_index = {}
+    storage.batch_index = 1
+    storage.primary_entity_count = 0
+    storage.secondary_entity_count = 0
+    storage.accumulated_upgrade_attempts = 0
+  end
+
+  -- Initialize storage tables
+  if not storage.quality_control_entities then
+    storage.quality_control_entities = {}
+  end
+
+  if not storage.entity_list then
+    storage.entity_list = {}
+  end
+
+  if not storage.entity_list_index then
+    storage.entity_list_index = {}
+    -- Rebuild index from existing entity_list for migration
+    for i, unit_number in ipairs(storage.entity_list or {}) do
+      if unit_number then
+        storage.entity_list_index[unit_number] = i
+      end
+    end
+  end
+
+  if not storage.batch_index then
+    storage.batch_index = 1
+  end
+
+  -- Initialize notification system
+  if not storage.aggregate_notifications then
+    storage.aggregate_notifications = {
+      accumulated_changes = {},
+      last_notification_tick = 0
+    }
+  end
+
+  -- Initialize credit system
+  if not storage.primary_entity_count then
+    storage.primary_entity_count = 0
+  end
+
+  if not storage.secondary_entity_count then
+    storage.secondary_entity_count = 0
+  end
+
+  if not storage.accumulated_upgrade_attempts then
+    storage.accumulated_upgrade_attempts = 0
+  end
+
+  -- Initialize inventory system storage tables
+  if not storage.network_quality_scans then
+    storage.network_quality_scans = {}
+  end
+
+  if not storage.pending_upgrades then
+    storage.pending_upgrades = {}
+  end
+end
 
 local function reinitialize_quality_control_storage(command)
   if command and command.player_index then
@@ -19,11 +212,10 @@ local function reinitialize_quality_control_storage(command)
     end
   end
 
-  config.setup_data_structures(true)
-  config.build_and_store_config()
-  entity_tracker.initialize()
-  upgrade_manager.initialize()
-  entity_tracker.scan_and_populate_entities(storage.config.all_tracked_types)
+  setup_data_structures(true)
+  build_and_store_config()
+  core.initialize()
+  core.scan_and_populate_entities(storage.config.all_tracked_types)
 
   if command and command.player_index then
     local player = game.get_player(command.player_index)
@@ -33,96 +225,28 @@ local function reinitialize_quality_control_storage(command)
   end
 end
 
-local function batch_process_entities()
-  local batch_size = settings.global["batch-entities-per-tick"].value
-  local entities_processed = 0
-  local quality_changes = {}
-
-  local batch_index = storage.batch_index
-  local entity_list = storage.entity_list
-  local tracked_entities = storage.quality_control_entities
-  local settings_data = storage.config.settings_data
-
-  while entities_processed < batch_size do
-    if batch_index > #entity_list then
-      batch_index = 1
-      inventory.cleanup_pending_upgrades()
-      break
-    end
-
-    local unit_number = entity_list[batch_index]
-    batch_index = batch_index + 1
-
-    local entity_info = tracked_entities[unit_number]
-    local should_stay_tracked = entity_info and entity_info.can_change_quality or
-      (entity_info and entity_info.is_primary and settings_data.accumulate_at_max_quality)
-
-    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
-      entity_tracker.remove_entity_info(unit_number)
-      goto continue
-    end
-
-    local entity = entity_info.entity
-
-    if entity.to_be_deconstructed() then
-      goto continue
-    end
-
-    if entity.to_be_upgraded() then
-      goto continue
-    end
-
-    if entity_info.is_primary then
-      local credit_result = upgrade_manager.process_primary_entity(entity_info, entity)
-      if credit_result then
-        local successful_changes = 0
-        if credit_result.should_attempt_quality_change then
-          successful_changes = upgrade_manager.process_quality_attempts(entity, credit_result.thresholds_passed, quality_changes, entity_tracker)
-        end
-
-        if successful_changes == 0 then
-          upgrade_manager.update_manufacturing_hours(entity_info, credit_result.current_hours)
-        end
-      end
-    else
-      local secondary_result = upgrade_manager.process_secondary_entity()
-      if secondary_result then
-        upgrade_manager.process_quality_attempts(entity, secondary_result.total_attempts, quality_changes, entity_tracker)
-      end
-    end
-
-    entities_processed = entities_processed + 1
-    ::continue::
-  end
-
-  storage.batch_index = batch_index
-
-  if next(quality_changes) then
-    notifications.show_quality_notifications(quality_changes)
-  end
-end
 
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
   local tick_interval = storage.ticks_between_batches
-  script.on_nth_tick(tick_interval, batch_process_entities)
+  script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
 local function register_event_handlers()
   -- Entity creation events (with player force filter where supported)
-  script.on_event(defines.events.on_built_entity, entity_tracker.on_entity_created, {{filter = "force", force = "player"}})
-  script.on_event(defines.events.on_robot_built_entity, entity_tracker.on_robot_built_entity, {{filter = "force", force = "player"}})
-  script.on_event(defines.events.on_space_platform_built_entity, entity_tracker.on_entity_created, {{filter = "force", force = "player"}})
-  script.on_event(defines.events.script_raised_built, entity_tracker.on_entity_created)
-  script.on_event(defines.events.script_raised_revive, entity_tracker.on_entity_created)
-  script.on_event(defines.events.on_entity_cloned, entity_tracker.on_entity_cloned)
+  script.on_event(defines.events.on_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.on_robot_built_entity, core.on_robot_built_entity, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.on_space_platform_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.script_raised_built, core.on_entity_created)
+  script.on_event(defines.events.script_raised_revive, core.on_entity_created)
+  script.on_event(defines.events.on_entity_cloned, core.on_entity_cloned)
 
   -- Entity destruction events (with player force filter where supported)
-  script.on_event(defines.events.on_player_mined_entity, entity_tracker.on_entity_destroyed)
-  script.on_event(defines.events.on_robot_mined_entity, entity_tracker.on_entity_destroyed)
-  script.on_event(defines.events.on_space_platform_mined_entity, entity_tracker.on_entity_destroyed)
-  script.on_event(defines.events.on_entity_died, entity_tracker.on_entity_destroyed, {{filter = "force", force = "player"}})
-  script.on_event(defines.events.script_raised_destroy, entity_tracker.on_entity_destroyed)
+  script.on_event(defines.events.on_player_mined_entity, core.on_entity_destroyed)
+  script.on_event(defines.events.on_robot_mined_entity, core.on_entity_destroyed)
+  script.on_event(defines.events.on_space_platform_mined_entity, core.on_entity_destroyed)
+  script.on_event(defines.events.on_entity_died, core.on_entity_destroyed, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.script_raised_destroy, core.on_entity_destroyed)
 
   -- Upgrade tracking events
   script.on_event(defines.events.on_marked_for_upgrade, inventory.on_marked_for_upgrade)
@@ -135,7 +259,7 @@ local function register_event_handlers()
       notifications.show_entity_quality_info(
         player,
         storage.config.is_tracked_type,
-        entity_tracker.get_entity_info,
+        core.get_entity_info,
         storage.config.settings_data.manufacturing_hours_for_change,
         storage.config.settings_data.quality_increase_cost,
         storage.config.can_attempt_quality_change
@@ -151,11 +275,10 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 -- The mod has full access to the game object and its storage table and can change anything about the game state that it deems appropriate at this stage.
 -- no events will be raised for a mod it has finished on_init() or on_load()
 script.on_init(function()
-  config.setup_data_structures()
-  config.build_and_store_config()
-  entity_tracker.initialize()
-  upgrade_manager.initialize()
-  entity_tracker.scan_and_populate_entities(storage.config.all_tracked_types)
+  setup_data_structures()
+  build_and_store_config()
+  core.initialize()
+  core.scan_and_populate_entities(storage.config.all_tracked_types)
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()
   register_main_loop()
@@ -181,8 +304,7 @@ end)
 -- no events will be raised for a mod it has finished on_init() or on_load()
 -- storage is persisted between loaded games, but local variables that hook into storage need to be setup here
 script.on_load(function()
-  entity_tracker.initialize()
-  upgrade_manager.initialize()
+  core.initialize()
   register_event_handlers()
   register_main_loop()
 end)
