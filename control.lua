@@ -195,8 +195,8 @@ local function setup_data_structures(force_reset)
   end
 
   -- Initialize inventory system storage tables
-  if not storage.network_quality_scans then
-    storage.network_quality_scans = {}
+  if not storage.network_inventory then
+    storage.network_inventory = {}
   end
 
   if not storage.pending_upgrades then

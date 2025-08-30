@@ -6,13 +6,13 @@ for existing save games. These tables were previously created during on_load whi
 violates Factorio's API requirements.
 
 This migration adds the missing storage tables:
-- storage.network_quality_scans: Tracks network scanning data
+- storage.network_inventory: Tracks network inventory data
 - storage.pending_upgrades: Tracks pending entity upgrades
 ]]
 
 -- Initialize inventory system storage tables if they don't exist
-if not storage.network_quality_scans then
-  storage.network_quality_scans = {}
+if not storage.network_inventory then
+  storage.network_inventory = {}
 end
 
 if not storage.pending_upgrades then

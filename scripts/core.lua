@@ -514,11 +514,7 @@ function core.batch_process_entities()
 
     local entity = entity_info.entity
 
-    if entity.to_be_deconstructed() then
-      goto continue
-    end
-
-    if entity.to_be_upgraded() then
+    if entity.to_be_deconstructed() or entity.to_be_upgraded() then
       goto continue
     end
 
