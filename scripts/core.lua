@@ -13,18 +13,16 @@ local core = {}
 local tracked_entities = {}
 local settings_data = {}
 local quality_limit = nil
-local can_attempt_quality_change = {}
 local is_tracked_type = {}
+local mod_difficulty = nil
 
 function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
   quality_limit = storage.config.quality_limit
-  can_attempt_quality_change = storage.config.can_attempt_quality_change
   is_tracked_type = storage.config.is_tracked_type
+  mod_difficulty = storage.config.mod_difficulty
 end
-
--- Entity tracking functionality
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
 local function should_exclude_entity(entity)
@@ -389,8 +387,7 @@ local function attempt_upgrade_uncommon(entity)
 end
 
 local function attempt_upgrade(entity)
-  local difficulty = storage.config.mod_difficulty
-  if difficulty == "Uncommon" then
+  if mod_difficulty == "Uncommon" then
     return attempt_upgrade_uncommon(entity)
   else
     return attempt_upgrade_normal(entity)
@@ -446,8 +443,7 @@ function core.process_primary_entity(entity_info, entity)
 
     return {
       credits_earned = credits_earned,
-      current_hours = current_hours,
-      should_attempt_quality_change = can_attempt_quality_change[entity.type] and entity_info.can_change_quality
+      current_hours = current_hours
     }
   end
 
@@ -471,8 +467,7 @@ function core.process_secondary_entity()
       storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
       return {
         credits_earned = credits_earned,
-        current_hours = nil,
-        should_attempt_quality_change = true
+        current_hours = nil
       }
     end
   end
@@ -495,8 +490,6 @@ function core.batch_process_entities()
 
   local batch_index = storage.batch_index
   local entity_list = storage.entity_list
-  local tracked_entities_ref = storage.quality_control_entities
-  local settings = storage.config.settings_data
 
   while entities_processed < batch_size do
     if batch_index > #entity_list then
@@ -508,11 +501,11 @@ function core.batch_process_entities()
     local unit_number = entity_list[batch_index]
     batch_index = batch_index + 1
 
-    local entity_info = tracked_entities_ref[unit_number]
+    local entity_info = tracked_entities[unit_number]
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
     -- or if the entity can change quality still
     local should_stay_tracked = entity_info and entity_info.can_change_quality or
-      (entity_info and entity_info.is_primary and settings.accumulate_at_max_quality)
+      (entity_info and entity_info.is_primary and settings_data.accumulate_at_max_quality)
 
     if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)
@@ -536,7 +529,7 @@ function core.batch_process_entities()
       result = core.process_secondary_entity()
     end
 
-    if result and result.should_attempt_quality_change then
+    if result and result.credits_earned > 0 then
       local change_count = core.process_upgrade_attempts(entity, result.credits_earned, quality_changes)
       if change_count == 0 and entity_info.is_primary then
         core.update_manufacturing_hours(entity_info, result.current_hours)
