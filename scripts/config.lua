@@ -193,6 +193,15 @@ function data_setup.setup_data_structures(force_reset)
   if not storage.accumulated_upgrade_attempts then
     storage.accumulated_upgrade_attempts = 0
   end
+
+  -- Initialize inventory system storage tables
+  if not storage.network_quality_scans then
+    storage.network_quality_scans = {}
+  end
+
+  if not storage.pending_upgrades then
+    storage.pending_upgrades = {}
+  end
 end
 
 return data_setup

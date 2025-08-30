@@ -10,16 +10,6 @@ minimizing API overhead.
 
 local inventory = {}
 
-function inventory.initialize()
-  if not storage.network_quality_scans then
-    storage.network_quality_scans = {}
-  end
-
-  if not storage.pending_upgrades then
-    storage.pending_upgrades = {}
-  end
-end
-
 -- Get minimum quality level seen among all tracked entities of this type/name
 local function get_min_quality_level(entity_name)
   local min_level = 9999
@@ -145,6 +135,31 @@ function inventory.cleanup_pending_upgrades()
     if age > stale_threshold then
       storage.pending_upgrades[unit_number] = nil
     end
+  end
+
+  -- Clean up a few invalid networks (limit to avoid performance impact)
+  local networks_checked = 0
+  local max_networks_per_cleanup = 3
+
+  for network_id in pairs(storage.network_quality_scans or {}) do
+    if networks_checked >= max_networks_per_cleanup then
+      break
+    end
+
+    -- Check if this network still exists
+    local network_exists = false
+    for _, network in pairs(game.forces.player.logistic_networks) do
+      if network.network_id == network_id then
+        network_exists = true
+        break
+      end
+    end
+
+    if not network_exists then
+      storage.network_quality_scans[network_id] = nil
+    end
+
+    networks_checked = networks_checked + 1
   end
 end
 

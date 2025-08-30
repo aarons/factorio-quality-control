@@ -19,7 +19,6 @@ function upgrade_manager.initialize()
   settings_data = storage.config.settings_data
   quality_limit = storage.config.quality_limit
   can_attempt_quality_change = storage.config.can_attempt_quality_change
-  inventory.initialize()
 end
 
 local function update_module_quality(replacement_entity, target_quality)
