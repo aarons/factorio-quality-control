@@ -107,9 +107,9 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
     if can_change_quality then
       -- For entities that can change quality - show attempts based on entity type
       if is_primary_type then
-        table.insert(info_parts, {"quality-control.upgrade-attempts-generated", entity_info.attempts_to_change})
+        table.insert(info_parts, {"quality-control.credits-earned", entity_info.upgrade_attempts})
       else
-        table.insert(info_parts, {"quality-control.upgrades-attempted", entity_info.attempts_to_change})
+        table.insert(info_parts, {"quality-control.upgrade-attempts", entity_info.upgrade_attempts})
       end
 
       -- Progress to next attempt (for primary types with manufacturing hours)
@@ -129,9 +129,9 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
     else
       -- For entities that cannot change quality but are tracked - show attempts based on entity type
       if is_primary_type then
-        table.insert(info_parts, {"quality-control.upgrade-attempts-generated", entity_info.attempts_to_change})
+        table.insert(info_parts, {"quality-control.credits-earned", entity_info.upgrade_attempts})
       else
-        table.insert(info_parts, {"quality-control.upgrades-attempted", entity_info.attempts_to_change})
+        table.insert(info_parts, {"quality-control.upgrade-attempts", entity_info.upgrade_attempts})
       end
 
       -- Progress to next event generation (for primary types with manufacturing hours)

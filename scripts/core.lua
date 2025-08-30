@@ -78,7 +78,7 @@ function core.get_entity_info(entity)
       entity = entity,
       is_primary = is_primary,
       chance_to_change = settings_data.base_percentage_chance,
-      attempts_to_change = 0,
+      upgrade_attempts = 0,
       can_change_quality = can_change_quality
     }
 
@@ -105,20 +105,20 @@ function core.get_entity_info(entity)
       local current_hours = (entity.products_finished * recipe_time) / 3600
       tracked_entities[id].manufacturing_hours = current_hours
 
-      -- Calculate how many quality attempts would have occurred in the past
+      -- Calculate how many upgrade attempts would have occurred in the past
       -- and adjust the chance percentage accordingly
       if current_hours > 0 then
         local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
         local past_attempts = math.floor(current_hours / hours_needed)
 
-        -- Simulate the chance accumulation from missed attempts
+        -- Simulate the chance accumulation from missed upgrade attempts
         if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
           local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
           tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-          tracked_entities[id].attempts_to_change = past_attempts
+          tracked_entities[id].upgrade_attempts = past_attempts
         end
-        -- Not adding credits for past attempts; it's too hard to balance with secondary entities.
-        -- Basically everytime you do a quality-control-init it refills the credit pool; for easy upgrade farming
+        -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
+        -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
       end
     end
   end
@@ -245,7 +245,7 @@ local function update_module_quality(replacement_entity, target_quality)
   end
 end
 
-local function attempt_quality_change_normal(entity)
+local function attempt_upgrade_normal(entity)
   if not entity.valid then
     log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
     return nil
@@ -259,7 +259,7 @@ local function attempt_quality_change_normal(entity)
   end
 
   local random_roll = math.random()
-  entity_info.attempts_to_change = entity_info.attempts_to_change + 1
+  entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
     if settings_data.accumulation_percentage > 0 then
@@ -316,7 +316,7 @@ local function attempt_quality_change_normal(entity)
   end
 end
 
-local function attempt_quality_change_uncommon(entity)
+local function attempt_upgrade_uncommon(entity)
   if not entity.valid then
     log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
     return nil
@@ -342,7 +342,7 @@ local function attempt_quality_change_uncommon(entity)
 
   if target_quality then
     local random_roll = math.random()
-    entity_info.attempts_to_change = entity_info.attempts_to_change + 1
+    entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
 
     if random_roll >= (entity_info.chance_to_change / 100) then
       if settings_data.accumulation_percentage > 0 then
@@ -388,21 +388,21 @@ local function attempt_quality_change_uncommon(entity)
   return false
 end
 
-local function attempt_quality_change(entity)
+local function attempt_upgrade(entity)
   local difficulty = storage.config.mod_difficulty
   if difficulty == "Uncommon" then
-    return attempt_quality_change_uncommon(entity)
+    return attempt_upgrade_uncommon(entity)
   else
-    return attempt_quality_change_normal(entity)
+    return attempt_upgrade_normal(entity)
   end
 end
 
-function core.process_quality_attempts(entity, attempts_count, quality_changes)
+function core.process_upgrade_attempts(entity, attempts_count, quality_changes)
   local successful_changes = 0
   local current_entity = entity
 
   for _ = 1, attempts_count do
-    local change_result = attempt_quality_change(current_entity)
+    local change_result = attempt_upgrade(current_entity)
 
     if change_result == nil then
       break
@@ -433,19 +433,19 @@ function core.process_primary_entity(entity_info, entity)
   local current_hours = (entity.products_finished * recipe_time) / 3600
   local previous_hours = entity_info.manufacturing_hours or 0
   local available_hours = current_hours - previous_hours
-  local thresholds_passed = math.floor(available_hours / hours_needed)
+  local credits_earned = math.floor(available_hours / hours_needed)
 
-  if thresholds_passed > 0 then
+  if credits_earned > 0 then
     local secondary_count = storage.secondary_entity_count
     if secondary_count > 0 then
       local primary_count = storage.primary_entity_count
       local credit_ratio = secondary_count / math.max(primary_count, 1)
-      local credits_added = thresholds_passed * credit_ratio
-      storage.accumulated_upgrade_attempts = storage.accumulated_upgrade_attempts + credits_added
+      local credits_added = credits_earned * credit_ratio
+      storage.accumulated_credits = storage.accumulated_credits + credits_added
     end
 
     return {
-      thresholds_passed = thresholds_passed,
+      credits_earned = credits_earned,
       current_hours = current_hours,
       should_attempt_quality_change = can_attempt_quality_change[entity.type] and entity_info.can_change_quality
     }
@@ -455,13 +455,13 @@ function core.process_primary_entity(entity_info, entity)
 end
 
 function core.process_secondary_entity()
-  local accumulated_attempts = storage.accumulated_upgrade_attempts
+  local accumulated_credits = storage.accumulated_credits
   local secondary_count = storage.secondary_entity_count
 
-  if accumulated_attempts > 0 and secondary_count > 0 then
-    local attempts_per_entity = accumulated_attempts / secondary_count
-    local guaranteed_attempts = math.floor(attempts_per_entity)
-    local fractional_chance = attempts_per_entity - guaranteed_attempts
+  if accumulated_credits > 0 and secondary_count > 0 then
+    local credits_per_entity = accumulated_credits / secondary_count
+    local guaranteed_attempts = math.floor(credits_per_entity)
+    local fractional_chance = credits_per_entity - guaranteed_attempts
 
     local total_attempts = guaranteed_attempts
     if fractional_chance > 0 and math.random() < fractional_chance then
@@ -469,7 +469,7 @@ function core.process_secondary_entity()
     end
 
     if total_attempts > 0 then
-      storage.accumulated_upgrade_attempts = math.max(0, accumulated_attempts - total_attempts)
+      storage.accumulated_credits = math.max(0, accumulated_credits - total_attempts)
       return { total_attempts = total_attempts }
     end
   end
@@ -529,7 +529,7 @@ function core.batch_process_entities()
       if credit_result then
         local successful_changes = 0
         if credit_result.should_attempt_quality_change then
-          successful_changes = core.process_quality_attempts(entity, credit_result.thresholds_passed, quality_changes)
+          successful_changes = core.process_upgrade_attempts(entity, credit_result.credits_earned, quality_changes)
         end
 
         if successful_changes == 0 then
@@ -539,7 +539,7 @@ function core.batch_process_entities()
     else
       local secondary_result = core.process_secondary_entity()
       if secondary_result then
-        core.process_quality_attempts(entity, secondary_result.total_attempts, quality_changes)
+        core.process_upgrade_attempts(entity, secondary_result.total_attempts, quality_changes)
       end
     end
 

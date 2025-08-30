@@ -147,7 +147,7 @@ local function setup_data_structures(force_reset)
     storage.batch_index = 1
     storage.primary_entity_count = 0
     storage.secondary_entity_count = 0
-    storage.accumulated_upgrade_attempts = 0
+    storage.accumulated_credits = 0
   end
 
   -- Initialize storage tables
@@ -190,8 +190,8 @@ local function setup_data_structures(force_reset)
     storage.secondary_entity_count = 0
   end
 
-  if not storage.accumulated_upgrade_attempts then
-    storage.accumulated_upgrade_attempts = 0
+  if not storage.accumulated_credits then
+    storage.accumulated_credits = 0
   end
 
   -- Initialize inventory system storage tables
