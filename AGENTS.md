@@ -24,6 +24,7 @@ Factorio's API and best practices are available via answer-agent.
 - `scripts/entity-tracker.lua` - tracking for entities that will be managed
 - `scripts/upgrade-manager.lua` - handles upgrade attempts and entity replacement
 - `scripts/notifications.lua` - manages notifications and alerts
+- `scripts/inventory.lua` - used to track inventory within logistic networks
 
 ### Development & Testing
 - `validate.sh` - runs all validations and tests

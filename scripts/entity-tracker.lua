@@ -6,6 +6,7 @@ Maintains the tracked entities list and manages entity addition/removal from tra
 ]]
 
 local entity_tracker = {}
+local inventory = require("scripts.inventory")
 
 local tracked_entities = {}
 local settings_data = {}
@@ -189,6 +190,14 @@ end
 function entity_tracker.on_entity_created(event)
   local entity = event.entity
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    entity_tracker.get_entity_info(entity)
+  end
+end
+
+function entity_tracker.on_robot_built_entity(event)
+  local entity = event.entity
+  if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    inventory.check_and_complete_upgrade(entity)
     entity_tracker.get_entity_info(entity)
   end
 end
