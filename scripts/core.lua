@@ -182,7 +182,6 @@ end
 function core.on_robot_built_entity(event)
   local entity = event.entity
   if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
-    inventory.check_and_complete_upgrade(entity)
     core.get_entity_info(entity)
   end
 end
@@ -349,10 +348,20 @@ local function attempt_upgrade_uncommon(entity)
       return false
     end
 
+    -- Try to acquire lock before ordering upgrade
+    if not inventory.try_acquire_lock(network, entity.name, target_quality) then
+      return false
+    end
+
     local success = entity.order_upgrade({
       target = {name = entity.name, quality = target_quality},
       force = entity.force
     })
+
+    -- If upgrade order failed, release the lock
+    if not success then
+      inventory.release_lock(network, entity.name, target_quality)
+    end
 
     if success then
       -- Handle module upgrades if enabled
@@ -366,11 +375,16 @@ local function attempt_upgrade_uncommon(entity)
               local module_name = stack.name
               local current_module_quality = stack.quality
               local module_target_quality = inventory.check_upgrade_available(network, module_name, current_module_quality)
-              if module_target_quality then
-                entity.order_upgrade({
+              if module_target_quality and inventory.try_acquire_lock(network, module_name, module_target_quality) then
+                local module_success = entity.order_upgrade({
                   force = entity.force,
-                  target = {name = entity.name, quality = entity.quality}
+                  target = {name = module_name, quality = module_target_quality}
                 })
+
+                -- If module upgrade order failed, release the lock
+                if not module_success then
+                  inventory.release_lock(network, module_name, module_target_quality)
+                end
               end
             end
           end
@@ -494,7 +508,7 @@ function core.batch_process_entities()
   while entities_processed < batch_size do
     if batch_index > #entity_list then
       batch_index = 1
-      inventory.cleanup_pending_upgrades()
+      inventory.cleanup_locks()
       break
     end
 

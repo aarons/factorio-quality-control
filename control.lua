@@ -195,12 +195,13 @@ local function setup_data_structures(force_reset)
   end
 
   -- Initialize inventory system storage tables
-  if not storage.network_inventory then
-    storage.network_inventory = {}
+  if not storage.network_logistics then
+    storage.network_logistics = storage.network_inventory or {}
+    storage.network_inventory = nil  -- Clean up old reference
   end
 
-  if not storage.pending_upgrades then
-    storage.pending_upgrades = {}
+  if not storage.upgrade_locks then
+    storage.upgrade_locks = {}
   end
 end
 
@@ -215,6 +216,7 @@ local function reinitialize_quality_control_storage(command)
   setup_data_structures(true)
   build_and_store_config()
   core.initialize()
+  inventory.initialize()
   core.scan_and_populate_entities(storage.config.all_tracked_types)
 
   if command and command.player_index then
@@ -235,7 +237,7 @@ end
 local function register_event_handlers()
   -- Entity creation events (with player force filter where supported)
   script.on_event(defines.events.on_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
-  script.on_event(defines.events.on_robot_built_entity, core.on_robot_built_entity, {{filter = "force", force = "player"}})
+  script.on_event(defines.events.on_robot_built_entity, inventory.on_robot_built_entity, {{filter = "force", force = "player"}})
   script.on_event(defines.events.on_space_platform_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
   script.on_event(defines.events.script_raised_built, core.on_entity_created)
   script.on_event(defines.events.script_raised_revive, core.on_entity_created)
@@ -305,6 +307,7 @@ end)
 -- storage is persisted between loaded games, but local variables that hook into storage need to be setup here
 script.on_load(function()
   core.initialize()
+  inventory.initialize()
   register_event_handlers()
   register_main_loop()
 end)
