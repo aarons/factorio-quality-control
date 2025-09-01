@@ -6,6 +6,7 @@ Uses lock-based system to prevent over-allocation instead of complex pending upg
 Keeps round-robin quality scanning for performance.
 ]]
 
+local core = require("scripts.core")
 local inventory = {}
 
 local network_logistics = {}
@@ -19,10 +20,6 @@ function inventory.initialize()
   upgrade_locks = storage.upgrade_locks or {}
   tracked_entities = storage.quality_control_entities or {}
   config = storage.config or {}
-
-  -- Migrate old storage if needed
-  storage.network_logistics = network_logistics
-  storage.upgrade_locks = upgrade_locks
 end
 
 -- Calculate how many concurrent upgrades we can allow for this item/quality
@@ -235,7 +232,6 @@ function inventory.on_robot_built_entity(event)
   end
 
   -- Also handle entity tracking for new entities
-  local core = require("scripts.core")
   if config and config.is_tracked_type and config.is_tracked_type[entity.type] then
     core.get_entity_info(entity)
   end
