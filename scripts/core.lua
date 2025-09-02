@@ -312,115 +312,104 @@ local function attempt_upgrade_normal(entity)
   end
 end
 
+local function get_next_available_item(network, item_name, current_quality_level, max_quality_level)
+  if not quality_limit then
+    return nil
+  end
+
+  local max_check_level = math.min(max_quality_level, current_quality_level + 10)
+  for level = current_quality_level + 1, max_check_level do
+    local quality = prototypes.quality["normal"]
+    while quality and quality.level < level do
+      quality = quality.next
+    end
+
+    if quality then
+      local item_with_quality = {name = item_name, quality = quality}
+      local available_count = network.get_item_count(item_with_quality)
+      if available_count > 0 then
+        return quality
+      end
+    end
+  end
+
+  return nil
+end
+
 local function attempt_upgrade_uncommon(entity)
+  -- Early validation checks
   if not entity.valid then
     log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
     return nil
   end
 
-  if entity.to_be_upgraded() then
+  if entity.to_be_upgraded() or not entity.logistic_network or not quality_limit then
     return false
   end
 
   local network = entity.logistic_network
-  if not network then
-    return false
-  end
-
   local entity_info = tracked_entities[entity.unit_number]
   if not entity_info then
     log("Quality Control ERROR - attempt quality change skipped since no entity info was available. Entity: " .. (entity and entity.name or "nil") .. ", unit_number: " .. (entity and entity.unit_number or "nil"))
     return nil
   end
 
-  -- Check if network has higher quality items available, starting from the highest quality
-  local target_quality = nil
-  local current_quality_level = entity.quality.level
-
-  -- Find the highest available quality in the network, starting from entity's quality + 1
-  if quality_limit then
-    local max_check_level = math.min(quality_limit.level, current_quality_level + 10)
-    for level = current_quality_level + 1, max_check_level do
-      local quality = prototypes.quality["normal"]
-      while quality and quality.level < level do
-        quality = quality.next
-      end
-
-      if quality then
-        local item_with_quality = {name = entity.name, quality = quality}
-        local available_count = network.get_item_count(item_with_quality)
-        if available_count > 0 then
-          target_quality = quality
-          break
-        end
-      end
-    end
+  -- Find the next available quality in the network
+  local target_quality = get_next_available_item(network, entity.name, entity.quality.level, quality_limit.level)
+  if not target_quality then
+    return false
   end
 
-  if target_quality then
-    local random_roll = math.random()
-    entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
+  local random_roll = math.random()
+  entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
 
-    if random_roll >= (entity_info.chance_to_change / 100) then
-      if settings_data.accumulation_percentage > 0 then
-        entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
-      end
-      return false
+  if random_roll >= (entity_info.chance_to_change / 100) then
+    if settings_data.accumulation_percentage > 0 then
+      entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
     end
+    return false
+  end
 
-    entity.order_upgrade({
-      target = {name = entity.name, quality = target_quality},
-      force = entity.force
-    })
+  entity.order_upgrade({
+    target = {name = entity.name, quality = target_quality},
+    force = entity.force
+  })
 
-    -- Handle module upgrades if enabled
-    local module_setting = settings.startup["change-modules-with-entity"].value
-    if module_setting ~= "disabled" then
-      local module_inventory = entity.get_module_inventory()
-      if module_inventory then
-        for i = 1, #module_inventory do
-          local stack = module_inventory[i]
-          if stack.valid_for_read and stack.is_module then
-            local module_name = stack.name
-            local current_module_quality = stack.quality
-
-            -- Check if higher quality module is available, starting from module's quality + 1
-            local module_target_quality = nil
-            if quality_limit then
-              local max_module_check_level = math.min(quality_limit.level, current_module_quality.level + 10)
-              for level = current_module_quality.level + 1, max_module_check_level do
-                local quality = prototypes.quality["normal"]
-                while quality and quality.level < level do
-                  quality = quality.next
-                end
-
-                if quality then
-                  local module_with_quality = {name = module_name, quality = quality}
-                  local module_available_count = network.get_item_count(module_with_quality)
-                  if module_available_count > 0 then
-                    module_target_quality = quality
-                    break
-                  end
-                end
-              end
-            end
-
-            if module_target_quality then
-              entity.order_upgrade({
-                force = entity.force,
-                target = {name = module_name, quality = module_target_quality}
-              })
-            end
-          end
-        end
-      end
-    end
-
+  -- Handle module upgrades if enabled
+  local module_setting = settings.startup["change-modules-with-entity"].value
+  if module_setting == "disabled" then
     notifications.show_entity_quality_alert(entity)
     return true
   end
 
-  return false
+  local module_inventory = entity.get_module_inventory()
+  if not module_inventory then
+    notifications.show_entity_quality_alert(entity)
+    return true
+  end
+
+  for i = 1, #module_inventory do
+    local stack = module_inventory[i]
+    if not (stack.valid_for_read and stack.is_module) then
+      goto continue_module_loop
+    end
+
+    local module_name = stack.name
+    local current_module_quality = stack.quality
+    local module_target_quality = get_next_available_item(network, module_name, current_module_quality.level, quality_limit.level)
+
+    if module_target_quality then
+      entity.order_upgrade({
+        force = entity.force,
+        target = {name = module_name, quality = module_target_quality}
+      })
+    end
+
+    ::continue_module_loop::
+  end
+
+  notifications.show_entity_quality_alert(entity)
+  return true
 end
 
 local function attempt_upgrade(entity)

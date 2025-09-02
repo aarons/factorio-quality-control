@@ -28,6 +28,7 @@ Factorio's API and best practices are available via answer-agent.
 - `validate.sh` - runs all validations and tests
 - `package.sh` - packages the mod for distribution
 - `migrations/` - database migration scripts for version updates
+- `validation/test_*.py` - various pytests
 
 ## Core Functionality
 
@@ -53,5 +54,7 @@ The mod filters out entities that are incompatible with upgrades:
 
 ## Development Testing
 
-- `./validate.sh` runs all validations and tests
+**IMPORTANT**: Always use `./validate.sh` for testing and validation. This is the single command that runs all required checks including luacheck and pytest validations. Do NOT run `luacheck` or `pytest` directly use `validate.sh`
+
+
 
