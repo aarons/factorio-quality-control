@@ -1,5 +1,0 @@
----------------------------------------------------------------------------------------------------
-Version: 1.0.0
-Date: 01. 01. 2024
-  Features:
-	- This line contains a tab character which is not allowed.

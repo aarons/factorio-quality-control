@@ -8,7 +8,6 @@ set -e  # Exit on any error
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CHANGELOG_FILE="${SCRIPT_DIR}/changelog.txt"
 PROJECT_DIR="$SCRIPT_DIR"
-EXAMPLES_DIR="${PROJECT_DIR}/tests/examples"
 
 # Colors for output
 RED='\033[0;31m'
@@ -41,9 +40,30 @@ check_python() {
     fi
 }
 
+# Function to setup validation environment
+setup_validation_env() {
+    local validation_dir="${SCRIPT_DIR}/validation"
+    local venv_dir="${validation_dir}/venv"
+    local python_cmd=$(check_python)
+
+    # Check if virtual environment exists
+    if [ ! -d "$venv_dir" ]; then
+        print_status $YELLOW "Setting up validation environment..."
+        $python_cmd -m venv "$venv_dir"
+
+        # Activate venv and install requirements
+        source "$venv_dir/bin/activate"
+        pip install -r "${validation_dir}/requirements.txt" >/dev/null 2>&1
+        deactivate
+    fi
+
+    # Return path to venv python
+    echo "${venv_dir}/bin/python"
+}
+
 # Function to validate changelog
 validate_changelog() {
-    local python_cmd=$(check_python)
+    local python_cmd=$(setup_validation_env)
     print_status $YELLOW "Validating changelog..."
 
     if [ ! -f "$CHANGELOG_FILE" ]; then
@@ -51,44 +71,11 @@ validate_changelog() {
         return 1
     fi
 
-    if $python_cmd "${SCRIPT_DIR}/validate_changelog.py" "$CHANGELOG_FILE"; then
-        print_status $GREEN "✓ Changelog validation passed"
-        return 0
-    else
-        print_status $RED "✗ Changelog validation failed"
-        return 1
-    fi
+    # Run pytest for changelog validation
+    cd "${SCRIPT_DIR}/validation"
+    $python_cmd -m pytest "test_changelog.py::test_project_changelog" -v --tb=short
 }
 
-# Function to test a changelog file and expect it to pass
-test_valid() {
-    local file=$1
-    local description=$2
-
-    echo -n "Testing valid: $description... "
-    if $python_cmd "${PROJECT_DIR}/validate_changelog.py" "$file" >/dev/null 2>&1; then
-        print_status $GREEN "✓ PASS"
-        return 0
-    else
-        print_status $RED "✗ FAIL (should have been accepted)"
-        return 1
-    fi
-}
-
-# Function to test a changelog file and expect it to fail
-test_invalid() {
-    local file=$1
-    local description=$2
-
-    echo -n "Testing invalid: $description... "
-    if $python_cmd "${PROJECT_DIR}/validate_changelog.py" "$file" >/dev/null 2>&1; then
-        print_status $RED "✗ FAIL (should have been rejected)"
-        return 1
-    else
-        print_status $GREEN "✓ PASS"
-        return 0
-    fi
-}
 
 # Function to run luacheck if available
 run_luacheck() {
@@ -164,6 +151,16 @@ validate_locale_files() {
     fi
 }
 
+# Function to run all pytest tests
+run_all_tests() {
+    local python_cmd=$(setup_validation_env)
+    print_status $YELLOW "Running all pytest tests..."
+
+    # Run all pytest tests in validation directory
+    cd "${SCRIPT_DIR}/validation"
+    $python_cmd -m pytest -v --tb=short
+}
+
 # Function to run whitespace cleanup
 run_whitespace_cleanup() {
     # Run whitespace cleanup silently - it will only output if there are issues
@@ -179,6 +176,7 @@ run_comprehensive_validation() {
     local luacheck_passed=true
     local info_json_passed=true
     local locale_passed=true
+    local tests_passed=true
     local python_cmd=$(check_python)
 
     # Run luacheck first if available
@@ -201,54 +199,14 @@ run_comprehensive_validation() {
     fi
     echo ""
 
-    print_status $YELLOW "Running changelog validation tests..."
-    echo ""
-
-    local tests_passed=0
-    local tests_failed=0
-
-    # Test the actual project changelog
-    if test_valid "${PROJECT_DIR}/changelog.txt" "Project changelog.txt"; then
-        ((tests_passed++))
-    else
-        ((tests_failed++))
+    # Run all pytest tests
+    if ! run_all_tests; then
+        tests_passed=false
     fi
-
-    # Test valid examples
-    for example in "${EXAMPLES_DIR}"/valid_*.txt; do
-        if [ -f "$example" ]; then
-            local basename=$(basename "$example" .txt)
-            local description=${basename#valid_}
-            if test_valid "$example" "$description"; then
-                ((tests_passed++))
-            else
-                ((tests_failed++))
-            fi
-        fi
-    done
-
-    # Test invalid examples
-    for example in "${EXAMPLES_DIR}"/invalid_*.txt; do
-        if [ -f "$example" ]; then
-            local basename=$(basename "$example" .txt)
-            local description=${basename#invalid_}
-            if test_invalid "$example" "$description"; then
-                ((tests_passed++))
-            else
-                ((tests_failed++))
-            fi
-        fi
-    done
-
     echo ""
-    print_status $YELLOW "Test Results:"
-    print_status $GREEN "  Passed: $tests_passed"
-    if [ $tests_failed -gt 0 ]; then
-        print_status $RED "  Failed: $tests_failed"
-    fi
 
     local overall_success=true
-    if [ "$luacheck_passed" = false ] || [ "$info_json_passed" = false ] || [ "$locale_passed" = false ] || [ $tests_failed -gt 0 ]; then
+    if [ "$luacheck_passed" = false ] || [ "$info_json_passed" = false ] || [ "$locale_passed" = false ] || [ "$tests_passed" = false ]; then
         overall_success=false
     fi
 

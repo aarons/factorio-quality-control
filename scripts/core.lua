@@ -7,7 +7,6 @@ Combines upgrade processing, entity tracking, and batch processing functionality
 ]]
 
 local notifications = require("scripts.notifications")
-local inventory = require("scripts.inventory")
 local core = {}
 
 local tracked_entities = {}
@@ -334,8 +333,29 @@ local function attempt_upgrade_uncommon(entity)
     return nil
   end
 
-  -- Use inventory checker to find the best available quality upgrade
-  local target_quality = inventory.check_upgrade_available(network, entity.name, entity.quality)
+  -- Check if network has higher quality items available, starting from the highest quality
+  local target_quality = nil
+  local current_quality_level = entity.quality.level
+
+  -- Find the highest available quality in the network, starting from entity's quality + 1
+  if quality_limit then
+    local max_check_level = math.min(quality_limit.level, current_quality_level + 10)
+    for level = current_quality_level + 1, max_check_level do
+      local quality = prototypes.quality["normal"]
+      while quality and quality.level < level do
+        quality = quality.next
+      end
+
+      if quality then
+        local item_with_quality = {name = entity.name, quality = quality}
+        local available_count = network.get_item_count(item_with_quality)
+        if available_count > 0 then
+          target_quality = quality
+          break
+        end
+      end
+    end
+  end
 
   if target_quality then
     local random_roll = math.random()
@@ -348,53 +368,56 @@ local function attempt_upgrade_uncommon(entity)
       return false
     end
 
-    -- Try to acquire lock before ordering upgrade
-    if not inventory.try_acquire_lock(network, entity.name, target_quality) then
-      return false
-    end
-
-    local success = entity.order_upgrade({
+    entity.order_upgrade({
       target = {name = entity.name, quality = target_quality},
       force = entity.force
     })
 
-    -- If upgrade order failed, release the lock
-    if not success then
-      inventory.release_lock(network, entity.name, target_quality)
-    end
+    -- Handle module upgrades if enabled
+    local module_setting = settings.startup["change-modules-with-entity"].value
+    if module_setting ~= "disabled" then
+      local module_inventory = entity.get_module_inventory()
+      if module_inventory then
+        for i = 1, #module_inventory do
+          local stack = module_inventory[i]
+          if stack.valid_for_read and stack.is_module then
+            local module_name = stack.name
+            local current_module_quality = stack.quality
 
-    if success then
-      -- Handle module upgrades if enabled
-      local module_setting = settings.startup["change-modules-with-entity"].value
-      if module_setting ~= "disabled" then
-        local module_inventory = entity.get_module_inventory()
-        if module_inventory then
-          for i = 1, #module_inventory do
-            local stack = module_inventory[i]
-            if stack.valid_for_read and stack.is_module then
-              local module_name = stack.name
-              local current_module_quality = stack.quality
-              local module_target_quality = inventory.check_upgrade_available(network, module_name, current_module_quality)
-              if module_target_quality and inventory.try_acquire_lock(network, module_name, module_target_quality) then
-                local module_success = entity.order_upgrade({
-                  force = entity.force,
-                  target = {name = module_name, quality = module_target_quality}
-                })
+            -- Check if higher quality module is available, starting from module's quality + 1
+            local module_target_quality = nil
+            if quality_limit then
+              local max_module_check_level = math.min(quality_limit.level, current_module_quality.level + 10)
+              for level = current_module_quality.level + 1, max_module_check_level do
+                local quality = prototypes.quality["normal"]
+                while quality and quality.level < level do
+                  quality = quality.next
+                end
 
-                -- If module upgrade order failed, release the lock
-                if not module_success then
-                  inventory.release_lock(network, module_name, module_target_quality)
+                if quality then
+                  local module_with_quality = {name = module_name, quality = quality}
+                  local module_available_count = network.get_item_count(module_with_quality)
+                  if module_available_count > 0 then
+                    module_target_quality = quality
+                    break
+                  end
                 end
               end
+            end
+
+            if module_target_quality then
+              entity.order_upgrade({
+                force = entity.force,
+                target = {name = module_name, quality = module_target_quality}
+              })
             end
           end
         end
       end
-
-      notifications.show_entity_quality_alert(entity)
     end
 
-    return success
+    notifications.show_entity_quality_alert(entity)
+    return true
   end
 
   return false
@@ -508,7 +531,6 @@ function core.batch_process_entities()
   while entities_processed < batch_size do
     if batch_index > #entity_list then
       batch_index = 1
-      inventory.cleanup_locks()
       break
     end
 

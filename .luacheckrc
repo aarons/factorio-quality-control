@@ -77,7 +77,6 @@ read_globals = {
 -- Files to ignore
 exclude_files = {
     "archive/",
-    "tests/",
     "*.zip",
 }
 

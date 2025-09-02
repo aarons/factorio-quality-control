@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 """
-Factorio Changelog Validator
+Pytest module to validate changelog.txt format compliance.
 
 Validates changelog.txt files against Factorio's strict formatting requirements.
-Provides detailed error messages with line numbers for any violations.
 """
 
-import sys
+import pytest
 import re
+import sys
+from pathlib import Path
 from typing import List, Set, Tuple, Optional
 
 
 class ChangelogError:
+    """Represents a single validation error in a changelog file."""
+    
     def __init__(self, line_number: int, rule: str, message: str):
         self.line_number = line_number
         self.rule = rule
@@ -22,6 +25,8 @@ class ChangelogError:
 
 
 class ChangelogValidator:
+    """Validates changelog files against Factorio formatting requirements."""
+    
     def __init__(self):
         self.errors: List[ChangelogError] = []
         self.versions_seen: Set[str] = set()
@@ -33,8 +38,14 @@ class ChangelogValidator:
         """Add an error to the validation results"""
         self.errors.append(ChangelogError(line_number, rule, message))
 
-    def validate_file(self, filepath: str) -> bool:
+    def validate_file(self, filepath: Path) -> bool:
         """Validate a changelog file. Returns True if valid, False otherwise."""
+        self.errors.clear()
+        self.versions_seen.clear()
+        self.current_version = None
+        self.current_category = None
+        self.entries_in_current_category.clear()
+        
         try:
             with open(filepath, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
@@ -215,39 +226,23 @@ class ChangelogValidator:
         self.current_category = None
         self.entries_in_current_category.clear()
 
-    def print_errors(self):
-        """Print all validation errors"""
-        if not self.errors:
-            print("✅ Changelog validation passed!")
-            return
-        
-        print(f"❌ Found {len(self.errors)} validation error(s):")
-        print()
-        
-        for error in self.errors:
-            print(f"  {error}")
-        
-        print()
-        print("Please fix these errors and run validation again.")
 
-
-def main():
-    """Main entry point"""
-    if len(sys.argv) != 2:
-        print("Usage: python validate_changelog.py <changelog_file>")
-        print("Example: python validate_changelog.py changelog.txt")
-        sys.exit(1)
+def test_project_changelog():
+    """Test the main project changelog.txt file."""
+    project_root = Path(__file__).parent.parent
+    changelog_path = project_root / "changelog.txt"
     
-    filepath = sys.argv[1]
+    if not changelog_path.exists():
+        pytest.fail(f"Changelog file not found: {changelog_path}")
+    
     validator = ChangelogValidator()
+    is_valid = validator.validate_file(changelog_path)
     
-    print(f"Validating {filepath}...")
-    is_valid = validator.validate_file(filepath)
-    
-    validator.print_errors()
-    
-    sys.exit(0 if is_valid else 1)
-
+    if not is_valid:
+        error_messages = [str(error) for error in validator.errors]
+        pytest.fail(f"Project changelog validation failed:\n" + "\n".join(error_messages))
 
 if __name__ == "__main__":
-    main()
+    # Allow running these tests directly for debugging
+    test_project_changelog()
+    print("✓ All changelog validation tests passed")
