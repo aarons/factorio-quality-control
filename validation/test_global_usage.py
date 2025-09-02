@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Pytest module to validate that .global is not used in Lua files.
+Pytest module to validate that 'global' variable is not assigned to in Lua files.
 
-The .global variable no longer exists in Factorio's API - use 'storage' instead.
+It's acceptable to read from settings.global, but direct assignments to global
+should use 'storage' instead.
 """
 
 import pytest
@@ -24,7 +25,10 @@ from conftest import (
 
 def check_global_usage(filepath: Path) -> List[Tuple[str, int, str]]:
     """
-    Check that .global is not used in a Lua file.
+    Check that 'global' variable is not assigned to in a Lua file.
+    
+    It's acceptable to read from settings.global, but direct assignments to global
+    should use 'storage' instead.
     
     Args:
         filepath: Path to the Lua file to check
@@ -54,13 +58,16 @@ def check_global_usage(filepath: Path) -> List[Tuple[str, int, str]]:
             # Remove inline comments for parsing
             line_no_comments = remove_comments_from_line(line)
             
-            # Look for .global usage
-            global_pos = line_no_comments.find('.global')
-            if global_pos != -1:
-                # Make sure it's not inside a string literal
-                if not is_in_string_literal(line_no_comments, global_pos):
-                    error_msg = "Use 'storage' instead of '.global' (Factorio API change)"
-                    errors.append((str(filepath), line_num, error_msg))
+            # Look for global assignments (global = or global[)
+            # But exclude settings.global usage
+            if re.search(r'\bglobal\s*[=\[]', line_no_comments):
+                # Check if it's settings.global (acceptable usage)
+                if not re.search(r'settings\.global\s*\[', line_no_comments):
+                    # Make sure it's not inside a string literal
+                    global_match = re.search(r'\bglobal\s*[=\[]', line_no_comments)
+                    if global_match and not is_in_string_literal(line_no_comments, global_match.start()):
+                        error_msg = "Use 'storage' instead of assigning to 'global' variable"
+                        errors.append((str(filepath), line_num, error_msg))
                         
     except Exception as e:
         errors.append((str(filepath), 0, f"Failed to read file: {e}"))
@@ -70,10 +77,10 @@ def check_global_usage(filepath: Path) -> List[Tuple[str, int, str]]:
 
 def test_no_global_usage():
     """
-    Test that .global is not used in any Lua files.
+    Test that 'global' variable is not assigned to in any Lua files.
     
-    The .global variable no longer exists in Factorio's API.
-    Use 'storage' instead.
+    It's acceptable to read from settings.global, but direct assignments to global
+    should use 'storage' instead.
     """
     lua_files = find_lua_files()
     all_errors = []
@@ -83,7 +90,7 @@ def test_no_global_usage():
         all_errors.extend(file_errors)
     
     if all_errors:
-        error_message = f"Found {len(all_errors)} .global usage violations:\n"
+        error_message = f"Found {len(all_errors)} global assignment violations:\n"
         error_message += format_validation_errors(all_errors)
         pytest.fail(error_message)
 

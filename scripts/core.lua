@@ -122,10 +122,10 @@ function core.get_entity_info(entity)
   return tracked_entities[id]
 end
 
-function core.scan_and_populate_entities(all_tracked_types)
+function core.scan_and_populate_entities()
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
-      type = all_tracked_types,
+      type = storage.config.all_tracked_types,
       force = game.forces.player
     }
 
@@ -312,12 +312,8 @@ local function attempt_upgrade_normal(entity)
   end
 end
 
-local function get_next_available_item(network, item_name, current_quality_level, max_quality_level)
-  if not quality_limit then
-    return nil
-  end
-
-  local max_check_level = math.min(max_quality_level, current_quality_level + 10)
+local function get_next_available_quality(network, item_name, current_quality_level)
+  local max_check_level = math.min(quality_limit.level, current_quality_level + 5)
   for level = current_quality_level + 1, max_check_level do
     local quality = prototypes.quality["normal"]
     while quality and quality.level < level do
@@ -337,25 +333,15 @@ local function get_next_available_item(network, item_name, current_quality_level
 end
 
 local function attempt_upgrade_uncommon(entity)
-  -- Early validation checks
-  if not entity.valid then
-    log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
-    return nil
-  end
-
-  if entity.to_be_upgraded() or not entity.logistic_network or not quality_limit then
+  if entity.to_be_upgraded() or not entity.logistic_network then
     return false
   end
 
   local network = entity.logistic_network
   local entity_info = tracked_entities[entity.unit_number]
-  if not entity_info then
-    log("Quality Control ERROR - attempt quality change skipped since no entity info was available. Entity: " .. (entity and entity.name or "nil") .. ", unit_number: " .. (entity and entity.unit_number or "nil"))
-    return nil
-  end
 
   -- Find the next available quality in the network
-  local target_quality = get_next_available_item(network, entity.name, entity.quality.level, quality_limit.level)
+  local target_quality = get_next_available_quality(network, entity.name, entity.quality.level)
   if not target_quality then
     return false
   end
@@ -378,70 +364,66 @@ local function attempt_upgrade_uncommon(entity)
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
   if module_setting == "disabled" then
-    notifications.show_entity_quality_alert(entity)
-    return true
+    goto skip_modules
   end
 
   local module_inventory = entity.get_module_inventory()
   if not module_inventory then
-    notifications.show_entity_quality_alert(entity)
-    return true
+    goto skip_modules
   end
 
   for i = 1, #module_inventory do
     local stack = module_inventory[i]
-    if not (stack.valid_for_read and stack.is_module) then
-      goto continue_module_loop
+    if stack.valid_for_read and stack.is_module then
+      local module_name = stack.name
+      local current_module_quality = stack.quality
+      local module_target_quality = get_next_available_quality(network, module_name, current_module_quality.level)
+
+      if module_target_quality then
+        entity.order_upgrade({
+          force = entity.force,
+          target = {name = module_name, quality = module_target_quality}
+        })
+      end
     end
-
-    local module_name = stack.name
-    local current_module_quality = stack.quality
-    local module_target_quality = get_next_available_item(network, module_name, current_module_quality.level, quality_limit.level)
-
-    if module_target_quality then
-      entity.order_upgrade({
-        force = entity.force,
-        target = {name = module_name, quality = module_target_quality}
-      })
-    end
-
-    ::continue_module_loop::
   end
 
+  ::skip_modules::
   notifications.show_entity_quality_alert(entity)
   return true
 end
 
-local function attempt_upgrade(entity)
-  if mod_difficulty == "Uncommon" then
-    return attempt_upgrade_uncommon(entity)
-  else
-    return attempt_upgrade_normal(entity)
-  end
-end
 
-function core.process_upgrade_attempts(entity, attempts_count, quality_changes)
-  local successful_changes = 0
+function core.process_upgrade_attempts(entity, attempts_count)
+  local quality_changes = {}
   local current_entity = entity
 
   for _ = 1, attempts_count do
-    local change_result = attempt_upgrade(current_entity)
+    local change_result
+    if mod_difficulty == "Uncommon" then
+      change_result = attempt_upgrade_uncommon(current_entity)
+    else
+      change_result = attempt_upgrade_normal(current_entity)
+    end
 
     if change_result == nil then
+      -- we ran into an error, just return instead of continuing
       break
     end
 
-    if change_result then
-      successful_changes = successful_changes + 1
+    if change_result and mod_difficulty == "Normal" then
       current_entity = change_result
       quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
       if current_entity.quality == quality_limit then
         break
       end
+    elseif change_result and mod_difficulty == "Uncommon" then
+      quality_changes[current_entity.name] = (quality_changes[current_entity.name] or 0) + 1
+      break
     end
   end
 
-  return successful_changes
+  return quality_changes
 end
 
 function core.process_primary_entity(entity_info, entity)
@@ -551,8 +533,13 @@ function core.batch_process_entities()
     end
 
     if result and result.credits_earned > 0 then
-      local change_count = core.process_upgrade_attempts(entity, result.credits_earned, quality_changes)
-      if change_count == 0 and entity_info.is_primary then
+      local upgrades = core.process_upgrade_attempts(entity, result.credits_earned)
+
+      local entity_name, count = next(upgrades)
+      if entity_name then
+        quality_changes[entity_name] = (quality_changes[entity_name] or 0) + count
+      elseif entity_info.is_primary then
+        -- update hours so that we don't add more credits for the same hours next time
         core.update_manufacturing_hours(entity_info, result.current_hours)
       end
     end

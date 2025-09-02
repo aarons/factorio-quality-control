@@ -5,3 +5,4 @@ archive/
 references/
 validation/venv/
 validation/.pytest_cache/
+validation/__pycache__/

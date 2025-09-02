@@ -206,7 +206,7 @@ local function reinitialize_quality_control_storage(command)
   setup_data_structures(true)
   build_and_store_config()
   core.initialize()
-  core.scan_and_populate_entities(storage.config.all_tracked_types)
+  core.scan_and_populate_entities()
 
   if command and command.player_index then
     local player = game.get_player(command.player_index)
@@ -245,11 +245,7 @@ local function register_event_handlers()
     if player then
       notifications.show_entity_quality_info(
         player,
-        storage.config.is_tracked_type,
-        core.get_entity_info,
-        storage.config.settings_data.manufacturing_hours_for_change,
-        storage.config.settings_data.quality_increase_cost,
-        storage.config.can_attempt_quality_change
+        core.get_entity_info
       )
     end
   end)
@@ -265,7 +261,7 @@ script.on_init(function()
   setup_data_structures()
   build_and_store_config()
   core.initialize()
-  core.scan_and_populate_entities(storage.config.all_tracked_types)
+  core.scan_and_populate_entities()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()
   register_main_loop()

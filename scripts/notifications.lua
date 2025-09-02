@@ -61,7 +61,7 @@ function notifications.show_quality_notifications(quality_changes)
   end
 end
 
-function notifications.show_entity_quality_info(player, is_tracked_type, get_entity_info, manufacturing_hours_for_change, quality_increase_cost, can_attempt_quality_change)
+function notifications.show_entity_quality_info(player, get_entity_info)
   local selected_entity = player.selected
 
   if not selected_entity or not selected_entity.valid then
@@ -69,7 +69,7 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
     return
   end
 
-  if not is_tracked_type[selected_entity.type] then
+  if not storage.config.is_tracked_type[selected_entity.type] then
     player.print({"quality-control.entity-not-supported", selected_entity.localised_name or selected_entity.name})
     return
   end
@@ -90,7 +90,7 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
     -- Normal entity_info table - show tracking data
     local is_primary_type = entity_info.is_primary
     local current_recipe = is_primary_type and selected_entity.get_recipe and selected_entity.get_recipe()
-    local is_enabled = can_attempt_quality_change[selected_entity.type]
+    local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
     local can_change_quality = entity_info.can_change_quality
 
     -- Show eligibility status
@@ -114,7 +114,7 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
 
       -- Progress to next attempt (for primary types with manufacturing hours)
       if is_primary_type and current_recipe then
-        local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ selected_entity.quality.level
+        local hours_needed = storage.config.settings_data.manufacturing_hours_for_change * (1 + storage.config.settings_data.quality_increase_cost) ^ selected_entity.quality.level
         local recipe_time = current_recipe.prototype.energy
         local current_hours = (selected_entity.products_finished * recipe_time) / 3600
         local previous_hours = entity_info.manufacturing_hours or 0
@@ -136,7 +136,7 @@ function notifications.show_entity_quality_info(player, is_tracked_type, get_ent
 
       -- Progress to next event generation (for primary types with manufacturing hours)
       if is_primary_type and current_recipe then
-        local hours_needed = manufacturing_hours_for_change * (1 + quality_increase_cost) ^ selected_entity.quality.level
+        local hours_needed = storage.config.settings_data.manufacturing_hours_for_change * (1 + storage.config.settings_data.quality_increase_cost) ^ selected_entity.quality.level
         local recipe_time = current_recipe.prototype.energy
         local current_hours = (selected_entity.products_finished * recipe_time) / 3600
         local previous_hours = entity_info.manufacturing_hours or 0

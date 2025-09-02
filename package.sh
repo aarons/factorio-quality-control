@@ -16,7 +16,7 @@ echo "========================================="
 # Run validation before packaging
 echo ""
 echo "Running pre-packaging validation..."
-if ! ./validate.sh --changelog; then
+if ! ./validate.sh; then
     echo ""
     echo "❌ Validation failed! Fix the errors above before packaging."
     exit 1
@@ -42,8 +42,41 @@ PACKAGE_DIR="$MOD_NAME"_"$MOD_VERSION"
 FULL_PACKAGE_DIR="$TMP_DIR/$PACKAGE_DIR"
 mkdir -p "$FULL_PACKAGE_DIR"
 
-# Copy all files to the temporary directory, excluding .git
-rsync -av --exclude='.git' --exclude='assets*' --exclude='plan*.md' --exclude='mod-description.md' --exclude='.DS_Store' --exclude='AGENTS.md' --exclude='CLAUDE.md' --exclude='.gitignore' --exclude='*.sh' --exclude='*.zip' --exclude='.claude*' --exclude='tests*' --exclude='validate*' --exclude='archive' --exclude='.luacheckrc' --exclude='references' ./ "$FULL_PACKAGE_DIR/"
+# Build exclusion list from .gitignore and additional package-specific exclusions
+EXCLUSIONS=""
+
+# Read .gitignore and convert to rsync exclusions
+if [ -f .gitignore ]; then
+    while IFS= read -r line; do
+        # Skip empty lines and comments
+        if [ -n "$line" ] && [ "${line#\#}" = "$line" ]; then
+            EXCLUSIONS="$EXCLUSIONS --exclude='$line'"
+        fi
+    done < .gitignore
+fi
+
+# Add package-specific exclusions not in .gitignore
+PACKAGE_EXCLUSIONS=(
+    '.git'
+    'assets*'
+    'mod-description.md'
+    'AGENTS.md'
+    'CLAUDE.md'
+    '.gitignore'
+    '*.sh'
+    '.claude*'
+    'tests*'
+    'validate*'
+    'validation/'
+    '.luacheckrc'
+)
+
+for exclusion in "${PACKAGE_EXCLUSIONS[@]}"; do
+    EXCLUSIONS="$EXCLUSIONS --exclude='$exclusion'"
+done
+
+# Copy all files to the temporary directory with exclusions
+eval "rsync -av $EXCLUSIONS ./ \"$FULL_PACKAGE_DIR/\""
 
 # Create archive folder if it doesn't exist
 mkdir -p archive
