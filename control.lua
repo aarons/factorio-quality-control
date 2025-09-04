@@ -206,6 +206,10 @@ local function setup_data_structures(force_reset)
     storage.quality_multipliers = {}
   end
 
+  if not storage.item_count_cache then
+    storage.item_count_cache = {}
+  end
+
 end
 
 local function reinitialize_quality_control_storage(command)

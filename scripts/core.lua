@@ -18,6 +18,7 @@ local quality_multipliers = {}
 local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
+local item_count_cache = {}
 
 -- Entities from these mods don't fast_replace well, so for now exclude them
 local excluded_mods_lookup = {
@@ -38,6 +39,7 @@ function core.initialize()
   is_tracked_type = storage.config.is_tracked_type
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
+  item_count_cache = storage.item_count_cache
   accumulate_at_max_quality = settings_data.accumulate_at_max_quality
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
@@ -323,21 +325,37 @@ local function attempt_upgrade_normal(entity)
   end
 end
 
-local function get_next_available_quality(network, item_name, current_quality_level)
-  local max_check_level = math.min(quality_limit.level, current_quality_level + 5)
-  for level = current_quality_level + 1, max_check_level do
-    local quality = prototypes.quality["normal"]
-    while quality and quality.level < level do
-      quality = quality.next
-    end
+local function get_next_available_quality(network, item_name, current_quality)
+  local next_quality = current_quality.next
+  -- keep this check as a user could insert max quality modules and we don't check those ahead of time
+  if not next_quality then
+    return nil
+  end
 
-    if quality then
-      local item_with_quality = {name = item_name, quality = quality}
-      local available_count = network.get_item_count(item_with_quality)
-      if available_count > 0 then
-        return quality
-      end
+  local item_with_quality = {name = item_name, quality = next_quality}
+  local available_count = network.get_item_count(item_with_quality)
+
+  -- update the cache with the current count
+  local network_id = network.network_id
+  if not item_count_cache[network_id] then
+    item_count_cache[network_id] = {}
+  end
+  if not item_count_cache[network_id][item_name] then
+    item_count_cache[network_id][item_name] = {}
+  end
+  item_count_cache[network_id][item_name][next_quality.level] = available_count
+
+  if available_count > 0 then
+    return next_quality
+  end
+
+  -- scan the cache for any available quality
+  while next_quality do
+    local cached_count = item_count_cache[network_id][item_name][next_quality.level]
+    if cached_count and cached_count > 0 then
+      return next_quality
     end
+    next_quality = next_quality.next
   end
 
   return nil
@@ -352,7 +370,7 @@ local function attempt_upgrade_uncommon(entity)
   local entity_info = tracked_entities[entity.unit_number]
 
   -- Find the next available quality in the network
-  local target_quality = get_next_available_quality(network, entity.name, entity.quality.level)
+  local target_quality = get_next_available_quality(network, entity.name, entity.quality)
   if not target_quality then
     return false
   end
@@ -390,7 +408,7 @@ local function attempt_upgrade_uncommon(entity)
     if stack.valid_for_read and stack.is_module then
       local module_name = stack.name
       local current_module_quality = stack.quality
-      local module_target_quality = get_next_available_quality(network, module_name, current_module_quality.level)
+      local module_target_quality = get_next_available_quality(network, module_name, current_module_quality)
 
       if module_target_quality then
         entity.order_upgrade({
@@ -525,7 +543,7 @@ function core.batch_process_entities()
     -- or if the entity can change quality still
     local should_stay_tracked = entity_info and
       (entity_info.entity.quality.next ~= nil or
-       (entity_info.is_primary and accumulate_at_max_quality))
+      (entity_info.is_primary and accumulate_at_max_quality))
 
     if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)
