@@ -135,6 +135,47 @@ function core.get_entity_info(entity)
   return tracked_entities[id]
 end
 
+local function update_item_cache(network, item_name, quality)
+  local item_with_quality = {name = item_name, quality = quality}
+  local available_count = network.get_item_count(item_with_quality)
+
+  -- update the cache with the current count
+  local network_id = network.network_id
+  if not item_count_cache[network_id] then
+    item_count_cache[network_id] = {}
+  end
+  if not item_count_cache[network_id][item_name] then
+    item_count_cache[network_id][item_name] = {}
+  end
+  item_count_cache[network_id][item_name][quality.level] = available_count
+
+  return available_count
+end
+
+local function get_next_available_quality(network, item_name, current_quality)
+  local next_quality = current_quality.next
+  -- keep this check as a user could insert max quality modules and we don't check those ahead of time
+  if not next_quality then
+    return nil
+  end
+
+  local available_count = update_item_cache(network, item_name, next_quality)
+  if available_count and available_count > 0 then
+    return next_quality
+  end
+
+  -- scan the cache for any available quality
+  while next_quality do
+    local cached_count = item_count_cache[network.network_id][item_name][next_quality.level]
+    if cached_count and cached_count > 0 then
+      return next_quality
+    end
+    next_quality = next_quality.next
+  end
+
+  return nil
+end
+
 function core.scan_and_populate_entities()
   for _, surface in pairs(game.surfaces) do
     local entities = surface.find_entities_filtered{
@@ -143,7 +184,41 @@ function core.scan_and_populate_entities()
     }
 
     for _, entity in ipairs(entities) do
-      core.get_entity_info(entity)
+      local entity_info = core.get_entity_info(entity)
+
+      -- Populate item count cache for entities with logistic networks (only when not in Normal difficulty)
+      -- Only do this for entities that are actually being tracked (entity_info has .entity field)
+      if mod_difficulty ~= "Normal" and entity_info.entity and entity.logistic_network then
+        local network = entity.logistic_network
+        local network_id = network.network_id
+
+        if entity.quality.next then
+          local next_quality = entity.quality.next
+          -- Only update cache if we haven't already checked this network/item/quality combo
+          if not (item_count_cache[network_id] and
+                  item_count_cache[network_id][entity.name] and
+                  item_count_cache[network_id][entity.name][next_quality.level] ~= nil) then
+            update_item_cache(network, entity.name, next_quality)
+          end
+        end
+
+        -- Also populate cache for modules if entity has module inventory
+        local module_inventory = entity.get_module_inventory()
+        if module_inventory then
+          for i = 1, #module_inventory do
+            local stack = module_inventory[i]
+            if stack.valid_for_read and stack.is_module and stack.quality.next then
+              local next_quality = stack.quality.next
+              -- Only update cache if we haven't already checked this network/item/quality combo
+              if not (item_count_cache[network_id] and
+                      item_count_cache[network_id][stack.name] and
+                      item_count_cache[network_id][stack.name][next_quality.level] ~= nil) then
+                update_item_cache(network, stack.name, next_quality)
+              end
+            end
+          end
+        end
+      end
     end
   end
 end
@@ -323,42 +398,6 @@ local function attempt_upgrade_normal(entity)
     core.remove_entity_info(unit_number)
     return nil
   end
-end
-
-local function get_next_available_quality(network, item_name, current_quality)
-  local next_quality = current_quality.next
-  -- keep this check as a user could insert max quality modules and we don't check those ahead of time
-  if not next_quality then
-    return nil
-  end
-
-  local item_with_quality = {name = item_name, quality = next_quality}
-  local available_count = network.get_item_count(item_with_quality)
-
-  -- update the cache with the current count
-  local network_id = network.network_id
-  if not item_count_cache[network_id] then
-    item_count_cache[network_id] = {}
-  end
-  if not item_count_cache[network_id][item_name] then
-    item_count_cache[network_id][item_name] = {}
-  end
-  item_count_cache[network_id][item_name][next_quality.level] = available_count
-
-  if available_count > 0 then
-    return next_quality
-  end
-
-  -- scan the cache for any available quality
-  while next_quality do
-    local cached_count = item_count_cache[network_id][item_name][next_quality.level]
-    if cached_count and cached_count > 0 then
-      return next_quality
-    end
-    next_quality = next_quality.next
-  end
-
-  return nil
 end
 
 local function attempt_upgrade_uncommon(entity)
