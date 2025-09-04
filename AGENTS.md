@@ -28,7 +28,7 @@ Factorio's API and best practices are available via answer-agent.
 - `validate.sh` - runs all validations and tests
 - `package.sh` - packages the mod for distribution
 - `migrations/` - database migration scripts for version updates
-- `validation/test_*.py` - various pytests
+- `tests/test_*.py` - various pytests
 
 ## Core Functionality
 
