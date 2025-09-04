@@ -56,11 +56,16 @@ local function should_exclude_entity(entity)
 end
 
 function core.get_entity_info(entity)
+  local id = entity.unit_number
+
+  if tracked_entities[id] then
+    return tracked_entities[id]
+  end
+
   if should_exclude_entity(entity) then
     return "entity excluded from quality control"
   end
 
-  local id = entity.unit_number
   local can_change_quality = entity.quality.next ~= nil
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
@@ -70,53 +75,51 @@ function core.get_entity_info(entity)
     return "at max quality"
   end
 
-  if not tracked_entities[id] then
-    tracked_entities[id] = {
-      entity = entity,
-      is_primary = is_primary,
-      chance_to_change = settings_data.base_percentage_chance,
-      upgrade_attempts = 0,
-      can_change_quality = can_change_quality
-    }
+  tracked_entities[id] = {
+    entity = entity,
+    is_primary = is_primary,
+    chance_to_change = settings_data.base_percentage_chance,
+    upgrade_attempts = 0,
+    can_change_quality = can_change_quality
+  }
 
-    if is_primary then
-      storage.primary_entity_count = storage.primary_entity_count + 1
-    else
-      storage.secondary_entity_count = storage.secondary_entity_count + 1
+  if is_primary then
+    storage.primary_entity_count = storage.primary_entity_count + 1
+  else
+    storage.secondary_entity_count = storage.secondary_entity_count + 1
+  end
+
+  -- Use ordered list for O(1) lookup in batch processing
+  table.insert(storage.entity_list, id)
+  storage.entity_list_index[id] = #storage.entity_list
+
+  if is_primary then
+    -- Initialize manufacturing hours based on current products_finished
+    -- This ensures we don't double-count hours for already-producing entities
+    local recipe_time = 0
+    if entity.get_recipe() then
+      recipe_time = entity.get_recipe().prototype.energy
+    elseif entity.type == "furnace" and entity.previous_recipe then
+      recipe_time = entity.previous_recipe.name.energy
     end
 
-    -- Use ordered list for O(1) lookup in batch processing
-    table.insert(storage.entity_list, id)
-    storage.entity_list_index[id] = #storage.entity_list
+    local current_hours = (entity.products_finished * recipe_time) / 3600
+    tracked_entities[id].manufacturing_hours = current_hours
 
-    if is_primary then
-      -- Initialize manufacturing hours based on current products_finished
-      -- This ensures we don't double-count hours for already-producing entities
-      local recipe_time = 0
-      if entity.get_recipe() then
-        recipe_time = entity.get_recipe().prototype.energy
-      elseif entity.type == "furnace" and entity.previous_recipe then
-        recipe_time = entity.previous_recipe.name.energy
+    -- Calculate how many upgrade attempts would have occurred in the past
+    -- and adjust the chance percentage accordingly
+    if current_hours > 0 then
+      local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+      local past_attempts = math.floor(current_hours / hours_needed)
+
+      -- Simulate the chance accumulation from missed upgrade attempts
+      if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
+        local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+        tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
+        tracked_entities[id].upgrade_attempts = past_attempts
       end
-
-      local current_hours = (entity.products_finished * recipe_time) / 3600
-      tracked_entities[id].manufacturing_hours = current_hours
-
-      -- Calculate how many upgrade attempts would have occurred in the past
-      -- and adjust the chance percentage accordingly
-      if current_hours > 0 then
-        local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
-        local past_attempts = math.floor(current_hours / hours_needed)
-
-        -- Simulate the chance accumulation from missed upgrade attempts
-        if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
-          local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
-          tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-          tracked_entities[id].upgrade_attempts = past_attempts
-        end
-        -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
-        -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
-      end
+      -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
+      -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
     end
   end
   return tracked_entities[id]
