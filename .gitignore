@@ -3,6 +3,6 @@ quality-control*.zip
 plan*.md
 archive/
 references/
-validation/venv/
-validation/.pytest_cache/
-validation/__pycache__/
+tests/venv/
+tests/.pytest_cache/
+tests/__pycache__/

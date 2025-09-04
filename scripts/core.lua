@@ -367,12 +367,14 @@ local function attempt_upgrade_uncommon(entity)
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
   if module_setting == "disabled" then
-    goto skip_modules
+    notifications.show_entity_quality_alert(entity)
+    return true
   end
 
   local module_inventory = entity.get_module_inventory()
   if not module_inventory then
-    goto skip_modules
+    notifications.show_entity_quality_alert(entity)
+    return true
   end
 
   for i = 1, #module_inventory do
@@ -391,7 +393,6 @@ local function attempt_upgrade_uncommon(entity)
     end
   end
 
-  ::skip_modules::
   notifications.show_entity_quality_alert(entity)
   return true
 end

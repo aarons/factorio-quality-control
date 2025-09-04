@@ -40,8 +40,8 @@ check_python() {
 
 # Function to setup validation environment
 setup_validation_env() {
-    local validation_dir="${SCRIPT_DIR}/validation"
-    local venv_dir="${validation_dir}/venv"
+    local tests_dir="${SCRIPT_DIR}/tests"
+    local venv_dir="${tests_dir}/venv"
     local python_cmd=$(check_python)
 
     # Check if virtual environment exists
@@ -51,7 +51,7 @@ setup_validation_env() {
 
         # Activate venv and install requirements
         source "$venv_dir/bin/activate"
-        pip install -r "${validation_dir}/requirements.txt" >/dev/null 2>&1
+        pip install -r "${tests_dir}/requirements.txt" >/dev/null 2>&1
         deactivate
     fi
 
@@ -60,63 +60,65 @@ setup_validation_env() {
 }
 
 
-# Function to run luacheck if available
+# Function to run luacheck
 run_luacheck() {
-    if command -v luacheck >/dev/null 2>&1; then
-        print_status $YELLOW "Running luacheck..."
-        if luacheck . --quiet --exclude-files references/; then
-            print_status $GREEN "✓ Luacheck passed"
-            return 0
-        else
-            print_status $RED "✗ Luacheck failed"
-            return 1
-        fi
-    else
-        print_status $YELLOW "⚠ Luacheck not available (install with: luarocks install luacheck)"
+    if luacheck . --quiet --exclude-files references/; then
+        print_status $GREEN "✅ Luacheck passed"
         return 0
+    else
+        print_status $RED "❌ Luacheck failed"
+        return 1
     fi
 }
 
 # Function to run pytest validations
 run_pytest_validations() {
     local python_cmd=$(setup_validation_env)
-    print_status $YELLOW "Running pytest validations..."
-
-    # Run all pytest tests in validation directory
-    cd "${SCRIPT_DIR}/validation"
+    cd "${SCRIPT_DIR}/tests"
     $python_cmd -m pytest -v --tb=short
 }
 
 # Function to run comprehensive validation
 run_comprehensive_validation() {
-    print_status $YELLOW "🧪 Running comprehensive validation tests..."
-    echo ""
 
-    local luacheck_passed=true
-    local pytest_passed=true
-
-    # Run luacheck first if available
-    if ! run_luacheck; then
-        luacheck_passed=false
-    fi
-    echo ""
-
-    # Run all pytest tests
-    if ! run_pytest_validations; then
-        pytest_passed=false
-    fi
-    echo ""
-
-    local overall_success=true
-    if [ "$luacheck_passed" = false ] || [ "$pytest_passed" = false ]; then
-        overall_success=false
-    fi
-
-    if [ "$overall_success" = true ]; then
-        return 0
-    else
+    # Check required binaries
+    if ! command -v python3 >/dev/null 2>&1; then
+        print_status $RED "❌ python3 not found"
+        print_status $YELLOW "Install with: brew install python"
         return 1
     fi
+
+    if ! command -v lua >/dev/null 2>&1; then
+        print_status $RED "❌ lua not found"
+        print_status $YELLOW "Install with: brew install lua"
+        return 1
+    fi
+
+    if ! command -v luacheck >/dev/null 2>&1; then
+        print_status $RED "❌ luacheck not found"
+        print_status $YELLOW "Install with: brew install luarocks && luarocks install luacheck"
+        return 1
+    fi
+
+    if ! command -v luac >/dev/null 2>&1; then
+        print_status $RED "❌ luac not found"
+        print_status $YELLOW "Install with: brew install lua"
+        return 1
+    fi
+
+    # Run luacheck
+    if ! run_luacheck; then
+        return 1
+    fi
+    echo ""
+
+    # Run all pytest tests (includes Lua syntax validation)
+    if ! run_pytest_validations; then
+        return 1
+    fi
+    echo ""
+
+    return 0
 }
 
 # Function to show usage
@@ -151,7 +153,7 @@ main() {
 
     local exit_code=0
 
-    print_status $YELLOW "🔍 Running Factorio mod validation..."
+    print_status $YELLOW "Running Factorio mod validation..."
     echo ""
 
     # Run whitespace cleanup first
@@ -169,7 +171,7 @@ main() {
 
     echo ""
     if [ $exit_code -eq 0 ]; then
-        print_status $GREEN "🎉 All validations passed!"
+        print_status $GREEN "✅ All validations passed!"
     else
         print_status $RED "❌ Some validations failed"
     fi

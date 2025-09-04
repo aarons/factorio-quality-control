@@ -67,7 +67,7 @@ PACKAGE_EXCLUSIONS=(
     '.claude*'
     'tests*'
     'validate*'
-    'validation/'
+    'tests/'
     '.luacheckrc'
 )
 
