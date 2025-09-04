@@ -15,6 +15,9 @@ local quality_limit = nil
 local is_tracked_type = {}
 local mod_difficulty = nil
 local quality_multipliers = {}
+local accumulate_at_max_quality = nil
+local base_percentage_chance = nil
+local accumulation_percentage = nil
 
 -- Entities from these mods don't fast_replace well, so for now exclude them
 local excluded_mods_lookup = {
@@ -35,6 +38,9 @@ function core.initialize()
   is_tracked_type = storage.config.is_tracked_type
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
+  accumulate_at_max_quality = settings_data.accumulate_at_max_quality
+  base_percentage_chance = settings_data.base_percentage_chance
+  accumulation_percentage = settings_data.accumulation_percentage
 end
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
@@ -63,7 +69,7 @@ function core.get_entity_info(entity)
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
-  local should_track = can_change_quality or (is_primary and settings_data.accumulate_at_max_quality)
+  local should_track = can_change_quality or (is_primary and accumulate_at_max_quality)
   if not should_track then
     return "at max quality"
   end
@@ -81,7 +87,7 @@ function core.get_entity_info(entity)
   tracked_entities[id] = {
     entity = entity,
     is_primary = is_primary,
-    chance_to_change = settings_data.base_percentage_chance,
+    chance_to_change = base_percentage_chance,
     upgrade_attempts = 0
   }
 
@@ -115,8 +121,8 @@ function core.get_entity_info(entity)
       local past_attempts = math.floor(current_hours / hours_needed)
 
       -- Simulate the chance accumulation from missed upgrade attempts
-      if past_attempts > 0 and settings_data.accumulation_percentage > 0 then
-        local chance_increase = past_attempts * (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+      if past_attempts > 0 and accumulation_percentage > 0 then
+        local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
         tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
         tracked_entities[id].upgrade_attempts = past_attempts
       end
@@ -263,8 +269,8 @@ local function attempt_upgrade_normal(entity)
   entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
-    if settings_data.accumulation_percentage > 0 then
-      entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+    if accumulation_percentage > 0 then
+      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * accumulation_percentage / 100)
     end
     return false
   end
@@ -355,8 +361,8 @@ local function attempt_upgrade_uncommon(entity)
   entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
 
   if random_roll >= (entity_info.chance_to_change / 100) then
-    if settings_data.accumulation_percentage > 0 then
-      entity_info.chance_to_change = entity_info.chance_to_change + (settings_data.base_percentage_chance * settings_data.accumulation_percentage / 100)
+    if accumulation_percentage > 0 then
+      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * accumulation_percentage / 100)
     end
     return false
   end
@@ -519,7 +525,7 @@ function core.batch_process_entities()
     -- or if the entity can change quality still
     local should_stay_tracked = entity_info and
       (entity_info.entity.quality.next ~= nil or
-       (entity_info.is_primary and settings_data.accumulate_at_max_quality))
+       (entity_info.is_primary and accumulate_at_max_quality))
 
     if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)
