@@ -3,9 +3,9 @@ Version: 1.5.0
 Date: 29. 08. 2025
   Features:
     - Added difficulty mode setting with Normal and Uncommon options.
-      Normal mode provides the existing instant cheaty upgrades.
-      Uncommon mode requires upgraded items to exist in logistics storage and uses construction
-      robots for non-cheaty upgrades.
+      Normal mode is the existing version of the mod (with free upgrades)
+      Uncommon mode requires items to exist in logistics storage and uses construction
+      robots for upgrades.
     - Uncommon mode handles module upgrades when enabled, checking for upgraded
       modules in logistics storage before upgrading them alongside their machines.
   Optimizations:
