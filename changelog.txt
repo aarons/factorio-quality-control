@@ -8,6 +8,8 @@ Date: 29. 08. 2025
       robots for non-cheaty upgrades.
     - Uncommon mode handles module upgrades when enabled, checking for upgraded
       modules in logistics storage before upgrading them alongside their machines.
+  Optimizations:
+    - Improved performance by limiting entity exclusion checks to new entities only
 ---------------------------------------------------------------------------------------------------
 Version: 1.4.0
 Date: 24. 08. 2025

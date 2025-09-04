@@ -14,6 +14,7 @@ local settings_data = {}
 local quality_limit = nil
 local is_tracked_type = {}
 local mod_difficulty = nil
+local quality_multipliers = {}
 
 function core.initialize()
   tracked_entities = storage.quality_control_entities
@@ -21,6 +22,7 @@ function core.initialize()
   quality_limit = storage.config.quality_limit
   is_tracked_type = storage.config.is_tracked_type
   mod_difficulty = storage.config.mod_difficulty
+  quality_multipliers = storage.quality_multipliers
 end
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
@@ -58,14 +60,6 @@ end
 function core.get_entity_info(entity)
   local id = entity.unit_number
 
-  if tracked_entities[id] then
-    return tracked_entities[id]
-  end
-
-  if should_exclude_entity(entity) then
-    return "entity excluded from quality control"
-  end
-
   local can_change_quality = entity.quality.next ~= nil
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
@@ -75,12 +69,21 @@ function core.get_entity_info(entity)
     return "at max quality"
   end
 
+  if tracked_entities[id] then
+    return tracked_entities[id]
+  end
+
+  -- entity is not tracked; so we're adding a new entity
+  -- first check if it's something we should track:
+  if should_exclude_entity(entity) then
+    return "entity excluded from quality control"
+  end
+
   tracked_entities[id] = {
     entity = entity,
     is_primary = is_primary,
     chance_to_change = settings_data.base_percentage_chance,
-    upgrade_attempts = 0,
-    can_change_quality = can_change_quality
+    upgrade_attempts = 0
   }
 
   if is_primary then
@@ -109,7 +112,7 @@ function core.get_entity_info(entity)
     -- Calculate how many upgrade attempts would have occurred in the past
     -- and adjust the chance percentage accordingly
     if current_hours > 0 then
-      local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+      local hours_needed = quality_multipliers[entity.quality.level]
       local past_attempts = math.floor(current_hours / hours_needed)
 
       -- Simulate the chance accumulation from missed upgrade attempts
@@ -438,7 +441,7 @@ function core.process_primary_entity(entity_info, entity)
     recipe_time = entity.previous_recipe.name.energy
   end
 
-  local hours_needed = settings_data.manufacturing_hours_for_change * (1 + settings_data.quality_increase_cost) ^ entity.quality.level
+  local hours_needed = quality_multipliers[entity.quality.level]
   local current_hours = (entity.products_finished * recipe_time) / 3600
   local previous_hours = entity_info.manufacturing_hours or 0
   local available_hours = current_hours - previous_hours
@@ -515,8 +518,9 @@ function core.batch_process_entities()
     local entity_info = tracked_entities[unit_number]
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
     -- or if the entity can change quality still
-    local should_stay_tracked = entity_info and entity_info.can_change_quality or
-      (entity_info and entity_info.is_primary and settings_data.accumulate_at_max_quality)
+    local should_stay_tracked = entity_info and
+      (entity_info.entity.quality.next ~= nil or
+       (entity_info.is_primary and settings_data.accumulate_at_max_quality))
 
     if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)

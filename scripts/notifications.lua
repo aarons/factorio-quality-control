@@ -114,7 +114,7 @@ function notifications.show_entity_quality_info(player, get_entity_info)
 
       -- Progress to next attempt (for primary types with manufacturing hours)
       if is_primary_type and current_recipe then
-        local hours_needed = storage.config.settings_data.manufacturing_hours_for_change * (1 + storage.config.settings_data.quality_increase_cost) ^ selected_entity.quality.level
+        local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
         local recipe_time = current_recipe.prototype.energy
         local current_hours = (selected_entity.products_finished * recipe_time) / 3600
         local previous_hours = entity_info.manufacturing_hours or 0
@@ -136,7 +136,7 @@ function notifications.show_entity_quality_info(player, get_entity_info)
 
       -- Progress to next event generation (for primary types with manufacturing hours)
       if is_primary_type and current_recipe then
-        local hours_needed = storage.config.settings_data.manufacturing_hours_for_change * (1 + storage.config.settings_data.quality_increase_cost) ^ selected_entity.quality.level
+        local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
         local recipe_time = current_recipe.prototype.energy
         local current_hours = (selected_entity.products_finished * recipe_time) / 3600
         local previous_hours = entity_info.manufacturing_hours or 0

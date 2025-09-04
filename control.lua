@@ -135,6 +135,15 @@ local function build_and_store_config()
     quality_limit = quality_limit.next
   end
   storage.config.quality_limit = quality_limit
+
+  storage.quality_multipliers = {}
+  local current_quality = prototypes.quality["normal"]
+  while current_quality do
+    storage.quality_multipliers[current_quality.level] =
+      settings_data.manufacturing_hours_for_change *
+      (1 + settings_data.quality_increase_cost) ^ current_quality.level
+    current_quality = current_quality.next
+  end
 end
 
 local function setup_data_structures(force_reset)
@@ -191,6 +200,10 @@ local function setup_data_structures(force_reset)
 
   if not storage.accumulated_credits then
     storage.accumulated_credits = 0
+  end
+
+  if not storage.quality_multipliers then
+    storage.quality_multipliers = {}
   end
 
 end
@@ -274,6 +287,7 @@ script.on_configuration_changed(function(_)
   register_event_handlers()
   register_main_loop()
 end)
+
 
 -- Handle save game loading (on_load())
 -- It gives the mod the opportunity to rectify potential differences in local state introduced by the save/load cycle.
