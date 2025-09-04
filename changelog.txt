@@ -10,6 +10,7 @@ Date: 29. 08. 2025
       modules in logistics storage before upgrading them alongside their machines.
   Optimizations:
     - Improved performance by limiting entity exclusion checks to new entities only
+    - Optimized exclusion algorithm by using hash tables instead of linear scanning
 ---------------------------------------------------------------------------------------------------
 Version: 1.4.0
 Date: 24. 08. 2025

@@ -16,6 +16,18 @@ local is_tracked_type = {}
 local mod_difficulty = nil
 local quality_multipliers = {}
 
+-- Entities from these mods don't fast_replace well, so for now exclude them
+local excluded_mods_lookup = {
+    ["Warp-Drive-Machine"] = true,
+    ["quality-condenser"] = true,
+    ["RealisticReactorsReborn"] = true,
+    ["railloader2-patch"] = true,
+    ["router"] = true,
+    ["fct-ControlTech"] = true, -- patch requested, may be able to remove once they are greater than version 2.0.5
+    ["ammo-loader"] = true,
+    ["miniloader-redux"] = true
+  }
+
 function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
@@ -35,25 +47,12 @@ local function should_exclude_entity(entity)
     return true
   end
 
-  -- Entities from these mods don't fast_replace well, so for now exclude them
-  local exclude_items_from_mods = {
-    "Warp-Drive-Machine",
-    "quality-condenser",
-    "RealisticReactorsReborn",
-    "railloader2-patch",
-    "router",
-    "fct-ControlTech", -- patch requested, may be able to remove once they are greater than version 2.0.5
-    "ammo-loader",
-    "miniloader-redux"
-  }
+  -- Check if entity is from an excluded mod
   local history = prototypes.get_history(entity.type, entity.name)
-  if history then
-    for _, excluded_mod in ipairs(exclude_items_from_mods) do
-      if history.created:find(excluded_mod, 1, true) ~= nil then
-        return true
-      end
-    end
+  if history and excluded_mods_lookup[history.created] then
+    return true
   end
+
   return false
 end
 
