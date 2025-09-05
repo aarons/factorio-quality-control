@@ -11,8 +11,7 @@
       "mcp__context7__get-library-docs",
       "mcp__context7__resolve-library-id",
       "WebSearch",
-      "WebFetch(domain:wiki.factorio.com)",
-      "WebFetch(domain:lua-api.factorio.com)",
+      "WebFetch(domain:*.factorio.com)",
       "WebFetch(domain:github.com)"
     ],
     "deny": []
