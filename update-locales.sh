@@ -63,28 +63,40 @@ for lang_code in "${!LANGUAGES[@]}"; do
     lang_name="${LANGUAGES[$lang_code]}"
     locale_dir="locale/$lang_code"
     locale_file="$locale_dir/locale.cfg"
-    
+
     echo -e "${YELLOW}Processing language: $lang_name ($lang_code)${NC}"
-    
+
     # Create locale directory if it doesn't exist
     if [ ! -d "$locale_dir" ]; then
         echo "Creating directory: $locale_dir"
         mkdir -p "$locale_dir"
     fi
-    
-    # Prepare the prompt for Claude Code
-    prompt="We made some recent changes to locale/en/locale.cfg
 
-Now we need to update the $lang_name translation in $locale_file
+    # Common translation guidelines
+    guidelines="Important notes:
+  - Always keep the section headers [mod-name], [mod-setting-name], etc. in English
+  - Only translate the values after the = sign
+  - Keep technical terms consistent (always translate 'belt' the same way)
+  - Preserve formatting codes and placeholders (__1__, __ITEM__, etc.)
+  - For context on the mod's functionality, refer to AGENTS.md and mod-description.md"
 
-It should use locale/en/locale.cfg as the reference."
-    
+    # Check if locale file exists to determine prompt intro
+    if [ -f "$locale_file" ]; then
+        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate and update the $lang_name translation in $locale_file to match appropriately. Only the $locale_file needs to be updated. It should use locale/en/locale.cfg as the reference."
+    else
+        intro="We're introducing $lang_name language support for my factorio mod. We need to add a translation file to $locale_file. Please use locale/en/locale.cfg as the reference.
+    fi
+
+    prompt="$intro
+
+$guidelines"
+
     echo -e "${BLUE}Prompting Claude Code for $lang_name translation...${NC}"
     echo ""
-    
+
     # Execute claude command with proper allowed tools
-    claude --allowedTools "Read" "Edit" "Write" "MultiEdit" "$prompt"
-    
+    echo "$prompt" | claude --allowedTools "Read,Edit,Write,MultiEdit,Bash(git log:*),Bash(git show:*),Bash(git diff:*)"
+
     echo ""
     echo -e "${GREEN}Completed processing for $lang_name ($lang_code)${NC}"
     echo "----------------------------------------"
