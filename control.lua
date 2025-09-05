@@ -284,7 +284,7 @@ script.on_init(function()
   register_main_loop()
 end)
 
--- Handle startup setting changes and mod version updates
+-- Ran when settings change or mod version updates
 script.on_configuration_changed(function(_)
   reinitialize_quality_control_storage()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
