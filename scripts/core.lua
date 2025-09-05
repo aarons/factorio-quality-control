@@ -663,7 +663,6 @@ function core.batch_process_entities()
     end
 
     local unit_number = entity_list[batch_index]
-    batch_index = batch_index + 1
 
     local entity_info = tracked_entities[unit_number]
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
@@ -676,6 +675,8 @@ function core.batch_process_entities()
       core.remove_entity_info(unit_number)
       goto continue
     end
+
+    batch_index = batch_index + 1
 
     local entity = entity_info.entity
 

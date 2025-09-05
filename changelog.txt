@@ -8,6 +8,9 @@ Date: 29. 08. 2025
       robots for upgrades.
     - Uncommon mode handles module upgrades when enabled, checking for upgraded
       modules in logistics storage before upgrading them alongside their machines.
+  Bugfixes:
+    - Fixed issue where some entities would be skipped during batch processing (they would eventually
+      get processed, but this ensures all entities are processed on every pass)
   Optimizations:
     - Improved performance by limiting entity exclusion checks to new entities only
     - Optimized exclusion algorithm by using hash tables instead of linear scanning
