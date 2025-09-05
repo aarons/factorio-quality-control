@@ -19,6 +19,9 @@ local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
 local item_count_cache = {}
+local entity_list = nil
+local entity_list_index = nil
+local upgrade_queue = nil
 
 -- Entities from these mods don't fast_replace well, so for now exclude them
 local excluded_mods_lookup = {
@@ -40,10 +43,14 @@ function core.initialize()
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
   item_count_cache = storage.item_count_cache
+  entity_list = storage.entity_list
+  entity_list_index = storage.entity_list_index
+  upgrade_queue = storage.upgrade_queue
   accumulate_at_max_quality = settings_data.accumulate_at_max_quality
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
 end
+
 
 -- Exclude entities that don't work well with fast_replace or should be excluded
 local function should_exclude_entity(entity)
@@ -64,11 +71,11 @@ local function should_exclude_entity(entity)
   return false
 end
 
+
 local function update_item_cache(network, item_name, quality)
   local item_with_quality = {name = item_name, quality = quality}
   local available_count = network.get_item_count(item_with_quality)
 
-  -- update the cache with the current count
   local network_id = network.network_id
   if not item_count_cache[network_id] then
     item_count_cache[network_id] = {}
@@ -90,6 +97,7 @@ local function update_item_cache(network, item_name, quality)
 
   return item_count
 end
+
 
 local function get_next_available_quality(network, item_name, current_quality)
   local next_quality = current_quality.next
@@ -115,6 +123,7 @@ local function get_next_available_quality(network, item_name, current_quality)
 
   return nil
 end
+
 
 function core.get_entity_info(entity)
   local id = entity.unit_number
@@ -145,6 +154,16 @@ function core.get_entity_info(entity)
     upgrade_attempts = 0
   }
 
+  if is_primary then
+    storage.primary_entity_count = storage.primary_entity_count + 1
+  else
+    storage.secondary_entity_count = storage.secondary_entity_count + 1
+  end
+
+  -- Use ordered list for O(1) lookup in batch processing
+  table.insert(entity_list, id)
+  entity_list_index[id] = #entity_list
+
   -- Check if entity is being upgraded and add to upgrade tracking queue
   if mod_difficulty == "Uncommon" and entity.to_be_upgraded() and entity.logistic_network then
     local target = entity.get_upgrade_target()
@@ -156,23 +175,13 @@ function core.get_entity_info(entity)
     items.reserved = items.reserved + 1
 
     -- Add to queue
-    table.insert(storage.upgrade_queue, {
+    table.insert(upgrade_queue, {
       entity = entity,
       entity_network_id = network_id,
       entity_name = entity.name,
       entity_target_quality_level = target.quality.level
     })
   end
-
-  if is_primary then
-    storage.primary_entity_count = storage.primary_entity_count + 1
-  else
-    storage.secondary_entity_count = storage.secondary_entity_count + 1
-  end
-
-  -- Use ordered list for O(1) lookup in batch processing
-  table.insert(storage.entity_list, id)
-  storage.entity_list_index[id] = #storage.entity_list
 
   if is_primary then
     -- Initialize manufacturing hours based on current products_finished
@@ -205,6 +214,7 @@ function core.get_entity_info(entity)
   end
   return tracked_entities[id]
 end
+
 
 function core.scan_and_populate_entities()
   for _, surface in pairs(game.surfaces) do
@@ -266,19 +276,18 @@ function core.remove_entity_info(id)
     tracked_entities[id] = nil
 
     -- O(1) removal using swap-with-last approach
-    local index = storage.entity_list_index[id]
+    local index = entity_list_index[id]
     if index then
-      local entity_list = storage.entity_list
       local batch_index = storage.batch_index
 
       local last_index = #entity_list
       local last_unit_number = entity_list[last_index]
 
       entity_list[index] = last_unit_number
-      storage.entity_list_index[last_unit_number] = index
+      entity_list_index[last_unit_number] = index
 
       entity_list[last_index] = nil
-      storage.entity_list_index[id] = nil
+      entity_list_index[id] = nil
 
       if index < batch_index then
         storage.batch_index = batch_index - 1
@@ -464,7 +473,7 @@ local function attempt_upgrade_uncommon(entity)
   })
 
   -- add to reservation queue
-  table.insert(storage.upgrade_queue, {
+  table.insert(upgrade_queue, {
     entity = entity,
     entity_network_id = network.network_id,
     entity_name = entity.name,
@@ -601,13 +610,12 @@ function core.update_manufacturing_hours(entity_info, current_hours)
 end
 
 local function process_upgrade_queue()
-  local queue = storage.upgrade_queue
   local batch_size = settings.global["batch-entities-per-tick"].value
   local processed = 0
   local start_index = storage.upgrade_queue_index
 
-  while processed < batch_size and #queue > 0 do
-    if storage.upgrade_queue_index > #queue then
+  while processed < batch_size and #upgrade_queue > 0 do
+    if storage.upgrade_queue_index > #upgrade_queue then
       storage.upgrade_queue_index = 1
 
       if storage.upgrade_queue_index >= start_index then
@@ -615,11 +623,11 @@ local function process_upgrade_queue()
       end
     end
 
-    local queue_item = queue[storage.upgrade_queue_index]
+    local queue_item = upgrade_queue[storage.upgrade_queue_index]
     local entity = queue_item.entity
 
     if not entity.valid or not entity.to_be_upgraded() then
-      table.remove(queue, storage.upgrade_queue_index)
+      table.remove(upgrade_queue, storage.upgrade_queue_index)
 
       local items = item_count_cache[queue_item.entity_network_id] and
                    item_count_cache[queue_item.entity_network_id][queue_item.entity_name] and
@@ -634,7 +642,7 @@ local function process_upgrade_queue()
     processed = processed + 1
   end
 
-  if #queue == 0 then
+  if #upgrade_queue == 0 then
     storage.upgrade_queue_index = 1
   end
 end
@@ -647,7 +655,6 @@ function core.batch_process_entities()
   local quality_changes = {}
 
   local batch_index = storage.batch_index
-  local entity_list = storage.entity_list
 
   while entities_processed < batch_size do
     if batch_index > #entity_list then
@@ -701,7 +708,7 @@ function core.batch_process_entities()
 
   storage.batch_index = batch_index
 
-  if #storage.upgrade_queue > 0 then
+  if #upgrade_queue > 0 then
     process_upgrade_queue()
   end
 
