@@ -17,11 +17,6 @@ local AMMO_LOADER_CONTAINERS = {
   "ammo-loader-chest-passive-provider"
 }
 
-local AMMO_LOADER_HIDDEN_ENTITIES = {
-  "ammo-loader-hidden-inserter",
-  "ammo-loader-range-extender"
-}
-
 -- Helper function to log with prefix
 local function migration_log(message)
   log("[Quality Control Migration 1.2.5] " .. message)

@@ -27,7 +27,7 @@ globals = {
     "game",
     "rendering",
     "rcon",
-    
+
     -- Factorio 2.0 prototypes access
     "prototypes",
 
@@ -81,14 +81,14 @@ exclude_files = {
 }
 
 -- Specific rules
-ignore = {
-    "211", -- Unused local variable (common in event handlers)
-    "213", -- Unused loop variable
-    "412", -- Redefining argument (common pattern in Factorio)
-    "421", -- Shadowing local variable (common in nested functions)
-    "431", -- Shadowing upvalue (acceptable in many cases)
-    "432", -- Shadowing upvalue argument
-}
+-- ignore = {
+    -- "211", -- Unused local variable (common in event handlers)
+    -- "213", -- Unused loop variable
+    -- "412", -- Redefining argument (common pattern in Factorio)
+    -- "421", -- Shadowing local variable (common in nested functions)
+    -- "431", -- Shadowing upvalue (acceptable in many cases)
+    -- "432", -- Shadowing upvalue argument
+-- }
 
 -- Max line length
 max_line_length = 360

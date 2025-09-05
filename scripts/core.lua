@@ -19,9 +19,9 @@ local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
 local item_count_cache = {}
-local entity_list = nil
-local entity_list_index = nil
-local upgrade_queue = nil
+local entity_list = {}
+local entity_list_index = {}
+local upgrade_queue = {}
 
 -- Entities from these mods don't fast_replace well, so for now exclude them
 local excluded_mods_lookup = {
