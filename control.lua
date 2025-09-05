@@ -210,6 +210,15 @@ local function setup_data_structures(force_reset)
     storage.item_count_cache = {}
   end
 
+  -- Initialize upgrade queue structures for Uncommon mode
+  if not storage.upgrade_queue then
+    storage.upgrade_queue = {}
+  end
+
+  if not storage.upgrade_queue_index then
+    storage.upgrade_queue_index = 1
+  end
+
 end
 
 local function reinitialize_quality_control_storage(command)

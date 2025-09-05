@@ -22,7 +22,6 @@ Factorio's API and best practices are available via answer-agent.
 ### Core Modules
 - `scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
 - `scripts/notifications.lua` - manages notifications and alerts
-- `scripts/inventory.lua` - used to track inventory within logistic networks
 
 ### Development & Testing
 - `validate.sh` - runs all validations and tests
@@ -55,6 +54,3 @@ The mod filters out entities that are incompatible with upgrades:
 ## Development Testing
 
 **IMPORTANT**: Always use `./validate.sh` for testing and validation. This is the single command that runs all required checks including luacheck and pytest validations. Do NOT run `luacheck` or `pytest` directly use `validate.sh`
-
-
-

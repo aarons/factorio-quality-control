@@ -10,6 +10,7 @@ import pytest
 import os
 from pathlib import Path
 from typing import List, Tuple, Generator
+from gitignore_parser import parse_gitignore
 
 
 def find_source_files(project_root: Path = None) -> List[Path]:
@@ -17,13 +18,20 @@ def find_source_files(project_root: Path = None) -> List[Path]:
     Find all source files that should be checked for whitespace issues.
     
     Args:
-        project_root: Root directory to search from. If None, uses parent of validation dir.
+        project_root: Root directory to search from. If None, uses parent of tests dir.
         
     Returns:
         List of Path objects for all source files found.
     """
     if project_root is None:
         project_root = Path(__file__).parent.parent
+    
+    # Load .gitignore patterns
+    gitignore_path = project_root / '.gitignore'
+    if gitignore_path.exists():
+        matches_gitignore = parse_gitignore(gitignore_path)
+    else:
+        matches_gitignore = lambda x: False
     
     source_files = []
     
@@ -37,10 +45,9 @@ def find_source_files(project_root: Path = None) -> List[Path]:
         "*.sh"
     ]
     
-    # Directories to exclude from search
+    # Directories to exclude from search (in addition to gitignore)
     exclude_dirs = {
-        'archive', 'test', 'tests', '.git', '__pycache__', 'node_modules', 
-        'references', 'validation/venv', '.pytest_cache'
+        '.git', '__pycache__', 'node_modules', '.pytest_cache'
     }
     
     for pattern in file_patterns:
@@ -48,6 +55,10 @@ def find_source_files(project_root: Path = None) -> List[Path]:
             # Check if file is in an excluded directory
             relative_path = file_path.relative_to(project_root)
             if any(excluded in relative_path.parts for excluded in exclude_dirs):
+                continue
+            
+            # Check if file matches gitignore patterns
+            if matches_gitignore(str(file_path)):
                 continue
             
             # Only include regular files

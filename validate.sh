@@ -62,11 +62,16 @@ setup_validation_env() {
 
 # Function to run luacheck
 run_luacheck() {
-    if luacheck . --quiet --exclude-files references/; then
+    local output
+    output=$(luacheck . --quiet --exclude-files references/ 2>&1)
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
         print_status $GREEN "✅ Luacheck passed"
         return 0
     else
         print_status $RED "❌ Luacheck failed"
+        echo "$output"
         return 1
     fi
 }
@@ -75,7 +80,18 @@ run_luacheck() {
 run_pytest_validations() {
     local python_cmd=$(setup_validation_env)
     cd "${SCRIPT_DIR}/tests"
-    $python_cmd -m pytest -v --tb=short
+    local output
+    output=$($python_cmd -m pytest --tb=short 2>&1)
+    local exit_code=$?
+
+    if [ $exit_code -eq 0 ]; then
+        print_status $GREEN "✅ Pytests passed"
+        return 0
+    else
+        print_status $RED "❌ Pytests failed"
+        echo "$output"
+        return 1
+    fi
 }
 
 # Function to run comprehensive validation
@@ -110,13 +126,11 @@ run_comprehensive_validation() {
     if ! run_luacheck; then
         return 1
     fi
-    echo ""
 
     # Run all pytest tests (includes Lua syntax validation)
     if ! run_pytest_validations; then
         return 1
     fi
-    echo ""
 
     return 0
 }
@@ -153,8 +167,7 @@ main() {
 
     local exit_code=0
 
-    print_status $YELLOW "Running Factorio mod validation..."
-    echo ""
+    print_status $YELLOW "Running Quality Control mod validation..."
 
     # Run whitespace cleanup first
     local whitespace_output
@@ -169,9 +182,8 @@ main() {
         exit_code=1
     fi
 
-    echo ""
     if [ $exit_code -eq 0 ]; then
-        print_status $GREEN "✅ All validations passed!"
+        print_status $GREEN "✅ All validations passed"
     else
         print_status $RED "❌ Some validations failed"
     fi

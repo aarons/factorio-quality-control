@@ -64,6 +64,58 @@ local function should_exclude_entity(entity)
   return false
 end
 
+local function update_item_cache(network, item_name, quality)
+  local item_with_quality = {name = item_name, quality = quality}
+  local available_count = network.get_item_count(item_with_quality)
+
+  -- update the cache with the current count
+  local network_id = network.network_id
+  if not item_count_cache[network_id] then
+    item_count_cache[network_id] = {}
+  end
+  if not item_count_cache[network_id][item_name] then
+    item_count_cache[network_id][item_name] = {}
+  end
+
+  local item_count = item_count_cache[network_id][item_name][quality.level]
+
+  if item_count then
+    item_count.available = available_count
+  else
+    item_count_cache[network_id][item_name][quality.level] = {
+      available = available_count,
+      reserved = 0
+    }
+  end
+
+  return item_count
+end
+
+local function get_next_available_quality(network, item_name, current_quality)
+  local next_quality = current_quality.next
+  -- keep this check as a user could insert max quality modules and we don't check those ahead of time
+  if not next_quality then
+    return nil
+  end
+
+  local item_count = update_item_cache(network, item_name, next_quality)
+  if item_count and (item_count.available - item_count.reserved) > 0 then
+    return next_quality
+  end
+
+  -- scan the cache for any available quality
+  next_quality = next_quality.next
+  while next_quality do
+    item_count = item_count_cache[network.network_id][item_name][next_quality.level]
+    if item_count and (item_count.available - item_count.reserved) > 0 then
+      return next_quality
+    end
+    next_quality = next_quality.next
+  end
+
+  return nil
+end
+
 function core.get_entity_info(entity)
   local id = entity.unit_number
 
@@ -92,6 +144,25 @@ function core.get_entity_info(entity)
     chance_to_change = base_percentage_chance,
     upgrade_attempts = 0
   }
+
+  -- Check if entity is being upgraded and add to upgrade tracking queue
+  if mod_difficulty == "Uncommon" and entity.to_be_upgraded() and entity.logistic_network then
+    local target = entity.get_upgrade_target()
+    local network = entity.logistic_network
+    local network_id = network.network_id
+
+    -- Update cache and add reservation
+    local items = update_item_cache(network, entity.name, target.quality)
+    items.reserved = items.reserved + 1
+
+    -- Add to queue
+    table.insert(storage.upgrade_queue, {
+      entity = entity,
+      entity_network_id = network_id,
+      entity_name = entity.name,
+      entity_target_quality_level = target.quality.level
+    })
+  end
 
   if is_primary then
     storage.primary_entity_count = storage.primary_entity_count + 1
@@ -133,47 +204,6 @@ function core.get_entity_info(entity)
     end
   end
   return tracked_entities[id]
-end
-
-local function update_item_cache(network, item_name, quality)
-  local item_with_quality = {name = item_name, quality = quality}
-  local available_count = network.get_item_count(item_with_quality)
-
-  -- update the cache with the current count
-  local network_id = network.network_id
-  if not item_count_cache[network_id] then
-    item_count_cache[network_id] = {}
-  end
-  if not item_count_cache[network_id][item_name] then
-    item_count_cache[network_id][item_name] = {}
-  end
-  item_count_cache[network_id][item_name][quality.level] = available_count
-
-  return available_count
-end
-
-local function get_next_available_quality(network, item_name, current_quality)
-  local next_quality = current_quality.next
-  -- keep this check as a user could insert max quality modules and we don't check those ahead of time
-  if not next_quality then
-    return nil
-  end
-
-  local available_count = update_item_cache(network, item_name, next_quality)
-  if available_count and available_count > 0 then
-    return next_quality
-  end
-
-  -- scan the cache for any available quality
-  while next_quality do
-    local cached_count = item_count_cache[network.network_id][item_name][next_quality.level]
-    if cached_count and cached_count > 0 then
-      return next_quality
-    end
-    next_quality = next_quality.next
-  end
-
-  return nil
 end
 
 function core.scan_and_populate_entities()
@@ -424,9 +454,21 @@ local function attempt_upgrade_uncommon(entity)
     return false
   end
 
+  -- update reservations
+  local items = item_count_cache[network.network_id][entity.name][target_quality.level]
+  items.reserved = items.reserved + 1
+
   entity.order_upgrade({
     target = {name = entity.name, quality = target_quality},
     force = entity.force
+  })
+
+  -- add to reservation queue
+  table.insert(storage.upgrade_queue, {
+    entity = entity,
+    entity_network_id = network.network_id,
+    entity_name = entity.name,
+    entity_target_quality_level = target_quality.level
   })
 
   -- Handle module upgrades if enabled
@@ -558,6 +600,45 @@ function core.update_manufacturing_hours(entity_info, current_hours)
   end
 end
 
+local function process_upgrade_queue()
+  local queue = storage.upgrade_queue
+  local batch_size = settings.global["batch-entities-per-tick"].value
+  local processed = 0
+  local start_index = storage.upgrade_queue_index
+
+  while processed < batch_size and #queue > 0 do
+    if storage.upgrade_queue_index > #queue then
+      storage.upgrade_queue_index = 1
+
+      if storage.upgrade_queue_index >= start_index then
+        break
+      end
+    end
+
+    local queue_item = queue[storage.upgrade_queue_index]
+    local entity = queue_item.entity
+
+    if not entity.valid or not entity.to_be_upgraded() then
+      table.remove(queue, storage.upgrade_queue_index)
+
+      local items = item_count_cache[queue_item.entity_network_id] and
+                   item_count_cache[queue_item.entity_network_id][queue_item.entity_name] and
+                   item_count_cache[queue_item.entity_network_id][queue_item.entity_name][queue_item.entity_target_quality_level]
+      if items then
+        items.reserved = math.max(0, items.reserved - 1)
+      end
+    else
+      storage.upgrade_queue_index = storage.upgrade_queue_index + 1
+    end
+
+    processed = processed + 1
+  end
+
+  if #queue == 0 then
+    storage.upgrade_queue_index = 1
+  end
+end
+
 -- Main batch processing loop
 
 function core.batch_process_entities()
@@ -619,6 +700,10 @@ function core.batch_process_entities()
   end
 
   storage.batch_index = batch_index
+
+  if #storage.upgrade_queue > 0 then
+    process_upgrade_queue()
+  end
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes)
