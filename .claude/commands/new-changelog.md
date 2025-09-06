@@ -1,4 +1,4 @@
-Please add a new changelog entry with context about our latest work.
+Please add a new changelog entry with context about our latest work. Be sure to also update the version in `info.json`.
 
 The changelog should only contain details that are relevant to players and users of the mod; it should not contain details specific to the development process or repo management.
 
