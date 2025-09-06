@@ -23,16 +23,25 @@ local entity_list = {}
 local entity_list_index = {}
 local upgrade_queue = {}
 
+local inventory_defines = {
+  ["agricultural-tower"] = defines.inventory.crafter_modules,
+  ["assembling-machine"] = defines.inventory.crafter_modules,
+  ["beacon"] = defines.inventory.beacon_modules,
+  ["furnace"] = defines.inventory.crafter_modules,
+  ["lab"] = defines.inventory.lab_modules,
+  ["mining-drill"] = defines.inventory.mining_drill_modules
+}
+
 -- Entities from these mods don't fast_replace well, so for now exclude them
 local excluded_mods_lookup = {
-    ["Warp-Drive-Machine"] = true,
-    ["quality-condenser"] = true,
-    ["RealisticReactorsReborn"] = true,
-    ["railloader2-patch"] = true,
-    ["router"] = true,
-    ["fct-ControlTech"] = true, -- patch requested, may be able to remove once they are greater than version 2.0.5
     ["ammo-loader"] = true,
-    ["miniloader-redux"] = true
+    ["fct-ControlTech"] = true, -- patch requested, may be able to remove once they are greater than version 2.0.5
+    ["miniloader-redux"] = true,
+    ["quality-condenser"] = true,
+    ["railloader2-patch"] = true,
+    ["RealisticReactorsReborn"] = true,
+    ["router"] = true,
+    ["Warp-Drive-Machine"] = true,
   }
 
 function core.initialize()
@@ -535,6 +544,7 @@ local function attempt_upgrade_uncommon(entity)
       local module_target_quality = get_next_available_quality(entity_info.networks, module_name, current_module_quality)
 
       if module_target_quality then
+        local module_inventory_define = inventory_defines[entity.type]
         local proxy = entity.surface.create_entity({
           name = "item-request-proxy",
           position = entity.position,
@@ -542,11 +552,11 @@ local function attempt_upgrade_uncommon(entity)
           target = entity,
           modules = {{
             id = {name = module_name, quality = module_target_quality.name},
-            items = {in_inventory = {{inventory = defines.inventory.crafter_modules, stack = i - 1, count = 1}}}
+            items = {in_inventory = {{inventory = module_inventory_define, stack = i - 1, count = 1}}}
           }},
           removal_plan = {{
             id = {name = module_name, quality = current_module_quality.name},
-            items = {in_inventory = {{inventory = defines.inventory.crafter_modules, stack = i - 1, count = 1}}}
+            items = {in_inventory = {{inventory = module_inventory_define, stack = i - 1, count = 1}}}
           }}
         })
         update_reservations(proxy, entity_info.network_ids, module_name, module_target_quality.level, 1)
