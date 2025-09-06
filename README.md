@@ -1,6 +1,12 @@
 # Quality Control - Factorio Mod
 
-A Factorio mod that automatically upgrades machine quality based on how hard they are working.
+A Factorio mod that adds a chance for machines to upgrade in quality as they work. The harder they work, the more opportunities they get to change quality levels.
+
+## Difficulty Modes
+
+**Normal** - quality upgrades are earned through work and applied instantly, no items required in network inventory.
+
+**Uncommon** - the factory must have upgraded items in inventory, entities are only marked for upgrade for bots to handle. Only affects entities covered by construction networks that have an upgraded item available in network inventory.
 
 ## How It Works
 
@@ -17,7 +23,7 @@ The mod is highly configurable so that it's impact on gameplay can be tuned to y
 The mod tracks two categories of entities with different quality management approaches:
 
 **Primary Entities** (control.lua):
-- Assembling machines, furnaces, and rocket silos
+- Assembling machines and furnaces
 - Track exact manufacturing hours based on items produced × recipe duration
 - Quality upgrade attempts are based on accumulated work time
 - Each machine independently tracks its progress toward the next attempt
@@ -28,7 +34,7 @@ The mod tracks two categories of entities with different quality management appr
 - Power: electric poles, solar panels, accumulators, generators, reactors
 - Defense: turrets, walls, gates
 - Logic: combinators, beacons, speakers
-- Space Age: lightning rods, asteroid collectors, thrusters, cargo landing pads
+- Space Age: lightning rods, asteroid collectors, thrusters
 
 Secondary entities use a credit-based system - when primary entities reach upgrade thresholds, they generate credits proportional to the ratio of secondary to primary entities. Secondary entities consume these credits for upgrade attempts. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
 
@@ -154,6 +160,7 @@ The mod also automatically reinitializes if it detects corruption in the trackin
 
 All settings are configurable at game startup:
 
+- **Difficulty Mode**: Normal (free upgrades) or Uncommon (requires logistics network and construction bots)
 - **Manufacturing Hours for Change**: Base hours required before a quality change (0.001 - 1000 hours)
 - **Percentage Chance**: Likelihood of quality change when hours are met (0.0001% - 100%)
 - **Cost Increases per Quality Level**: Compounds the hour requirement at higher quality levels

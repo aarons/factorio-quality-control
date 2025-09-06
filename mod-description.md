@@ -92,6 +92,11 @@ There are a few entity types that are not supported: belts, pipes, rails, and st
 
 There are several edge cases to handle (and test) before adding support. Things such as UPS impacts of belts with varying quality segments, rail signals being replaced at the wrong moment causing accidents, storage containers changing size and losing blocked slots etc. It's all do-able, just not a priority. If you are interested in beta testing changes though, let me know on the discussion page :)
 
+## Localization
+---
+There are several AI generated localizations, so that settings and other items are presented in native languages. Corrections are very welcome!
+
+Please submit any corrections to the [mod discussion page](https://mods.factorio.com/mod/quality-control/discussion) or to the [github issues](https://github.com/aarons/factorio-quality-control/issues) page.
 
 ## Inspiration
 ___
@@ -103,6 +108,6 @@ This mod was inspired by a few others:
 [Level Up](https://mods.factorio.com/mod/levelup)
 [Upgradeable Quality](https://mods.factorio.com/mod/upgradeable-quality)
 
---
+---
 
 *More technical details and performance info is available on the [github repo](https://github.com/aarons/factorio-quality-control)*
