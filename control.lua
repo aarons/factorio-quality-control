@@ -156,6 +156,9 @@ local function setup_data_structures(force_reset)
     storage.primary_entity_count = 0
     storage.secondary_entity_count = 0
     storage.accumulated_credits = 0
+    storage.upgrade_queue = {}
+    storage.upgrade_queue_index = 1
+    storage.network_inventory = {}
   end
 
   -- Initialize storage tables
