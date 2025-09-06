@@ -105,7 +105,7 @@ local function update_reservations(entity, network_ids, entity_name, target_qual
   for _, network_id in ipairs(network_ids) do
     local items = network_inventory[network_id] and
                   network_inventory[network_id][entity_name] and
-                  network_inventory[network_id][entity_name][target_quality.level]
+                  network_inventory[network_id][entity_name][target_quality]
     if items then
       items.reserved = math.max(0, items.reserved + count)
     end
@@ -115,9 +115,9 @@ local function update_reservations(entity, network_ids, entity_name, target_qual
   if count > 0 then
     table.insert(upgrade_queue, {
       entity = entity,
-      entity_network_ids = network_ids,
-      entity_name = entity_name,
-      entity_target_quality_level = target_quality.level
+      network_ids = network_ids,
+      name = entity_name,
+      target_quality = target_quality
     })
   end
 end
@@ -204,7 +204,7 @@ function core.get_entity_info(entity)
         table.insert(network_ids, network.network_id)
       end
 
-      update_reservations(entity, network_ids, entity.name, target_quality, 1)
+      update_reservations(entity, network_ids, entity.name, target_quality.level, 1)
     end
   end
 
@@ -525,7 +525,7 @@ local function attempt_upgrade_uncommon(entity)
     table.insert(network_ids, network.network_id)
   end
 
-  update_reservations(entity, network_ids, entity.name, target_quality, 1)
+  update_reservations(entity, network_ids, entity.name, target_quality.level, 1)
 
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
@@ -555,7 +555,7 @@ local function attempt_upgrade_uncommon(entity)
           target = entity,
           modules = {{item = module_name, quality = module_target_quality, count = 1}}
         })
-        update_reservations(proxy, network_ids, module_name, module_target_quality, 1)
+        update_reservations(proxy, network_ids, module_name, module_target_quality.level, 1)
       end
     end
   end
@@ -680,8 +680,7 @@ local function process_upgrade_queue()
 
     if not entity.valid or (not is_module and not entity.to_be_upgraded()) then
       table.remove(upgrade_queue, storage.upgrade_queue_index)
-
-      update_reservations(nil, queue_item.entity_network_ids, queue_item.entity_name, {level = queue_item.entity_target_quality_level}, -1)
+      update_reservations(nil, queue_item.network_ids, queue_item.name, queue_item.target_quality, -1)
     else
       storage.upgrade_queue_index = storage.upgrade_queue_index + 1
     end
