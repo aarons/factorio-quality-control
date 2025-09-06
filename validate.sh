@@ -20,43 +20,20 @@ print_status() {
     echo -e "${color}${message}${NC}"
 }
 
-# Function to check if Python is available
-check_python() {
-    if command -v python3 >/dev/null 2>&1; then
-        echo "python3"
-    elif command -v python >/dev/null 2>&1; then
-        # Check if it's Python 3
-        if python -c "import sys; sys.exit(0 if sys.version_info[0] >= 3 else 1)" 2>/dev/null; then
-            echo "python"
-        else
-            print_status $RED "Error: Python 3 is required but not found"
-            exit 1
-        fi
-    else
-        print_status $RED "Error: Python 3 is required but not found"
-        exit 1
-    fi
-}
 
 # Function to setup validation environment
 setup_validation_env() {
     local tests_dir="${SCRIPT_DIR}/tests"
     local venv_dir="${tests_dir}/venv"
-    local python_cmd=$(check_python)
 
-    # Check if virtual environment exists
+    # Create virtual environment if it doesn't exist
     if [ ! -d "$venv_dir" ]; then
         print_status $YELLOW "Setting up validation environment..."
-        $python_cmd -m venv "$venv_dir"
-
-        # Activate venv and install requirements
+        python3 -m venv "$venv_dir"
         source "$venv_dir/bin/activate"
         pip install -r "${tests_dir}/requirements.txt" >/dev/null 2>&1
         deactivate
     fi
-
-    # Return path to venv python
-    echo "${venv_dir}/bin/python"
 }
 
 
@@ -78,11 +55,17 @@ run_luacheck() {
 
 # Function to run pytest validations
 run_pytest_validations() {
-    local python_cmd=$(setup_validation_env)
-    cd "${SCRIPT_DIR}/tests"
+    setup_validation_env
+
+    local tests_dir="${SCRIPT_DIR}/tests"
+    cd "$tests_dir"
+
+    # Activate virtual environment and run pytest
+    source venv/bin/activate
     local output
-    output=$($python_cmd -m pytest --tb=short 2>&1)
+    output=$(python -m pytest --tb=short 2>&1)
     local exit_code=$?
+    deactivate
 
     if [ $exit_code -eq 0 ]; then
         print_status $GREEN "✅ Pytests passed"
@@ -96,32 +79,6 @@ run_pytest_validations() {
 
 # Function to run comprehensive validation
 run_comprehensive_validation() {
-
-    # Check required binaries
-    if ! command -v python3 >/dev/null 2>&1; then
-        print_status $RED "❌ python3 not found"
-        print_status $YELLOW "Install with: brew install python"
-        return 1
-    fi
-
-    if ! command -v lua >/dev/null 2>&1; then
-        print_status $RED "❌ lua not found"
-        print_status $YELLOW "Install with: brew install lua"
-        return 1
-    fi
-
-    if ! command -v luacheck >/dev/null 2>&1; then
-        print_status $RED "❌ luacheck not found"
-        print_status $YELLOW "Install with: brew install luarocks && luarocks install luacheck"
-        return 1
-    fi
-
-    if ! command -v luac >/dev/null 2>&1; then
-        print_status $RED "❌ luac not found"
-        print_status $YELLOW "Install with: brew install lua"
-        return 1
-    fi
-
     # Run luacheck
     if ! run_luacheck; then
         return 1

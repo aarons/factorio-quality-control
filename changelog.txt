@@ -2,7 +2,7 @@
 Version: 1.5.0
 Date: 29. 08. 2025
   Features:
-    - Added difficulty mode setting with Normal and Uncommon options.
+    - Added difficulty modes Normal and Uncommon.
       Normal mode is the existing version of the mod (with free upgrades)
       Uncommon mode requires items to exist in logistics storage and uses construction
       robots for upgrades.
