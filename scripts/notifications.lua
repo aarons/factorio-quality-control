@@ -91,7 +91,7 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     local is_primary_type = entity_info.is_primary
     local current_recipe = is_primary_type and selected_entity.get_recipe and selected_entity.get_recipe()
     local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
-    local can_change_quality = entity_info.can_change_quality
+    local can_change_quality = selected_entity.quality ~= storage.config.quality_limit
 
     -- Show eligibility status
     local eligible_text

@@ -206,8 +206,8 @@ local function setup_data_structures(force_reset)
     storage.quality_multipliers = {}
   end
 
-  if not storage.item_count_cache then
-    storage.item_count_cache = {}
+  if not storage.network_inventory then
+    storage.network_inventory = {}
   end
 
   -- Initialize upgrade queue structures for Uncommon mode

@@ -18,7 +18,7 @@ local quality_multipliers = {}
 local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
-local item_count_cache = {}
+local network_inventory = {}
 local entity_list = {}
 local entity_list_index = {}
 local upgrade_queue = {}
@@ -42,7 +42,7 @@ function core.initialize()
   is_tracked_type = storage.config.is_tracked_type
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
-  item_count_cache = storage.item_count_cache
+  network_inventory = storage.network_inventory
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
   upgrade_queue = storage.upgrade_queue
@@ -71,52 +71,80 @@ local function should_exclude_entity(entity)
   return false
 end
 
+-- Helper function to get construction networks for an entity
+local function get_construction_networks(entity)
+  return entity.surface.find_logistic_networks_by_construction_area(entity.position, entity.force)
+end
 
-local function update_item_cache(network, item_name, quality)
-  local item_with_quality = {name = item_name, quality = quality}
-  local available_count = network.get_item_count(item_with_quality)
+local function update_network_inventory(networks, item_name, quality)
+  for _, network in ipairs(networks) do
+    local item_with_quality = {name = item_name, quality = quality}
+    local available_count = network.get_item_count(item_with_quality)
 
-  local network_id = network.network_id
-  if not item_count_cache[network_id] then
-    item_count_cache[network_id] = {}
+    local network_id = network.network_id
+    if not network_inventory[network_id] then
+      network_inventory[network_id] = {}
+    end
+    if not network_inventory[network_id][item_name] then
+      network_inventory[network_id][item_name] = {}
+    end
+
+    if network_inventory[network_id][item_name][quality.level] then
+      network_inventory[network_id][item_name][quality.level].available = available_count
+    else
+      network_inventory[network_id][item_name][quality.level] = {
+        available = available_count,
+        reserved = 0
+      }
+    end
   end
-  if not item_count_cache[network_id][item_name] then
-    item_count_cache[network_id][item_name] = {}
+end
+
+local function update_reservations(entity_id, network_ids, entity_name, target_quality, count)
+  -- Handle reservation changes on networks
+  for _, network_id in ipairs(network_ids) do
+    local items = network_inventory[network_id] and
+                  network_inventory[network_id][entity_name] and
+                  network_inventory[network_id][entity_name][target_quality.level]
+    if items then
+      items.reserved = math.max(0, items.reserved + count)
+    end
   end
 
-  local item_count = item_count_cache[network_id][item_name][quality.level]
-
-  if item_count then
-    item_count.available = available_count
-  else
-    item_count_cache[network_id][item_name][quality.level] = {
-      available = available_count,
-      reserved = 0
-    }
+  -- Add to upgrade queue if adding reservations
+  if count > 0 then
+    local entity = tracked_entities[entity_id].entity
+    table.insert(upgrade_queue, {
+      entity = entity,
+      entity_network_ids = network_ids,
+      entity_name = entity_name,
+      entity_target_quality_level = target_quality.level
+    })
   end
-
-  return item_count
 end
 
 
-local function get_next_available_quality(network, item_name, current_quality)
+local function get_next_available_quality(networks, item_name, current_quality)
   local next_quality = current_quality.next
   -- keep this check as a user could insert max quality modules and we don't check those ahead of time
   if not next_quality then
     return nil
   end
 
-  local item_count = update_item_cache(network, item_name, next_quality)
-  if item_count and (item_count.available - item_count.reserved) > 0 then
-    return next_quality
-  end
+  update_network_inventory(networks, item_name, next_quality)
 
-  -- scan the cache for any available quality
-  next_quality = next_quality.next
+  -- Scan for next available quality across networks the entity is covered by
   while next_quality do
-    item_count = item_count_cache[network.network_id][item_name][next_quality.level]
-    if item_count and (item_count.available - item_count.reserved) > 0 then
-      return next_quality
+    for _, network in ipairs(networks) do
+      local network_id = network.network_id
+      if network_inventory[network_id] and
+         network_inventory[network_id][item_name] and
+         network_inventory[network_id][item_name][next_quality.level] then
+        local item_count = network_inventory[network_id][item_name][next_quality.level]
+        if item_count.available - item_count.reserved > 0 then
+          return next_quality
+        end
+      end
     end
     next_quality = next_quality.next
   end
@@ -127,12 +155,10 @@ end
 
 function core.get_entity_info(entity)
   local id = entity.unit_number
-
-  local can_change_quality = entity.quality.next ~= nil
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
-  local should_track = can_change_quality or (is_primary and accumulate_at_max_quality)
+  local should_track = entity.quality ~= quality_limit or (is_primary and accumulate_at_max_quality)
   if not should_track then
     return "at max quality"
   end
@@ -151,7 +177,8 @@ function core.get_entity_info(entity)
     entity = entity,
     is_primary = is_primary,
     chance_to_change = base_percentage_chance,
-    upgrade_attempts = 0
+    upgrade_attempts = 0,
+    networks = get_construction_networks(entity)
   }
 
   if is_primary then
@@ -165,22 +192,21 @@ function core.get_entity_info(entity)
   entity_list_index[id] = #entity_list
 
   -- Check if entity is being upgraded and add to upgrade queue
-  if mod_difficulty == "Uncommon" and entity.to_be_upgraded() and entity.logistic_network then
-    local target = entity.get_upgrade_target()
-    local network = entity.logistic_network
-    local network_id = network.network_id
+  if mod_difficulty == "Uncommon" and entity.to_be_upgraded() then
+    local networks = tracked_entities[id].networks
+    if #networks > 0 then
+      local _, target_quality = entity.get_upgrade_target()
+      local network_ids = {}
 
-    -- Update cache and add reservation
-    local items = update_item_cache(network, entity.name, target.quality)
-    items.reserved = items.reserved + 1
+      -- Update cache and add reservations across all networks
+      update_network_inventory(networks, entity.name, target_quality)
 
-    -- Add to queue
-    table.insert(upgrade_queue, {
-      entity = entity,
-      entity_network_id = network_id,
-      entity_name = entity.name,
-      entity_target_quality_level = target.quality.level
-    })
+      for _, network in ipairs(networks) do
+        table.insert(network_ids, network.network_id)
+      end
+
+      update_reservations(entity.unit_number, network_ids, entity.name, target_quality, 1)
+    end
   end
 
   if not is_primary then
@@ -229,34 +255,52 @@ function core.scan_and_populate_entities()
     for _, entity in ipairs(entities) do
       local entity_info = core.get_entity_info(entity)
 
-      -- Populate item count cache for entities with logistic networks (only when not in Normal difficulty)
+      -- Populate item count cache for entities with construction networks (only when not in Normal difficulty)
       -- Only do this for entities that are actually being tracked (entity_info has .entity field)
-      if mod_difficulty ~= "Normal" and entity_info.entity and entity.logistic_network then
-        local network = entity.logistic_network
-        local network_id = network.network_id
-
-        if entity.quality.next then
+      if mod_difficulty ~= "Normal" and entity_info.entity then
+        local networks = entity_info.networks
+        if #networks > 0 and entity.quality.next then
           local next_quality = entity.quality.next
-          -- Only update cache if we haven't already checked this network/item/quality combo
-          if not (item_count_cache[network_id] and
-                  item_count_cache[network_id][entity.name] and
-                  item_count_cache[network_id][entity.name][next_quality.level] ~= nil) then
-            update_item_cache(network, entity.name, next_quality)
-          end
-        end
+          local needs_update = false
 
-        -- Also populate cache for modules if entity has module inventory
-        local module_inventory = entity.get_module_inventory()
-        if module_inventory then
-          for i = 1, #module_inventory do
-            local stack = module_inventory[i]
-            if stack.valid_for_read and stack.is_module and stack.quality.next then
-              local next_quality = stack.quality.next
-              -- Only update cache if we haven't already checked this network/item/quality combo
-              if not (item_count_cache[network_id] and
-                      item_count_cache[network_id][stack.name] and
-                      item_count_cache[network_id][stack.name][next_quality.level] ~= nil) then
-                update_item_cache(network, stack.name, next_quality)
+          -- Check if any network needs cache update for this item/quality
+          for _, network in ipairs(networks) do
+            local network_id = network.network_id
+            if not (network_inventory[network_id] and
+                    network_inventory[network_id][entity.name] and
+                    network_inventory[network_id][entity.name][next_quality.level] ~= nil) then
+              needs_update = true
+              break
+            end
+          end
+
+          if needs_update then
+            update_network_inventory(networks, entity.name, next_quality)
+          end
+
+          -- Also populate cache for modules if entity has module inventory
+          local module_inventory = entity.get_module_inventory()
+          if module_inventory then
+            for i = 1, #module_inventory do
+              local stack = module_inventory[i]
+              if stack.valid_for_read and stack.is_module and stack.quality.next then
+                local module_next_quality = stack.quality.next
+                local module_needs_update = false
+
+                -- Check if any network needs cache update for this module/quality
+                for _, network in ipairs(networks) do
+                  local network_id = network.network_id
+                  if not (network_inventory[network_id] and
+                          network_inventory[network_id][stack.name] and
+                          network_inventory[network_id][stack.name][module_next_quality.level] ~= nil) then
+                    module_needs_update = true
+                    break
+                  end
+                end
+
+                if module_needs_update then
+                  update_network_inventory(networks, stack.name, module_next_quality)
+                end
               end
             end
           end
@@ -443,15 +487,20 @@ local function attempt_upgrade_normal(entity)
 end
 
 local function attempt_upgrade_uncommon(entity)
-  if entity.to_be_upgraded() or not entity.logistic_network then
+  if entity.to_be_upgraded() then
     return false
   end
 
-  local network = entity.logistic_network
   local entity_info = tracked_entities[entity.unit_number]
+  -- Refresh networks before attempting upgrades to ensure current construction coverage
+  entity_info.networks = get_construction_networks(entity)
+  local networks = entity_info.networks
+  if #networks == 0 then
+    return false
+  end
 
-  -- Find the next available quality in the network
-  local target_quality = get_next_available_quality(network, entity.name, entity.quality)
+  -- Find the next available quality across all networks
+  local target_quality = get_next_available_quality(networks, entity.name, entity.quality)
   if not target_quality then
     return false
   end
@@ -466,22 +515,18 @@ local function attempt_upgrade_uncommon(entity)
     return false
   end
 
-  -- update reservations
-  local items = item_count_cache[network.network_id][entity.name][target_quality.level]
-  items.reserved = items.reserved + 1
-
   entity.order_upgrade({
     target = {name = entity.name, quality = target_quality},
     force = entity.force
   })
 
-  -- add to reservation queue
-  table.insert(upgrade_queue, {
-    entity = entity,
-    entity_network_id = network.network_id,
-    entity_name = entity.name,
-    entity_target_quality_level = target_quality.level
-  })
+  -- add to reservation queue with all network ids
+  local network_ids = {}
+  for _, network in ipairs(networks) do
+    table.insert(network_ids, network.network_id)
+  end
+
+  update_reservations(entity.unit_number, network_ids, entity.name, target_quality, 1)
 
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
@@ -501,7 +546,7 @@ local function attempt_upgrade_uncommon(entity)
     if stack.valid_for_read and stack.is_module then
       local module_name = stack.name
       local current_module_quality = stack.quality
-      local module_target_quality = get_next_available_quality(network, module_name, current_module_quality)
+      local module_target_quality = get_next_available_quality(networks, module_name, current_module_quality)
 
       if module_target_quality then
         entity.order_upgrade({
@@ -632,12 +677,7 @@ local function process_upgrade_queue()
     if not entity.valid or not entity.to_be_upgraded() then
       table.remove(upgrade_queue, storage.upgrade_queue_index)
 
-      local items = item_count_cache[queue_item.entity_network_id] and
-                   item_count_cache[queue_item.entity_network_id][queue_item.entity_name] and
-                   item_count_cache[queue_item.entity_network_id][queue_item.entity_name][queue_item.entity_target_quality_level]
-      if items then
-        items.reserved = math.max(0, items.reserved - 1)
-      end
+      update_reservations(0, queue_item.entity_network_ids, queue_item.entity_name, {level = queue_item.entity_target_quality_level}, -1)
     else
       storage.upgrade_queue_index = storage.upgrade_queue_index + 1
     end
