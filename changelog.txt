@@ -13,7 +13,8 @@ Date: 29. 08. 2025
       get processed, but this ensures all entities are processed on every pass)
   Translation:
     - Added machine translations for multiple languages. Corrections are very welcome! Please add feedback
-      to the mod discussion forum or as an issue on the github repo (https://github.com/aarons/factorio-quality-control/issues).
+      to the mod discussion forum or as an issue on the github repo:
+      https://github.com/aarons/factorio-quality-control/issues
       Languages supported: Belarusian, Catalan, Chinese (Simplified), Chinese (Traditional), Czech,
       Dutch, Finnish, French, Georgian, German, Greek, Hungarian, Italian, Japanese, Kazakh, Korean,
       Latvian, Norwegian, Polish, Portuguese (Brazil), Portuguese (Portugal), Romanian, Russian,
