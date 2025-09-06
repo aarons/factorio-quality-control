@@ -6,8 +6,8 @@ Date: 29. 08. 2025
       Normal mode is the existing version of the mod (with free upgrades)
       Uncommon mode requires items to exist in logistics storage and uses construction
       robots for upgrades.
-    - Uncommon mode handles module upgrades when enabled, checking for upgraded
-      modules in logistics storage before upgrading them alongside their machines.
+    - Module upgrading is supported in Uncommon mode. Currently, only quality changes are supported
+      (for example, won't upgrade from speed-module-2 to speed-module-3).
   Bugfixes:
     - Fixed issue where some entities would be skipped during batch processing (they would eventually
       get processed, but this ensures all entities are processed on every pass)
@@ -21,7 +21,6 @@ Date: 29. 08. 2025
   Optimizations:
     - Improved performance by limiting entity exclusion checks to new entities only
     - Optimized exclusion algorithm by using hash tables instead of linear scanning
-    - Enhanced logistics network scanning efficiency by caching item availability data
 ---------------------------------------------------------------------------------------------------
 Version: 1.4.0
 Date: 24. 08. 2025

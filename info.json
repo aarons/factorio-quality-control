@@ -4,7 +4,7 @@
   "title": "Quality Control",
   "author": "raley",
   "homepage": "https://github.com/aarons/factorio-quality-control",
-  "description": "Adds a chance to change the quality of buildable units based on their activity level. Highly configurable, works well with other quality mods.",
+  "description": "Buildings and other items earn quality upgrades based on their activity level.\n\nIncludes a quality-of-life only mode where upgraded items must exist within a logistic network, and a mode where upgrades happen regardless of network inventory.\n\nQuality Control is highly configurable and works well with other quality mods.",
   "factorio_version": "2.0",
   "dependencies": [
     "base",
