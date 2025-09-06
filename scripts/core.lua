@@ -100,7 +100,7 @@ local function update_network_inventory(networks, item_name, quality)
   end
 end
 
-local function update_reservations(entity_id, network_ids, entity_name, target_quality, count)
+local function update_reservations(entity, network_ids, entity_name, target_quality, count)
   -- Handle reservation changes on networks
   for _, network_id in ipairs(network_ids) do
     local items = network_inventory[network_id] and
@@ -113,7 +113,6 @@ local function update_reservations(entity_id, network_ids, entity_name, target_q
 
   -- Add to upgrade queue if adding reservations
   if count > 0 then
-    local entity = tracked_entities[entity_id].entity
     table.insert(upgrade_queue, {
       entity = entity,
       entity_network_ids = network_ids,
@@ -205,7 +204,7 @@ function core.get_entity_info(entity)
         table.insert(network_ids, network.network_id)
       end
 
-      update_reservations(entity.unit_number, network_ids, entity.name, target_quality, 1)
+      update_reservations(entity, network_ids, entity.name, target_quality, 1)
     end
   end
 
@@ -526,7 +525,7 @@ local function attempt_upgrade_uncommon(entity)
     table.insert(network_ids, network.network_id)
   end
 
-  update_reservations(entity.unit_number, network_ids, entity.name, target_quality, 1)
+  update_reservations(entity, network_ids, entity.name, target_quality, 1)
 
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
@@ -549,10 +548,14 @@ local function attempt_upgrade_uncommon(entity)
       local module_target_quality = get_next_available_quality(networks, module_name, current_module_quality)
 
       if module_target_quality then
-        entity.order_upgrade({
+        local proxy = entity.surface.create_entity({
+          name = "item-request-proxy",
+          position = entity.position,
           force = entity.force,
-          target = {name = module_name, quality = module_target_quality}
+          target = entity,
+          modules = {{item = module_name, quality = module_target_quality, count = 1}}
         })
+        update_reservations(proxy, network_ids, module_name, module_target_quality, 1)
       end
     end
   end
@@ -673,11 +676,12 @@ local function process_upgrade_queue()
 
     local queue_item = upgrade_queue[storage.upgrade_queue_index]
     local entity = queue_item.entity
+    local is_module = entity.type == "item-request-proxy"
 
-    if not entity.valid or not entity.to_be_upgraded() then
+    if not entity.valid or (not is_module and not entity.to_be_upgraded()) then
       table.remove(upgrade_queue, storage.upgrade_queue_index)
 
-      update_reservations(0, queue_item.entity_network_ids, queue_item.entity_name, {level = queue_item.entity_target_quality_level}, -1)
+      update_reservations(nil, queue_item.entity_network_ids, queue_item.entity_name, {level = queue_item.entity_target_quality_level}, -1)
     else
       storage.upgrade_queue_index = storage.upgrade_queue_index + 1
     end
