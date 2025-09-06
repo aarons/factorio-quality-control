@@ -713,15 +713,17 @@ function core.batch_process_entities()
     end
 
     local unit_number = entity_list[batch_index]
-
     local entity_info = tracked_entities[unit_number]
-    -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
-    -- or if the entity can change quality still
-    local should_stay_tracked = entity_info and
-      (entity_info.entity.quality.next ~= nil or
-      (entity_info.is_primary and accumulate_at_max_quality))
 
-    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
+    if not entity_info or not entity_info.entity or not entity_info.entity.valid then
+      core.remove_entity_info(unit_number)
+      goto continue
+    end
+
+    -- if the entity can change quality still, or
+    -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
+    local should_stay_tracked = entity_info.entity.quality.next ~= nil or (entity_info.is_primary and accumulate_at_max_quality)
+    if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
     end
