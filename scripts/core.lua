@@ -164,7 +164,7 @@ function core.get_entity_info(entity)
   table.insert(entity_list, id)
   entity_list_index[id] = #entity_list
 
-  -- Check if entity is being upgraded and add to upgrade tracking queue
+  -- Check if entity is being upgraded and add to upgrade queue
   if mod_difficulty == "Uncommon" and entity.to_be_upgraded() and entity.logistic_network then
     local target = entity.get_upgrade_target()
     local network = entity.logistic_network
@@ -183,34 +183,37 @@ function core.get_entity_info(entity)
     })
   end
 
-  if is_primary then
-    -- Initialize manufacturing hours based on current products_finished
-    -- This ensures we don't double-count hours for already-producing entities
-    local recipe_time = 0
-    if entity.get_recipe() then
-      recipe_time = entity.get_recipe().prototype.energy
-    elseif entity.type == "furnace" and entity.previous_recipe then
-      recipe_time = entity.previous_recipe.name.energy
+  if not is_primary then
+    -- all done with secondary entity processing, ok to return
+    return tracked_entities[id]
+  end
+
+  -- Initialize manufacturing hours based on current products_finished
+  -- This ensures we don't double-count hours for already-producing entities
+  local recipe_time = 0
+  if entity.get_recipe() then
+    recipe_time = entity.get_recipe().prototype.energy
+  elseif entity.type == "furnace" and entity.previous_recipe then
+    recipe_time = entity.previous_recipe.name.energy
+  end
+
+  local current_hours = (entity.products_finished * recipe_time) / 3600
+  tracked_entities[id].manufacturing_hours = current_hours
+
+  -- Calculate how many upgrade attempts would have occurred in the past
+  -- and adjust the chance percentage accordingly
+  if current_hours > 0 then
+    local hours_needed = quality_multipliers[entity.quality.level]
+    local past_attempts = math.floor(current_hours / hours_needed)
+
+    -- Simulate the chance accumulation from missed upgrade attempts
+    if past_attempts > 0 and accumulation_percentage > 0 then
+      local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
+      tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
+      tracked_entities[id].upgrade_attempts = past_attempts
     end
-
-    local current_hours = (entity.products_finished * recipe_time) / 3600
-    tracked_entities[id].manufacturing_hours = current_hours
-
-    -- Calculate how many upgrade attempts would have occurred in the past
-    -- and adjust the chance percentage accordingly
-    if current_hours > 0 then
-      local hours_needed = quality_multipliers[entity.quality.level]
-      local past_attempts = math.floor(current_hours / hours_needed)
-
-      -- Simulate the chance accumulation from missed upgrade attempts
-      if past_attempts > 0 and accumulation_percentage > 0 then
-        local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
-        tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-        tracked_entities[id].upgrade_attempts = past_attempts
-      end
-      -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
-      -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
-    end
+    -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
+    -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
   end
   return tracked_entities[id]
 end
