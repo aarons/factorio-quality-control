@@ -540,7 +540,14 @@ local function attempt_upgrade_uncommon(entity)
           position = entity.position,
           force = entity.force,
           target = entity,
-          modules = {{item = module_name, quality = module_target_quality, count = 1}}
+          modules = {{
+            id = {name = module_name, quality = module_target_quality.name},
+            items = {in_inventory = {{inventory = defines.inventory.crafter_modules, stack = i - 1, count = 1}}}
+          }},
+          removal_plan = {{
+            id = {name = module_name, quality = current_module_quality.name},
+            items = {in_inventory = {{inventory = defines.inventory.crafter_modules, stack = i - 1, count = 1}}}
+          }}
         })
         update_reservations(proxy, entity_info.network_ids, module_name, module_target_quality.level, 1)
       end
@@ -663,9 +670,9 @@ local function process_upgrade_queue()
 
     local queue_item = upgrade_queue[storage.upgrade_queue_index]
     local entity = queue_item.entity
-    local is_module = entity.type == "item-request-proxy"
-
-    if not entity.valid or (not is_module and not entity.to_be_upgraded()) then
+    -- if entity is no longer valid then it was replaced by an upgrade
+    -- also check for upgrades that were cancelled (only if they aren't an item request proxy though)
+    if not entity.valid or (entity.type ~= "item-request-proxy" and not entity.to_be_upgraded()) then
       table.remove(upgrade_queue, storage.upgrade_queue_index)
       update_reservations(nil, queue_item.network_ids, queue_item.name, queue_item.target_quality, -1)
     else
