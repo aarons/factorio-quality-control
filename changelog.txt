@@ -2,15 +2,15 @@
 Version: 1.5.2
 Date: 07. 09. 2025
   Bugfixes:
-    - Fixed crashes when encountering entities that exist only as world objects without corresponding items
+    - Fixed an error when attempting to upgrade entities that had no corresponding placeable items
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.1
 Date: 06. 09. 2025
   Bugfixes:
     - Fixed module upgrades being missed for beacons, labs, and mining drills in Uncommon mode.
-    - Fixed an error that could occur when entities became invalid during batch processing
-    - Fixed crashes when loading saves containing modded entities with mismatched prototype names
-    - Fixed notifications showing incorrect quality level when entities were marked for upgrade in
+    - Fixed an error that occured when entities became invalid during batch processing
+    - Fixed a crash when loading a save with modded entities that had mismatched prototype names
+    - Fixed notifications showing the old quality level when entities were marked for upgrade in
       Uncommon difficutly mode.
   Modding:
     - Improved compatibility with mods that use different entity and item naming conventions
@@ -22,8 +22,8 @@ Date: 29. 08. 2025
       Normal mode is the existing version of the mod (with free upgrades)
       Uncommon mode requires items to exist in logistics storage and uses construction
       robots for upgrades.
-    - Module upgrading is supported in Uncommon mode. Currently, only quality changes are supported
-      (for example, won't upgrade from speed-module-2 to speed-module-3).
+    - Module quality upgrades are supported, but not module levels (for example, won't upgrade
+      from speed-module-2 to speed-module-3).
   Bugfixes:
     - Fixed issue where some entities would be skipped during batch processing (they would eventually
       get processed, but this ensures all entities are processed on every pass)
