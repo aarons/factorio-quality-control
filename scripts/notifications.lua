@@ -45,12 +45,12 @@ function notifications.try_show_accumulated_notifications()
   end
 end
 
-function notifications.show_entity_quality_alert(entity)
+function notifications.show_entity_quality_alert(entity, target_quality_name)
   local player = game.players[1] -- In single player, this is the player
   if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
-    local message = "upgraded quality to " .. entity.quality.name
+    local message = "upgraded quality to " .. target_quality_name
 
-    player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = entity.quality.name}, message, true)
+    player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = target_quality_name}, message, true)
   end
 end
 

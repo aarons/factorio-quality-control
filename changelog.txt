@@ -1,8 +1,19 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.2
+Date: 07. 09. 2025
+  Bugfixes:
+    - Fixed crashes when encountering entities that exist only as world objects without corresponding items
+---------------------------------------------------------------------------------------------------
 Version: 1.5.1
 Date: 06. 09. 2025
   Bugfixes:
-    - Fixed module upgrades for Beacons, labs, and mining drills in Uncommon mode.
+    - Fixed module upgrades being missed for beacons, labs, and mining drills in Uncommon mode.
+    - Fixed an error that could occur when entities became invalid during batch processing
+    - Fixed crashes when loading saves containing modded entities with mismatched prototype names
+    - Fixed notifications showing incorrect quality level when entities were marked for upgrade in
+      Uncommon difficutly mode.
+  Modding:
+    - Improved compatibility with mods that use different entity and item naming conventions
 ---------------------------------------------------------------------------------------------------
 Version: 1.5.0
 Date: 29. 08. 2025

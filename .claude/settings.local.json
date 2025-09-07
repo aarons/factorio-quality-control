@@ -13,7 +13,8 @@
       "WebSearch",
       "WebFetch(domain:*.factorio.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:forums.factorio.com)"
+      "WebFetch(domain:forums.factorio.com)",
+      "WebFetch(domain:lua-api.factorio.com)"
     ],
     "deny": []
   }

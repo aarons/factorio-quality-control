@@ -11,7 +11,6 @@ local core = {}
 
 local tracked_entities = {}
 local settings_data = {}
-local quality_limit = nil
 local is_tracked_type = {}
 local mod_difficulty = nil
 local quality_multipliers = {}
@@ -47,7 +46,6 @@ local excluded_mods_lookup = {
 function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
-  quality_limit = storage.config.quality_limit
   is_tracked_type = storage.config.is_tracked_type
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
@@ -60,14 +58,27 @@ function core.initialize()
   accumulation_percentage = settings_data.accumulation_percentage
 end
 
+-- Get the item name for placing an entity
+local function get_entity_item_name(entity)
+  local items = entity.prototype.items_to_place_this
+  if items and #items > 0 then
+    return items[1].name
+  end
+  return nil
+end
 
--- Exclude entities that don't work well with fast_replace or should be excluded
+-- Exclude entities that shouldn't be upgraded
 local function should_exclude_entity(entity)
   if not entity.prototype.selectable_in_game then
     return true
   end
 
   if not entity.destructible then
+    return true
+  end
+
+  -- check if entity has no placeable items
+  if get_entity_item_name(entity) == nil then
     return true
   end
 
@@ -79,6 +90,7 @@ local function should_exclude_entity(entity)
 
   return false
 end
+
 
 -- Helper function to update construction networks for a tracked entity
 local function update_construction_networks(entity)
@@ -176,7 +188,7 @@ function core.get_entity_info(entity)
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
-  local should_track = entity.quality ~= quality_limit or (is_primary and accumulate_at_max_quality)
+  local should_track = entity.quality.next ~= nil or (is_primary and accumulate_at_max_quality)
   if not should_track then
     return "at max quality"
   end
@@ -212,8 +224,8 @@ function core.get_entity_info(entity)
     local entity_info = update_construction_networks(entity)
     if entity.to_be_upgraded() and #entity_info.networks > 0 then
       local _, target_quality = entity.get_upgrade_target()
-      update_network_inventory(entity_info.networks, entity.name, target_quality)
-      update_reservations(entity, entity_info.network_ids, entity.name, target_quality.level, 1)
+      update_network_inventory(entity_info.networks, get_entity_item_name(entity), target_quality)
+      update_reservations(entity, entity_info.network_ids, get_entity_item_name(entity), target_quality.level, 1)
     end
   end
 
@@ -261,54 +273,7 @@ function core.scan_and_populate_entities()
     }
 
     for _, entity in ipairs(entities) do
-      local entity_info = core.get_entity_info(entity)
-
-      -- See if we should populate network_inventory
-      -- Only do this for entities that are being tracked
-      if mod_difficulty ~= "Normal" and type(entity_info) == "table" and #entity_info.networks > 0 and entity.quality.next then
-        local next_quality = entity.quality.next
-        local needs_update = false
-
-        -- Check if any network inventory needs an update for this item/quality combo
-        for _, network_id in ipairs(entity_info.network_ids) do
-          if not (network_inventory[network_id] and
-                  network_inventory[network_id][entity.name] and
-                  network_inventory[network_id][entity.name][next_quality.level] ~= nil) then
-            needs_update = true
-            break
-          end
-        end
-
-        if needs_update then
-          update_network_inventory(entity_info.networks, entity.name, next_quality)
-        end
-
-        -- Also populate cache for modules if entity has module inventory
-        local module_inventory = entity.get_module_inventory()
-        if module_inventory then
-          for i = 1, #module_inventory do
-            local stack = module_inventory[i]
-            if stack.valid_for_read and stack.is_module and stack.quality.next then
-              local module_next_quality = stack.quality.next
-              local module_needs_update = false
-
-              -- Check if any network needs cache update for this module/quality
-              for _, network_id in ipairs(entity_info.network_ids) do
-                if not (network_inventory[network_id] and
-                        network_inventory[network_id][stack.name] and
-                        network_inventory[network_id][stack.name][module_next_quality.level] ~= nil) then
-                  module_needs_update = true
-                  break
-                end
-              end
-
-              if module_needs_update then
-                update_network_inventory(entity_info.networks, stack.name, module_next_quality)
-              end
-            end
-          end
-        end
-      end
+      core.get_entity_info(entity)
     end
   end
 end
@@ -449,7 +414,6 @@ local function attempt_upgrade_normal(entity)
   local entity_force = entity.force
   local entity_direction = entity.direction
   local entity_mirroring = entity.mirroring
-
   local target_quality = entity.quality.next
 
   script.raise_script_destroy{entity = entity}
@@ -472,7 +436,7 @@ local function attempt_upgrade_normal(entity)
 
     core.remove_entity_info(unit_number)
     update_module_quality(replacement_entity, target_quality)
-    notifications.show_entity_quality_alert(replacement_entity)
+    notifications.show_entity_quality_alert(replacement_entity, target_quality.name)
     return replacement_entity
   else
     log("Quality Control - Unexpected Problem: Entity replacement failed")
@@ -501,7 +465,7 @@ local function attempt_upgrade_uncommon(entity)
   end
 
   -- Find the next available quality across all networks
-  local target_quality = get_next_available_quality(entity_info.networks, entity.name, entity.quality)
+  local target_quality = get_next_available_quality(entity_info.networks, get_entity_item_name(entity), entity.quality)
   if not target_quality then
     return false
   end
@@ -521,18 +485,18 @@ local function attempt_upgrade_uncommon(entity)
     force = entity.force
   })
 
-  update_reservations(entity, entity_info.network_ids, entity.name, target_quality.level, 1)
+  update_reservations(entity, entity_info.network_ids, get_entity_item_name(entity), target_quality.level, 1)
 
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
   if module_setting == "disabled" then
-    notifications.show_entity_quality_alert(entity)
+    notifications.show_entity_quality_alert(entity, target_quality.name)
     return true
   end
 
   local module_inventory = entity.get_module_inventory()
   if not module_inventory then
-    notifications.show_entity_quality_alert(entity)
+    notifications.show_entity_quality_alert(entity, target_quality.name)
     return true
   end
 
@@ -564,7 +528,7 @@ local function attempt_upgrade_uncommon(entity)
     end
   end
 
-  notifications.show_entity_quality_alert(entity)
+  notifications.show_entity_quality_alert(entity, target_quality.name)
   return true
 end
 
@@ -574,6 +538,10 @@ function core.process_upgrade_attempts(entity, attempts_count)
   local current_entity = entity
 
   for _ = 1, attempts_count do
+    if current_entity.quality.next == nil then
+      break
+    end
+
     local change_result
     if mod_difficulty == "Uncommon" then
       change_result = attempt_upgrade_uncommon(current_entity)
@@ -581,20 +549,22 @@ function core.process_upgrade_attempts(entity, attempts_count)
       change_result = attempt_upgrade_normal(current_entity)
     end
 
+    -- Handle errors
     if change_result == nil then
-      -- we ran into an error, just return instead of continuing
       break
     end
 
-    if change_result and mod_difficulty == "Normal" then
-      current_entity = change_result
-      quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-      if current_entity.quality == quality_limit then
-        break
+    -- Handle successful upgrades
+    if change_result then
+      if mod_difficulty == "Uncommon" then
+        -- Uncommon mode returns true on success, use current entity
+        quality_changes[current_entity.name] = (quality_changes[current_entity.name] or 0) + 1
+        break -- Uncommon mode only allows one upgrade per batch
+      else
+        -- Normal mode returns the new entity on success
+        quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
+        current_entity = change_result
       end
-    elseif change_result and mod_difficulty == "Uncommon" then
-      quality_changes[current_entity.name] = (quality_changes[current_entity.name] or 0) + 1
-      break
     end
   end
 
