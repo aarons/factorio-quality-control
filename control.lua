@@ -7,6 +7,7 @@ Handles initialization, event registration, configuration setup, and orchestrate
 
 local core = require("scripts.core")
 local notifications = require("scripts.notifications")
+local solar_productivity = require("scripts.compatibility.solar-productivity")
 
 -- Entity type to setting name mappings
 local entity_to_setting_map = {
@@ -61,21 +62,12 @@ local primary_entity_types = {"assembling-machine", "furnace"}
 local function build_entity_type_lists()
   local primary_types = {}
   local secondary_types = {}
-  local all_tracked_types = {table.unpack(primary_entity_types)} -- include primary types since they are the only ones to generate quality change events
+  local all_tracked_types = {table.unpack(primary_entity_types)} -- always include primary types since they are the only ones to generate quality change events
 
   -- Build lists by checking individual entity type settings
   for entity_type, setting_name in pairs(entity_to_setting_map) do
     if settings.startup[setting_name].value then
-      -- Check if this is a primary entity type
-      local is_primary = false
-      for _, primary_type in ipairs(primary_entity_types) do
-        if entity_type == primary_type then
-          is_primary = true
-          break
-        end
-      end
-
-      if is_primary then
+      if entity_type == "assembling-machine" or entity_type == "furnace" then
         table.insert(primary_types, entity_type)
       else
         table.insert(secondary_types, entity_type)
@@ -253,7 +245,7 @@ local function register_main_loop()
 end
 
 local function register_event_handlers()
-  -- Entity creation events (with player force filter where supported)
+  -- Entity creation events (with player force filters for the events that support it)
   script.on_event(defines.events.on_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
   script.on_event(defines.events.on_robot_built_entity, core.on_robot_built_entity, {{filter = "force", force = "player"}})
   script.on_event(defines.events.on_space_platform_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
@@ -261,7 +253,7 @@ local function register_event_handlers()
   script.on_event(defines.events.script_raised_revive, core.on_entity_created)
   script.on_event(defines.events.on_entity_cloned, core.on_entity_cloned)
 
-  -- Entity destruction events (with player force filter where supported)
+  -- Entity destruction events (with player force filters for the events that support it)
   script.on_event(defines.events.on_player_mined_entity, core.on_entity_destroyed)
   script.on_event(defines.events.on_robot_mined_entity, core.on_entity_destroyed)
   script.on_event(defines.events.on_space_platform_mined_entity, core.on_entity_destroyed)
@@ -278,6 +270,9 @@ local function register_event_handlers()
       )
     end
   end)
+
+  -- Initialize compatibility modules
+  solar_productivity.initialize()
 end
 
 -- Register console command

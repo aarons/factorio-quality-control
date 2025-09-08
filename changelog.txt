@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.3
+Date: 08. 09. 2025
+  Modding:
+    - Added compatability module for the Solar Productivity mod. Solar panels should continue to be
+      tracked after productivity research is finished, as long as players keep Solar Productivity's
+      "Update interval (s)" map settng to 60 seconds or less (default is 5 seconds).
+---------------------------------------------------------------------------------------------------
 Version: 1.5.2
 Date: 07. 09. 2025
   Bugfixes:
