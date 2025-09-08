@@ -7,21 +7,45 @@
 
 set -e
 
+# Parse command line arguments
+FORCE_PACKAGE=false
+for arg in "$@"; do
+    case $arg in
+        --force)
+            FORCE_PACKAGE=true
+            shift
+            ;;
+        *)
+            echo "Unknown option: $arg"
+            echo "Usage: $0 [--force]"
+            echo "  --force    Skip validation and package anyway"
+            exit 1
+            ;;
+    esac
+done
+
 # Print timestamp
 echo "========================================="
 echo "Factorio Mod Packaging Script"
 echo "Started: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 echo "========================================="
 
-# Run validation before packaging
-echo ""
-echo "Running pre-packaging validation..."
-if ! ./validate.sh; then
+# Run validation before packaging (unless --force is used)
+if [ "$FORCE_PACKAGE" = true ]; then
     echo ""
-    echo "❌ Validation failed! Fix the errors above before packaging."
-    exit 1
+    echo "⚠️  WARNING: Skipping validation due to --force flag"
+    echo ""
+else
+    echo ""
+    echo "Running pre-packaging validation..."
+    if ! ./validate.sh; then
+        echo ""
+        echo "❌ Validation failed! Fix the errors above before packaging."
+        echo "   Or use --force to skip validation."
+        exit 1
+    fi
+    echo ""
 fi
-echo ""
 
 # Read mod name and version from info.json
 MOD_NAME=$(jq -r .name info.json)
