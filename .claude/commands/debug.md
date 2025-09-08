@@ -1,10 +1,47 @@
-We are working on debugging a problem. Please add some temporary logging statements to help us investigate and understand the issue better. If you notice any obvious logical issues please also point them out.
+We are working on debugging a problem. Please add some temporary logging statements to help us investigate and understand the issue better.
 
-Context:
+IMPORTANT: 1. Do not try to fix any bugs, just point out the issue.
+           2. All logging must be non-invasive; do not modify existing logic.
+
+**Context**
 $ARGUMENTS
 
+**Caveats**
 Do not worry about ./validate.sh flagging errors related to line length of cyclomatic complexity, as we can temporarily take on extra complexity to identify issues.
 
+Regarding non-invasive logging, here is an example in which we suspect an issue with the `entity.valid` check:
+
+**Original Source Code**
+```lua
+if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    -- do something
+end
+```
+
+**Good Example - Preserves Original Logic**
+```lua
+if entity.valid then
+  log("QC Debug: valid ...")
+end
+
+if entity.valid and is_tracked_type[entity.type] and entity.force == game.forces.player then
+    -- do something
+end
+```
+
+**Bad Example - Modifies Original Logic**
+```lua
+if entity.valid then
+  log("QC Debug: valid ...")
+end
+
+-- removed entity.valid check from original code
+if is_tracked_type[entity.type] and entity.force == game.forces.player then
+    -- do something
+end
+```
+
+**Helpful Patterns**
 Here are some helpful debugging patterns we've put together in the past:
 
 **Info dump about entities**
