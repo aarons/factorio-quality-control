@@ -1,7 +1,14 @@
-While debugging, do not worry about ./validate.sh errors related to line length of cyclomatic complexity, as we can temporarily take on extra complexity to identify issues.
+We are working on debugging a problem. Please add some temporary logging statements to help us investigate and understand the issue better. If you notice any obvious logical issues please also point them out.
 
+Context:
+$ARGUMENTS
 
-Info dump about entities:
+Do not worry about ./validate.sh flagging errors related to line length of cyclomatic complexity, as we can temporarily take on extra complexity to identify issues.
+
+Here are some helpful debugging patterns we've put together in the past:
+
+**Info dump about entities**
+
 ```lua
 local debug_msg = "QC Debug: registered new tracked entity - " ..
     "id=" .. tostring(id) ..
@@ -16,14 +23,17 @@ local debug_msg = "QC Debug: registered new tracked entity - " ..
 log(debug_msg)
 ```
 
-Storing specific entities in a lookup table to check for later:
+**Storing problematic entities in a lookup table to check for later**
 ```lua
 
 -- Temporary debug tracking for registered entities
 local debug_registered_entities = {}
 
-if entity.quality.name == "normal" then
-    debug_registered_entities[id] = true
+function core.get_entity_info(entity)
+    if entity.quality.name == "normal" then
+        debug_registered_entities[id] = true
+    end
+ -- rest of the function
 end
 
 function core.remove_entity_info(id)
@@ -32,11 +42,11 @@ function core.remove_entity_info(id)
     log("QC Debug: removing tracked entity - id=" .. tostring(id))
     debug_registered_entities[id] = nil
   end
-  -- rest of the method...
+  -- rest of the function..
 end
 ```
 
-Search the previous entities location for info about what replaced it.
+**Search the previous entities location for info about what replaced it**
 ```lua
       if debug_registered_entities[unit_number] then
         log("QC Debug: Entity became invalid - unit_number=" .. tostring(unit_number))
