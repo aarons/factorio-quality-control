@@ -7,6 +7,7 @@ Combines upgrade processing, entity tracking, and batch processing functionality
 ]]
 
 local notifications = require("scripts.notifications")
+local network = require("scripts.network")
 local core = {}
 
 local tracked_entities = {}
@@ -17,19 +18,9 @@ local quality_multipliers = {}
 local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
-local network_inventory = {}
 local entity_list = {}
 local entity_list_index = {}
-local upgrade_queue = {}
 
-local inventory_defines = {
-  ["agricultural-tower"] = defines.inventory.crafter_modules,
-  ["assembling-machine"] = defines.inventory.crafter_modules,
-  ["beacon"] = defines.inventory.beacon_modules,
-  ["furnace"] = defines.inventory.crafter_modules,
-  ["lab"] = defines.inventory.lab_modules,
-  ["mining-drill"] = defines.inventory.mining_drill_modules
-}
 
 -- Entities from these mods don't fast_replace well, so for now exclude them
 local excluded_mods_lookup = {
@@ -49,23 +40,14 @@ function core.initialize()
   is_tracked_type = storage.config.is_tracked_type
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
-  network_inventory = storage.network_inventory
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
-  upgrade_queue = storage.upgrade_queue
   accumulate_at_max_quality = settings_data.accumulate_at_max_quality
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
+  network.initialize()
 end
 
--- Get the item name for placing an entity
-local function get_entity_item_name(entity)
-  local items = entity.prototype.items_to_place_this
-  if items and #items > 0 then
-    return items[1].name
-  end
-  return nil
-end
 
 -- Exclude entities that shouldn't be upgraded
 local function should_exclude_entity(entity)
@@ -78,7 +60,7 @@ local function should_exclude_entity(entity)
   end
 
   -- check if entity has no placeable items
-  if get_entity_item_name(entity) == nil then
+  if network.get_entity_item_name(entity) == nil then
     return true
   end
 
@@ -89,97 +71,6 @@ local function should_exclude_entity(entity)
   end
 
   return false
-end
-
-
--- Helper function to update construction networks for a tracked entity
-local function update_construction_networks(entity)
-  local networks = entity.surface.find_logistic_networks_by_construction_area(entity.position, entity.force)
-  local network_ids = {}
-  for _, network in ipairs(networks) do
-    table.insert(network_ids, network.network_id)
-  end
-
-  local entity_info = tracked_entities[entity.unit_number]
-  entity_info.networks = networks
-  entity_info.network_ids = network_ids
-
-  return entity_info
-end
-
-local function update_network_inventory(networks, item_name, quality)
-  for _, network in ipairs(networks) do
-    local item_with_quality = {name = item_name, quality = quality}
-    local available_count = network.get_item_count(item_with_quality)
-
-    local network_id = network.network_id
-    if not network_inventory[network_id] then
-      network_inventory[network_id] = {}
-    end
-    if not network_inventory[network_id][item_name] then
-      network_inventory[network_id][item_name] = {}
-    end
-
-    if network_inventory[network_id][item_name][quality.level] then
-      network_inventory[network_id][item_name][quality.level].available = available_count
-    else
-      network_inventory[network_id][item_name][quality.level] = {
-        available = available_count,
-        reserved = 0
-      }
-    end
-  end
-end
-
-local function update_reservations(entity, network_ids, entity_name, target_quality, count)
-  -- Handle reservation changes on networks
-  for _, network_id in ipairs(network_ids) do
-    local items = network_inventory[network_id] and
-                  network_inventory[network_id][entity_name] and
-                  network_inventory[network_id][entity_name][target_quality]
-    if items then
-      items.reserved = math.max(0, items.reserved + count)
-    end
-  end
-
-  -- Add to upgrade queue if adding reservations
-  if count > 0 then
-    table.insert(upgrade_queue, {
-      entity = entity,
-      network_ids = network_ids,
-      name = entity_name,
-      target_quality = target_quality
-    })
-  end
-end
-
-
-local function get_next_available_quality(networks, item_name, current_quality)
-  local next_quality = current_quality.next
-  -- keep this check as a user could insert max quality modules and we don't check those ahead of time
-  if not next_quality then
-    return nil
-  end
-
-  update_network_inventory(networks, item_name, next_quality)
-
-  -- Scan for next available quality across networks the entity is covered by
-  while next_quality do
-    for _, network in ipairs(networks) do
-      local network_id = network.network_id
-      if network_inventory[network_id] and
-         network_inventory[network_id][item_name] and
-         network_inventory[network_id][item_name][next_quality.level] then
-        local item_count = network_inventory[network_id][item_name][next_quality.level]
-        if item_count.available - item_count.reserved > 0 then
-          return next_quality
-        end
-      end
-    end
-    next_quality = next_quality.next
-  end
-
-  return nil
 end
 
 
@@ -221,11 +112,11 @@ function core.get_entity_info(entity)
   entity_list_index[id] = #entity_list
 
   if mod_difficulty == "Uncommon" then
-    local entity_info = update_construction_networks(entity)
+    local entity_info = network.update_construction_networks(entity)
     if entity.to_be_upgraded() and #entity_info.networks > 0 then
       local _, target_quality = entity.get_upgrade_target()
-      update_network_inventory(entity_info.networks, get_entity_item_name(entity), target_quality)
-      update_reservations(entity, entity_info.network_ids, get_entity_item_name(entity), target_quality.level, 1)
+      network.update_network_inventory(entity_info.networks, network.get_entity_item_name(entity), target_quality)
+      network.update_reservations(entity, entity_info.network_ids, network.get_entity_item_name(entity), target_quality.level, 1)
     end
   end
 
@@ -459,13 +350,13 @@ local function attempt_upgrade_uncommon(entity)
   end
 
   -- Refresh networks before attempting upgrades to ensure current construction coverage
-  local entity_info = update_construction_networks(entity)
+  local entity_info = network.update_construction_networks(entity)
   if #entity_info.networks == 0 then
     return false
   end
 
   -- Find the next available quality across all networks
-  local target_quality = get_next_available_quality(entity_info.networks, get_entity_item_name(entity), entity.quality)
+  local target_quality = network.get_next_available_quality(entity_info.networks, network.get_entity_item_name(entity), entity.quality)
   if not target_quality then
     return false
   end
@@ -485,7 +376,7 @@ local function attempt_upgrade_uncommon(entity)
     force = entity.force
   })
 
-  update_reservations(entity, entity_info.network_ids, get_entity_item_name(entity), target_quality.level, 1)
+  network.update_reservations(entity, entity_info.network_ids, network.get_entity_item_name(entity), target_quality.level, 1)
 
   -- Handle module upgrades if enabled
   local module_setting = settings.startup["change-modules-with-entity"].value
@@ -500,12 +391,13 @@ local function attempt_upgrade_uncommon(entity)
     return true
   end
 
+  local inventory_defines = network.get_inventory_defines()
   for i = 1, #module_inventory do
     local stack = module_inventory[i]
     if stack.valid_for_read and stack.is_module then
       local module_name = stack.name
       local current_module_quality = stack.quality
-      local module_target_quality = get_next_available_quality(entity_info.networks, module_name, current_module_quality)
+      local module_target_quality = network.get_next_available_quality(entity_info.networks, module_name, current_module_quality)
 
       if module_target_quality then
         local module_inventory_define = inventory_defines[entity.type]
@@ -523,7 +415,7 @@ local function attempt_upgrade_uncommon(entity)
             items = {in_inventory = {{inventory = module_inventory_define, stack = i - 1, count = 1}}}
           }}
         })
-        update_reservations(proxy, entity_info.network_ids, module_name, module_target_quality.level, 1)
+        network.update_reservations(proxy, entity_info.network_ids, module_name, module_target_quality.level, 1)
       end
     end
   end
@@ -634,38 +526,6 @@ function core.update_manufacturing_hours(entity_info, current_hours)
   end
 end
 
-local function process_upgrade_queue()
-  local batch_size = settings.global["batch-entities-per-tick"].value
-  local processed = 0
-  local start_index = storage.upgrade_queue_index
-
-  while processed < batch_size and #upgrade_queue > 0 do
-    if storage.upgrade_queue_index > #upgrade_queue then
-      storage.upgrade_queue_index = 1
-
-      if storage.upgrade_queue_index >= start_index then
-        break
-      end
-    end
-
-    local queue_item = upgrade_queue[storage.upgrade_queue_index]
-    local entity = queue_item.entity
-    -- if entity is no longer valid then it was replaced by an upgrade
-    -- also check for upgrades that were cancelled (only if they aren't an item request proxy though)
-    if not entity.valid or (entity.type ~= "item-request-proxy" and not entity.to_be_upgraded()) then
-      table.remove(upgrade_queue, storage.upgrade_queue_index)
-      update_reservations(nil, queue_item.network_ids, queue_item.name, queue_item.target_quality, -1)
-    else
-      storage.upgrade_queue_index = storage.upgrade_queue_index + 1
-    end
-
-    processed = processed + 1
-  end
-
-  if #upgrade_queue == 0 then
-    storage.upgrade_queue_index = 1
-  end
-end
 
 -- Main batch processing loop
 
@@ -731,8 +591,8 @@ function core.batch_process_entities()
 
   storage.batch_index = batch_index
 
-  if #upgrade_queue > 0 then
-    process_upgrade_queue()
+  if network.get_upgrade_queue_size() > 0 then
+    network.process_upgrade_queue()
   end
 
   if next(quality_changes) then
