@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.4
+Date: 09. 09. 2025
+  Optimizations:
+    - Improved performance and reliability of quality upgrades by using Factorio's native upgrade API
+      instead of manual entity replacement. This reduces lag during upgrades and better preserves
+      entity state during quality changes.
+---------------------------------------------------------------------------------------------------
 Version: 1.5.3
 Date: 08. 09. 2025
   Modding:

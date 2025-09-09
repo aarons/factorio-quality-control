@@ -22,12 +22,13 @@ Factorio's API and best practices are available via answer-agent.
 ### Core Modules
 - `scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
 - `scripts/notifications.lua` - manages notifications and alerts
+- `scripts/profiler.lua` - performance profiling infrastructure for troubleshooting
 
 ### Development & Testing
-- `validate.sh` - runs all validations and tests
+- `validate.sh` - runs all validations and python tests
 - `package.sh` - packages the mod for distribution
 - `migrations/` - database migration scripts for version updates
-- `tests/test_*.py` - various pytests
+- `tests/test_*.py` - various pytests (use tests/venv/bin/python if running individual tests)
 
 ## Core Functionality
 

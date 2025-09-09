@@ -7,6 +7,7 @@ Combines upgrade processing, entity tracking, and batch processing functionality
 ]]
 
 local notifications = require("scripts.notifications")
+local profiler = require("scripts.profiler")
 local core = {}
 
 local tracked_entities = {}
@@ -94,6 +95,9 @@ end
 
 -- Helper function to update construction networks for a tracked entity
 local function update_construction_networks(entity)
+  profiler.create_profiler("network_operations")
+  profiler.start("network_operations")
+
   local networks = entity.surface.find_logistic_networks_by_construction_area(entity.position, entity.force)
   local network_ids = {}
   for _, network in ipairs(networks) do
@@ -104,6 +108,7 @@ local function update_construction_networks(entity)
   entity_info.networks = networks
   entity_info.network_ids = network_ids
 
+  profiler.stop("network_operations")
   return entity_info
 end
 
@@ -279,6 +284,9 @@ function core.scan_and_populate_entities()
 end
 
 function core.remove_entity_info(id)
+  profiler.create_profiler("entity_operations")
+  profiler.start("entity_operations")
+
   if tracked_entities and tracked_entities[id] then
     local entity_info = tracked_entities[id]
 
@@ -309,6 +317,8 @@ function core.remove_entity_info(id)
       end
     end
   end
+
+  profiler.stop("entity_operations")
 end
 
 -- Event handlers for entity lifecycle
@@ -513,6 +523,9 @@ end
 
 
 function core.process_upgrade_attempts(entity, attempts_count)
+  profiler.create_profiler("upgrade_attempts")
+  profiler.start("upgrade_attempts")
+
   local quality_changes = {}
   local current_entity = entity
 
@@ -547,10 +560,14 @@ function core.process_upgrade_attempts(entity, attempts_count)
     end
   end
 
+  profiler.stop("upgrade_attempts")
   return quality_changes
 end
 
 function core.process_primary_entity(entity_info, entity)
+  profiler.create_profiler("primary_processing")
+  profiler.start("primary_processing")
+
   local recipe_time = 0
   local recipe = entity.get_recipe()
   if recipe then
@@ -574,16 +591,21 @@ function core.process_primary_entity(entity_info, entity)
       storage.accumulated_credits = storage.accumulated_credits + credits_added
     end
 
+    profiler.stop("primary_processing")
     return {
       credits_earned = credits_earned,
       current_hours = current_hours
     }
   end
 
+  profiler.stop("primary_processing")
   return nil
 end
 
 function core.process_secondary_entity()
+  profiler.create_profiler("secondary_processing")
+  profiler.start("secondary_processing")
+
   local accumulated_credits = storage.accumulated_credits
   local secondary_count = storage.secondary_entity_count
 
@@ -598,6 +620,7 @@ function core.process_secondary_entity()
 
     if credits_earned > 0 then
       storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
+      profiler.stop("secondary_processing")
       return {
         credits_earned = credits_earned,
         current_hours = nil
@@ -605,6 +628,7 @@ function core.process_secondary_entity()
     end
   end
 
+  profiler.stop("secondary_processing")
   return nil
 end
 
@@ -650,6 +674,9 @@ end
 -- Main batch processing loop
 
 function core.batch_process_entities()
+  profiler.create_profiler("batch_processing")
+  profiler.start("batch_processing")
+
   local batch_size = settings.global["batch-entities-per-tick"].value
   local entities_processed = 0
   local quality_changes = {}
@@ -717,6 +744,12 @@ function core.batch_process_entities()
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes)
+  end
+
+  profiler.stop("batch_processing", entities_processed)
+
+  if profiler.should_report() then
+    profiler.generate_report()
   end
 end
 

@@ -8,6 +8,7 @@ Handles initialization, event registration, configuration setup, and orchestrate
 local core = require("scripts.core")
 local notifications = require("scripts.notifications")
 local solar_productivity = require("scripts.compatibility.solar-productivity")
+local profiler = require("scripts.profiler")
 
 -- Entity type to setting name mappings
 local entity_to_setting_map = {
@@ -278,6 +279,66 @@ end
 -- Register console command
 commands.add_command("quality-control-init", "Reinitialize Quality Control storage and rescan all machines", reinitialize_quality_control_storage)
 
+-- Profiling commands
+local function toggle_profiling_command(command)
+  local player = command.player_index and game.get_player(command.player_index)
+
+  if not settings.global["enable-profiling"] then
+    settings.global["enable-profiling"] = {value = not settings.global["enable-profiling"].value}
+  else
+    settings.global["enable-profiling"] = {value = not settings.global["enable-profiling"].value}
+  end
+
+  profiler.update_settings()
+
+  local status = profiler.is_enabled() and "enabled" or "disabled"
+  local message = "Quality Control profiling " .. status
+
+  if player then
+    player.print(message)
+  else
+    log(message)
+  end
+end
+
+local function show_profiling_stats(command)
+  local player = command.player_index and game.get_player(command.player_index)
+
+  if not profiler.is_enabled() then
+    local message = "Profiling is disabled. Use /quality-control-profile to enable."
+    if player then
+      player.print(message)
+    else
+      log(message)
+    end
+    return
+  end
+
+  profiler.generate_report()
+
+  local message = "Performance report generated in log. Check console or log file."
+  if player then
+    player.print(message)
+  end
+end
+
+local function reset_profiling_stats(command)
+  local player = command.player_index and game.get_player(command.player_index)
+
+  profiler.reset_metrics()
+
+  local message = "Quality Control performance metrics reset"
+  if player then
+    player.print(message)
+  else
+    log(message)
+  end
+end
+
+commands.add_command("quality-control-profile", "Toggle Quality Control performance profiling", toggle_profiling_command)
+commands.add_command("quality-control-stats", "Show Quality Control performance statistics", show_profiling_stats)
+commands.add_command("quality-control-reset-stats", "Reset Quality Control performance metrics", reset_profiling_stats)
+
 -- Initialize on new game
 -- The mod has full access to the game object and its storage table and can change anything about the game state that it deems appropriate at this stage.
 -- no events will be raised for a mod it has finished on_init() or on_load()
@@ -285,6 +346,8 @@ script.on_init(function()
   setup_data_structures()
   build_and_store_config()
   core.initialize()
+  profiler.update_settings()
+  profiler.initialize()
   core.scan_and_populate_entities()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()
@@ -294,6 +357,8 @@ end)
 -- Ran when settings change or mod version updates
 script.on_configuration_changed(function(_)
   reinitialize_quality_control_storage()
+  profiler.update_settings()
+  profiler.initialize()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()
   register_main_loop()

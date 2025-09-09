@@ -77,6 +77,30 @@ data:extend({
     },
     {
         type = "bool-setting",
+        name = "enable-profiling",
+        setting_type = "runtime-global",
+        default_value = false,
+        order = "b-2"
+    },
+    {
+        type = "string-setting",
+        name = "profiling-detail-level",
+        setting_type = "runtime-global",
+        default_value = "basic",
+        allowed_values = {"basic", "detailed"},
+        order = "b-3"
+    },
+    {
+        type = "int-setting",
+        name = "profiling-report-frequency",
+        setting_type = "runtime-global",
+        default_value = 600, -- 10 seconds
+        min_value = 60, -- 1 second
+        max_value = 3600, -- 1 minute
+        order = "b-4"
+    },
+    {
+        type = "bool-setting",
         name = "quality-change-aggregate-alerts-enabled",
         setting_type = "runtime-per-user",
         default_value = false,

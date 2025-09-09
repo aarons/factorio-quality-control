@@ -244,6 +244,29 @@ Copy the generated zip file to the factorio mods folder to test any changes.
 2. Restart Factorio to load the updated mod
 3. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
 
+## Performance Profiling
+
+The mod includes a comprehensive profiling system for troubleshooting performance issues:
+
+### Profiling Commands
+- `/quality-control-profile` - Toggle profiling on/off
+- `/quality-control-stats` - Generate performance report in log
+- `/quality-control-reset-stats` - Reset collected metrics
+
+### Settings
+- **Enable Performance Profiling** - Toggle profiling (adds overhead, use only for troubleshooting)
+- **Profiling Detail Level** - Basic (native Factorio profiler) or Detailed (with statistics)
+- **Profiling Report Frequency** - How often to auto-generate reports (60-3600 ticks)
+
+### Instrumented Functions
+The following key performance areas are monitored:
+- `batch_processing` - Main entity processing loop
+- `primary_processing` - Primary entity (assembler/furnace) processing
+- `secondary_processing` - Secondary entity processing
+- `upgrade_attempts` - Quality upgrade logic
+- `network_operations` - Logistic network operations (Uncommon mode)
+- `entity_operations` - Entity creation/removal operations
+
 ### Project Structure
 
 ```
