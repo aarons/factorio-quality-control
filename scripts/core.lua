@@ -407,47 +407,26 @@ local function attempt_upgrade_normal(entity)
   end
 
   local unit_number = entity.unit_number
-  local entity_type = entity.type
-  local entity_name = entity.name
-  local entity_surface = entity.surface
-  local entity_position = entity.position
-  local entity_force = entity.force
-  local entity_direction = entity.direction
-  local entity_mirroring = entity.mirroring
   local target_quality = entity.quality.next
 
-  script.raise_script_destroy{entity = entity}
+  -- Use new API to upgrade entity in place
+  entity.order_upgrade({
+    target = {name = entity.name, quality = target_quality},
+    force = entity.force
+  })
 
-  local replacement_entity = entity_surface.create_entity {
-    name = entity_name,
-    position = entity_position,
-    force = entity_force,
-    direction = entity_direction,
-    quality = target_quality,
-    fast_replace = true,
-    spill = false,
-    raise_built=true,
-  }
+  local upgraded_entity, _ = entity.apply_upgrade()
 
-  if replacement_entity and replacement_entity.valid then
-    if entity_mirroring ~= nil then
-      replacement_entity.mirroring = entity_mirroring
-    end
-
+  if upgraded_entity and upgraded_entity.valid then
     core.remove_entity_info(unit_number)
-    update_module_quality(replacement_entity, target_quality)
-    notifications.show_entity_quality_alert(replacement_entity, target_quality.name)
-    return replacement_entity
+    update_module_quality(upgraded_entity, target_quality)
+    notifications.show_entity_quality_alert(upgraded_entity, target_quality.name)
+    return upgraded_entity
   else
-    log("Quality Control - Unexpected Problem: Entity replacement failed")
+    log("Quality Control - Unexpected Problem: Entity upgrade failed using apply_upgrade")
     log("  - Entity unit_number: " .. unit_number)
-    log("  - Entity type: " .. entity_type)
-    log("  - Entity name: " .. entity_name)
+    log("  - Entity name: " .. entity.name)
     log("  - Target quality: " .. (target_quality and target_quality.name or "nil"))
-    local history = prototypes.get_history(entity_type, entity_name)
-    if history then
-      log("  - From mod: " .. history.created)
-    end
     core.remove_entity_info(unit_number)
     return nil
   end
@@ -573,8 +552,9 @@ end
 
 function core.process_primary_entity(entity_info, entity)
   local recipe_time = 0
-  if entity.get_recipe() then
-    recipe_time = entity.get_recipe().prototype.energy
+  local recipe = entity.get_recipe()
+  if recipe then
+    recipe_time = recipe.prototype.energy
   elseif entity.type == "furnace" and entity.previous_recipe then
     recipe_time = entity.previous_recipe.name.energy
   end
