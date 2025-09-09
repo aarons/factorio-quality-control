@@ -11,6 +11,16 @@ Contains the main processing logic for quality control:
 local notifications = require("scripts.notifications")
 local core = {}
 
+-- Helper function to count table sizes
+local function table_size(tbl)
+  if not tbl then return 0 end
+  local count = 0
+  for _ in pairs(tbl) do
+    count = count + 1
+  end
+  return count
+end
+
 local tracked_entities = {}
 local settings_data = {}
 local is_tracked_type = {}
@@ -280,7 +290,7 @@ local function attempt_quality_change(entity)
   local target_quality = entity.quality.next
 
   -- Need to call script_raised_destroy before the replacement attempt
-  script.raise_script_destroy{entity = entity}
+  -- script.raise_script_destroy{entity = entity}  -- COMMENTED OUT FOR DEBUGGING
 
   local replacement_entity = entity_surface.create_entity {
     name = entity_name,
@@ -290,7 +300,7 @@ local function attempt_quality_change(entity)
     quality = target_quality,
     fast_replace = true,
     spill = false,
-    raise_built=true,
+    raise_built=false,
   }
 
   if replacement_entity and replacement_entity.valid then
@@ -298,7 +308,11 @@ local function attempt_quality_change(entity)
       replacement_entity.mirroring = entity_mirroring
     end
 
-    core.remove_entity_info(unit_number) -- may not be needed since we already did raise_script_destroy
+    core.remove_entity_info(unit_number) -- may not be needed since we already did raise_script_destroy (COMMENTED OUT)
+
+    -- Manually track the new entity since we're not raising the built event
+    core.get_entity_info(replacement_entity)
+
     update_module_quality(replacement_entity, target_quality)
     notifications.show_entity_quality_alert(replacement_entity)
     return replacement_entity
@@ -361,6 +375,19 @@ function core.batch_process_entities()
   while entities_processed < batch_size do
     -- Check for end of list (cycle complete)
     if batch_index > #entity_list then
+      -- Log storage sizes when batch cycle completes
+      log("[QC Memory Debug] Storage sizes:")
+      log("  quality_control_entities: " .. table_size(storage.quality_control_entities))
+      log("  entity_list: " .. #entity_list .. " (array length)")
+      log("  entity_list_index: " .. table_size(storage.entity_list_index))
+      log("  aggregate_notifications.accumulated_changes: " .. (storage.aggregate_notifications and table_size(storage.aggregate_notifications.accumulated_changes) or 0))
+      log("  config: " .. table_size(storage.config))
+      log("  primary_entity_count: " .. (storage.primary_entity_count or 0))
+      log("  secondary_entity_count: " .. (storage.secondary_entity_count or 0))
+      log("  accumulated_upgrade_attempts: " .. (storage.accumulated_upgrade_attempts or 0))
+      log("  batch_index: " .. batch_index)
+      log("  ticks_between_batches: " .. (storage.ticks_between_batches or 0))
+
       batch_index = 1  -- Reset for next cycle
       break
     end
