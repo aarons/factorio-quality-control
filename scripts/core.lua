@@ -204,7 +204,6 @@ function core.get_entity_info(entity)
   end
 
   tracked_entities[id] = {
-    entity = entity,
     is_primary = is_primary,
     chance_to_change = base_percentage_chance,
     upgrade_attempts = 0,
@@ -628,8 +627,8 @@ function core.process_secondary_entity()
   return nil
 end
 
-function core.update_manufacturing_hours(entity_info, current_hours)
-  if tracked_entities[entity_info.entity.unit_number] then
+function core.update_manufacturing_hours(entity_info, unit_number, current_hours)
+  if tracked_entities[unit_number] then
     entity_info.manufacturing_hours = current_hours
   end
 end
@@ -685,22 +684,21 @@ function core.batch_process_entities()
     local unit_number = entity_list[batch_index]
     local entity_info = tracked_entities[unit_number]
 
-    if not entity_info or not entity_info.entity or not entity_info.entity.valid then
+    local entity = game.get_entity_by_unit_number(unit_number)
+    if not entity_info or not entity or not entity.valid then
       core.remove_entity_info(unit_number)
       goto continue
     end
 
     -- if the entity can change quality still, or
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
-    local should_stay_tracked = entity_info.entity.quality.next ~= nil or (entity_info.is_primary and accumulate_at_max_quality)
+    local should_stay_tracked = entity.quality.next ~= nil or (entity_info.is_primary and accumulate_at_max_quality)
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
     end
 
     batch_index = batch_index + 1
-
-    local entity = entity_info.entity
 
     if entity.to_be_deconstructed() or entity.to_be_upgraded() then
       goto continue
@@ -721,7 +719,7 @@ function core.batch_process_entities()
         quality_changes[entity_name] = (quality_changes[entity_name] or 0) + count
       elseif entity_info.is_primary then
         -- update hours so that we don't add more credits for the same hours next time
-        core.update_manufacturing_hours(entity_info, result.current_hours)
+        core.update_manufacturing_hours(entity_info, unit_number, result.current_hours)
       end
     end
 
