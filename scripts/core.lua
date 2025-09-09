@@ -64,27 +64,6 @@ local function should_exclude_entity(entity)
   return false
 end
 
--- Check for other entities at the location of the excluded entity
--- If any overlap, it's probably a complex modded entity that we shouldn't mess with
-local function remove_colocated_entity_info(entity)
-  local history = prototypes.get_history(entity.type, entity.name)
-
-  local entities_at_position = entity.surface.find_entities_filtered{
-    area = entity.bounding_box,
-    force = entity.force
-  }
-
-  if #entities_at_position <= 1 then return end
-
-  for _, found_entity in ipairs(entities_at_position) do
-    if found_entity.unit_number ~= entity.unit_number then
-      local found_history = prototypes.get_history(found_entity.type, found_entity.name)
-      if found_history.created == history.created then
-        core.remove_entity_info(found_entity.unit_number)
-      end
-    end
-  end
-end
 
 function core.get_entity_info(entity)
   if should_exclude_entity(entity) then
@@ -104,7 +83,6 @@ function core.get_entity_info(entity)
 
   if not tracked_entities[id] then
     tracked_entities[id] = {
-      entity = entity,
       is_primary = is_primary,
       chance_to_change = settings_data.base_percentage_chance,
       attempts_to_change = 0,
@@ -168,6 +146,23 @@ function core.scan_and_populate_entities(all_tracked_types)
 end
 
 function core.remove_entity_info(id)
+  -- Count table sizes before removal
+  local tracked_entities_count_before = 0
+  local entity_list_index_count_before = 0
+
+  for _ in pairs(tracked_entities) do
+    tracked_entities_count_before = tracked_entities_count_before + 1
+  end
+
+  for _ in pairs(storage.entity_list_index) do
+    entity_list_index_count_before = entity_list_index_count_before + 1
+  end
+
+  log("[QC DEBUG] remove_entity_info called for unit_number: " .. tostring(id))
+  log("[QC DEBUG] tracked_entities size before: " .. tracked_entities_count_before)
+  log("[QC DEBUG] entity_list size before: " .. #storage.entity_list)
+  log("[QC DEBUG] entity_list_index size before: " .. entity_list_index_count_before)
+
   if tracked_entities and tracked_entities[id] then
     local entity_info = tracked_entities[id]
 
@@ -197,8 +192,29 @@ function core.remove_entity_info(id)
       if index < batch_index then
         storage.batch_index = batch_index - 1
       end
+    else
+      log("[QC DEBUG] WARNING: No index found in entity_list_index for unit_number: " .. tostring(id))
     end
+  else
+    log("[QC DEBUG] WARNING: Entity not found in tracked_entities for unit_number: " .. tostring(id))
   end
+
+  -- Count table sizes after removal
+  local tracked_entities_count_after = 0
+  local entity_list_index_count_after = 0
+
+  for _ in pairs(tracked_entities) do
+    tracked_entities_count_after = tracked_entities_count_after + 1
+  end
+
+  for _ in pairs(storage.entity_list_index) do
+    entity_list_index_count_after = entity_list_index_count_after + 1
+  end
+
+  log("[QC DEBUG] tracked_entities size after: " .. tracked_entities_count_after)
+  log("[QC DEBUG] entity_list size after: " .. #storage.entity_list)
+  log("[QC DEBUG] entity_list_index size after: " .. entity_list_index_count_after)
+  log("[QC DEBUG] remove_entity_info completed for unit_number: " .. tostring(id))
 end
 
 local function update_module_quality(replacement_entity, target_quality)
@@ -241,14 +257,15 @@ local function update_module_quality(replacement_entity, target_quality)
   end
 end
 
-local function attempt_quality_change(entity)
-  -- not sure how we can get here with an invalid entity
-  if not entity.valid then
+local function attempt_quality_change(unit_number)
+  local entity = game.get_entity_by_unit_number(unit_number)
+
+  if not entity or not entity.valid then
     log("Quality Control - attempt quality change called with invalid entity")
     return nil
   end
 
-  local entity_info = tracked_entities[entity.unit_number]
+  local entity_info = tracked_entities[unit_number]
 
   if not entity_info then
     log("Quality Control - attempt quality change skipped since no entity info was available")
@@ -319,12 +336,12 @@ local function attempt_quality_change(entity)
 end
 
 
-local function process_quality_attempts(entity, attempts_count, quality_changes)
+local function process_quality_attempts(unit_number, attempts_count, quality_changes)
   local successful_changes = 0
-  local current_entity = entity
+  local current_unit_number = unit_number
 
   for _ = 1, attempts_count do
-    local change_result = attempt_quality_change(current_entity)
+    local change_result = attempt_quality_change(current_unit_number)
 
     if change_result == nil then
       -- entity is invalid, stop all attempts
@@ -333,10 +350,10 @@ local function process_quality_attempts(entity, attempts_count, quality_changes)
 
     if change_result then
       successful_changes = successful_changes + 1
-      current_entity = change_result
+      current_unit_number = change_result.unit_number
       quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
       -- check if we've hit max quality and stop attempts if so
-      if current_entity.quality == quality_limit then
+      if change_result.quality == quality_limit then
         break
       end
     end
@@ -369,16 +386,16 @@ function core.batch_process_entities()
     batch_index = batch_index + 1
 
     local entity_info = tracked_entities[unit_number]
+    local entity = game.get_entity_by_unit_number(unit_number)
+
     -- Check if entity should remain tracked
     local should_stay_tracked = entity_info and entity_info.can_change_quality or
       (entity_info and entity_info.is_primary and settings_data.accumulate_at_max_quality)
 
-    if not entity_info or not entity_info.entity or not entity_info.entity.valid or not should_stay_tracked then
+    if not entity_info or not entity or not entity.valid or not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
     end
-
-    local entity = entity_info.entity
 
     -- Skip entities marked for deconstruction to avoid losing the deconstruction mark
     if entity.to_be_deconstructed() then
@@ -410,7 +427,7 @@ function core.batch_process_entities()
           -- Only attempt quality changes if entity type is enabled AND entity can actually change quality
           local successful_changes = 0
           if can_attempt_quality_change[entity.type] and entity_info.can_change_quality then
-            successful_changes = process_quality_attempts(entity, thresholds_passed, quality_changes)
+            successful_changes = process_quality_attempts(unit_number, thresholds_passed, quality_changes)
           end
 
           if successful_changes == 0 and tracked_entities[unit_number] then
@@ -430,7 +447,7 @@ function core.batch_process_entities()
 
           if total_attempts > 0 then
             accumulated_attempts = math.max(0, accumulated_attempts - total_attempts)
-            process_quality_attempts(entity, total_attempts, quality_changes)
+            process_quality_attempts(unit_number, total_attempts, quality_changes)
           end
         end
       end
