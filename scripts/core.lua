@@ -187,6 +187,11 @@ function core.get_entity_info(entity)
   local id = entity.unit_number
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
+  -- Only track entities with supported quality levels (0-5)
+  if entity.quality.level > 5 then
+    return "quality level not supported"
+  end
+
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
   local should_track = entity.quality.next ~= nil or (is_primary and accumulate_at_max_quality)
   if not should_track then

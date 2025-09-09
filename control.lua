@@ -130,7 +130,7 @@ local function build_and_store_config()
 
   storage.quality_multipliers = {}
   local current_quality = prototypes.quality["normal"]
-  while current_quality do
+  while current_quality and current_quality.level <= 5 do
     storage.quality_multipliers[current_quality.level] =
       settings_data.manufacturing_hours_for_change *
       (1 + settings_data.quality_increase_cost) ^ current_quality.level

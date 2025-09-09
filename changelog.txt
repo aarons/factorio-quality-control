@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.5.4
+Date: 09. 09. 2025
+  Bugfixes:
+    - Temporarily removed compatibility with mods that add extra quality tiers due to a game breaking bug
+    - Added migration to attempt cleaning up existing saves that may be impacted
+---------------------------------------------------------------------------------------------------
 Version: 1.5.3
 Date: 08. 09. 2025
   Modding:
