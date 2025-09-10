@@ -87,7 +87,7 @@ for lang_pair in "${LANGUAGES[@]}"; do
 
     # Check if locale file exists to determine prompt intro
     if [ -f "$locale_file" ]; then
-        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate and update the $lang_name translation in $locale_file to match appropriately. Only the $locale_file needs to be updated. It should use locale/en/locale.cfg as the reference."
+        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate and update the $lang_name translation in $locale_file to match appropriately. Only the $locale_file should be updated. It should use locale/en/locale.cfg as the reference."
     else
         intro="We're introducing $lang_name language support for my factorio mod. We need to add a translation file to $locale_file. Please use locale/en/locale.cfg as the reference."
     fi

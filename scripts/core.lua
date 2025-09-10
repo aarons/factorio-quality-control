@@ -389,7 +389,6 @@ local function attempt_upgrade_normal(entity, attempts_count)
   end
 
   local unit_number = entity.unit_number
-  -- local entity_mirroring = entity.mirroring
   local target_quality = entity.quality.next
   local stored_energy = entity.energy
 
@@ -403,10 +402,6 @@ local function attempt_upgrade_normal(entity, attempts_count)
   if stored_energy > 0 then
     replacement_entity.energy = stored_energy
   end
-
-  -- if entity_mirroring ~= nil then
-  --   replacement_entity.mirroring = entity_mirroring
-  -- end
 
   core.remove_entity_info(unit_number)
   update_module_quality(replacement_entity, target_quality)
