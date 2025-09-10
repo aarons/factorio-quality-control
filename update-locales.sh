@@ -98,7 +98,7 @@ This is a locale file for a factorio mod called Quality Control. AGENTS.md and m
 The English translation file is at locale/en/locale.cfg and is the source reference. Focus on fixing the failure for the $lang_name translation in $locale_file."
 
         echo -e "${BLUE}Prompting Claude Code to fix validation errors...${NC}"
-        claude --allowedTools 'Read,Edit,Write,MultiEdit' -p "$fix_prompt"
+        claude --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file) Write($locale_file) MultiEdit($locale_file)" -p "$fix_prompt"
 
         return 1  # Indicate validation failed
     else
@@ -194,7 +194,7 @@ $guidelines"
     echo ""
 
     # Execute claude command with proper allowed tools
-    claude --allowedTools 'Read,Edit,Write,MultiEdit' -p "$prompt"
+    claude --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file) Write($locale_file) MultiEdit($locale_file)" -p "$prompt"
 
     echo ""
 
