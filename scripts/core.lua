@@ -31,17 +31,8 @@ local inventory_defines = {
   ["mining-drill"] = defines.inventory.mining_drill_modules
 }
 
--- Entities from these mods don't fast_replace well, so for now exclude them
-local excluded_mods_lookup = {
-    ["ammo-loader"] = true,
-    ["fct-ControlTech"] = true, -- patch requested, may be able to remove once they are greater than version 2.0.5
-    ["miniloader-redux"] = true,
-    ["quality-condenser"] = true,
-    ["railloader2-patch"] = true,
-    ["RealisticReactorsReborn"] = true,
-    ["router"] = true,
-    ["Warp-Drive-Machine"] = true,
-  }
+-- Testing mode - mod exclusions removed for file size testing
+local excluded_mods_lookup = {}
 
 function core.initialize()
   tracked_entities = storage.quality_control_entities
@@ -737,6 +728,78 @@ function core.batch_process_entities()
 
   if next(quality_changes) then
     notifications.show_quality_notifications(quality_changes)
+  end
+end
+
+-- Quality testing functions for file size experiments
+
+function core.set_all_entities_quality_level(target_level)
+  local target_quality = prototypes.quality["normal"]
+  while target_quality and target_quality.level < target_level do
+    target_quality = target_quality.next
+  end
+
+  if not target_quality then
+    return false, "Quality level " .. target_level .. " not found"
+  end
+
+  local changed_count = 0
+
+  for _, surface in pairs(game.surfaces) do
+    local entities = surface.find_entities_filtered{force = game.forces.player}
+
+    for _, entity in ipairs(entities) do
+      if entity.valid and entity.quality.level ~= target_level and not should_exclude_entity(entity) and is_tracked_type[entity.type] then
+        local entity_name = entity.name
+        local entity_surface = entity.surface
+        local entity_position = entity.position
+        local entity_force = entity.force
+        local entity_direction = entity.direction
+        local entity_mirroring = entity.mirroring
+
+        local replacement_entity = entity_surface.create_entity {
+          name = entity_name,
+          position = entity_position,
+          force = entity_force,
+          direction = entity_direction,
+          quality = target_quality,
+          fast_replace = true,
+          spill = false,
+        }
+
+        if replacement_entity and replacement_entity.valid then
+          if entity_mirroring ~= nil then
+            replacement_entity.mirroring = entity_mirroring
+          end
+          changed_count = changed_count + 1
+        end
+      end
+    end
+  end
+
+  return true, "Changed " .. changed_count .. " entities to quality level " .. target_level .. " (" .. target_quality.name .. ")"
+end
+
+function core.set_all_entities_quality(target_quality_name)
+  local target_quality = prototypes.quality[target_quality_name]
+  storage.quality_control_current_test_quality = target_quality_name
+  return core.set_all_entities_quality_level(target_quality.level)
+end
+
+function core.get_current_test_quality()
+  return storage.quality_control_current_test_quality or "normal"
+end
+
+function core.increment_test_quality()
+  local current_quality_name = core.get_current_test_quality()
+  local current_quality = prototypes.quality[current_quality_name]
+
+  if current_quality and current_quality.next then
+    local next_quality = current_quality.next
+    storage.quality_control_current_test_quality = next_quality.name
+    return core.set_all_entities_quality(next_quality.name)
+  else
+    return false, "Already at maximum quality: " .. current_quality_name
   end
 end
 

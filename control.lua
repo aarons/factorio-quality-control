@@ -240,8 +240,9 @@ end
 
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
-  local tick_interval = storage.ticks_between_batches
-  script.on_nth_tick(tick_interval, core.batch_process_entities)
+  -- Disabled for quality testing - no background processing
+  -- local tick_interval = storage.ticks_between_batches
+  -- script.on_nth_tick(tick_interval, core.batch_process_entities)
 end
 
 local function register_event_handlers()
@@ -271,12 +272,54 @@ local function register_event_handlers()
     end
   end)
 
+  -- Quality control increment all entities shortcut
+  script.on_event("quality-control-increment-all", function(event)
+    local player = game.get_player(event.player_index)
+    if player then
+      local _, message = core.increment_test_quality()
+      player.print("Quality Control: " .. message)
+    end
+  end)
+
   -- Initialize compatibility modules
   solar_productivity.initialize()
 end
 
--- Register console command
+-- Register console commands
 commands.add_command("quality-control-init", "Reinitialize Quality Control storage and rescan all machines", reinitialize_quality_control_storage)
+
+commands.add_command("quality-control-set-all", "Set all entities to specified quality level", function(command)
+  if not command.parameter then
+    local player = game.get_player(command.player_index)
+    if player then
+      player.print("Usage: /quality-control-set-all <level>")
+    end
+    return
+  end
+
+  local level = tonumber(command.parameter)
+  if not level or level < 1 then
+    local player = game.get_player(command.player_index)
+    if player then
+      player.print("Quality Control: Invalid level")
+    end
+    return
+  end
+
+  local _, message = core.set_all_entities_quality_level(level)
+  local player = game.get_player(command.player_index)
+  if player then
+    player.print("Quality Control: " .. message)
+  end
+end)
+
+commands.add_command("quality-control-increment", "Increment all entities to next quality level", function(command)
+  local _, message = core.increment_test_quality()
+  local player = game.get_player(command.player_index)
+  if player then
+    player.print("Quality Control: " .. message)
+  end
+end)
 
 -- Initialize on new game
 -- The mod has full access to the game object and its storage table and can change anything about the game state that it deems appropriate at this stage.
