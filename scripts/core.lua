@@ -383,26 +383,15 @@ local function update_module_quality(replacement_entity, target_quality)
   end
 end
 
-local function attempt_upgrade_normal(entity)
-  if not entity.valid then
-    log("Quality Control ERROR - attempt quality change called with invalid entity. Entity info: " .. (entity and serpent.line(entity) or "nil"))
-    return nil
-  end
-
+local function attempt_upgrade_normal(entity, attempts_count)
   local entity_info = tracked_entities[entity.unit_number]
 
-  if not entity_info then
-    log("Quality Control ERROR - attempt quality change skipped since no entity info was available. Entity: " .. (entity and entity.name or "nil") .. ", unit_number: " .. (entity and entity.unit_number or "nil"))
-    return nil
-  end
 
-  local random_roll = math.random()
-  entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
+  local random_roll = math.random() * attempts_count
+  entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
 
   if random_roll >= (entity_info.chance_to_change / 100) then
-    if accumulation_percentage > 0 then
-      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * accumulation_percentage / 100)
-    end
+    entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * attempts_count)
     return false
   end
 
@@ -453,7 +442,7 @@ local function attempt_upgrade_normal(entity)
   end
 end
 
-local function attempt_upgrade_uncommon(entity)
+local function attempt_upgrade_uncommon(entity, attempts_count)
   if entity.to_be_upgraded() then
     return false
   end
@@ -470,12 +459,12 @@ local function attempt_upgrade_uncommon(entity)
     return false
   end
 
-  local random_roll = math.random()
-  entity_info.upgrade_attempts = entity_info.upgrade_attempts + 1
+  local random_roll = math.random() * attempts_count
+  entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
 
   if random_roll >= (entity_info.chance_to_change / 100) then
     if accumulation_percentage > 0 then
-      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * accumulation_percentage / 100)
+      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * attempts_count)
     end
     return false
   end
@@ -535,36 +524,27 @@ end
 
 function core.process_upgrade_attempts(entity, attempts_count)
   local quality_changes = {}
-  local current_entity = entity
 
-  for _ = 1, attempts_count do
-    if current_entity.quality.next == nil then
-      break
-    end
+  local change_result
+  if mod_difficulty == "Uncommon" then
+    change_result = attempt_upgrade_uncommon(entity, attempts_count)
+  else
+    change_result = attempt_upgrade_normal(entity, attempts_count)
+  end
 
-    local change_result
+  -- Handle errors
+  if change_result == nil then
+    return quality_changes
+  end
+
+  -- Handle successful upgrades
+  if change_result then
     if mod_difficulty == "Uncommon" then
-      change_result = attempt_upgrade_uncommon(current_entity)
+      -- Uncommon mode returns true on success, use current entity
+      quality_changes[entity.name] = (quality_changes[entity.name] or 0) + 1
     else
-      change_result = attempt_upgrade_normal(current_entity)
-    end
-
-    -- Handle errors
-    if change_result == nil then
-      break
-    end
-
-    -- Handle successful upgrades
-    if change_result then
-      if mod_difficulty == "Uncommon" then
-        -- Uncommon mode returns true on success, use current entity
-        quality_changes[current_entity.name] = (quality_changes[current_entity.name] or 0) + 1
-        break -- Uncommon mode only allows one upgrade per batch
-      else
-        -- Normal mode returns the new entity on success
-        quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-        current_entity = change_result
-      end
+      -- Normal mode returns the new entity on success
+      quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
     end
   end
 
@@ -692,7 +672,8 @@ function core.batch_process_entities()
 
     -- if the entity can change quality still, or
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
-    local should_stay_tracked = entity_info.entity.quality.next ~= nil or (entity_info.is_primary and accumulate_at_max_quality)
+    local can_still_upgrade = entity_info.entity.quality.next ~= nil
+    local should_stay_tracked = can_still_upgrade or (entity_info.is_primary and accumulate_at_max_quality)
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
@@ -713,7 +694,7 @@ function core.batch_process_entities()
       result = core.process_secondary_entity()
     end
 
-    if result and result.credits_earned > 0 then
+    if result and can_still_upgrade and result.credits_earned > 0 then
       local upgrades = core.process_upgrade_attempts(entity, result.credits_earned)
 
       local entity_name, count = next(upgrades)
