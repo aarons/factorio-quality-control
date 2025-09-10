@@ -21,19 +21,13 @@ function notifications.try_show_accumulated_notifications()
   local current_tick = game.tick
   local time_since_last = current_tick - storage.aggregate_notifications.last_notification_tick
 
-  if time_since_last >= cooldown_ticks and
-     next(storage.aggregate_notifications.accumulated_changes) then
-
+  if time_since_last >= cooldown_ticks and next(storage.aggregate_notifications.accumulated_changes) then
     local player = game.players[1]
     if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
-      local messages = {}
+      player.print({"quality-control.aggregate-notification-header"})
 
       for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
-        table.insert(messages, {"quality-control.aggregate-notification-entity", entity_name, count})
-      end
-
-      if #messages > 0 then
-        player.print({"", {"quality-control.aggregate-notification-header"}, "\n", table.concat(messages, "\n")})
+        player.print(entity_name .. ": " .. count)
       end
     end
 

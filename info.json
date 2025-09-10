@@ -5,7 +5,7 @@
   "author": "raley",
   "homepage": "https://github.com/aarons/factorio-quality-control",
   "description": "The factory earns quality upgrades based on activity level.\nHas an optional non-cheat mode where items must exist within a logistic network. Quality Control is highly configurable, performant, and works well with other quality mods.",
-  "factorio_version": "2.0.66",
+  "factorio_version": "2.0",
   "dependencies": [
     "base",
     "quality",

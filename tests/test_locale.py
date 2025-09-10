@@ -7,8 +7,93 @@ Validates locale.cfg files against Factorio's localization requirements.
 
 import pytest
 import re
+import configparser
 from pathlib import Path
 from typing import List, Set, Dict, Tuple
+
+
+def get_all_locale_files() -> List[Path]:
+    """Get all locale.cfg files across all language directories."""
+    project_root = Path(__file__).parent.parent
+    locale_root = project_root / "locale"
+    
+    if not locale_root.exists():
+        return []
+    
+    locale_files = []
+    for lang_dir in locale_root.iterdir():
+        if lang_dir.is_dir():
+            locale_file = lang_dir / "locale.cfg"
+            if locale_file.exists():
+                locale_files.append(locale_file)
+    
+    return sorted(locale_files)  # Sort for consistent test ordering
+
+
+def validate_locale_file_with_configparser(locale_file: Path) -> List[str]:
+    """Use configparser to validate basic INI format and detect duplicates."""
+    errors = []
+    
+    # Test with strict mode to catch duplicates automatically
+    config = configparser.ConfigParser(strict=True)
+    try:
+        config.read(locale_file, encoding='utf-8')
+    except configparser.DuplicateOptionError as e:
+        errors.append(f"{locale_file.parent.name}/{locale_file.name}: {str(e)}")
+    except configparser.DuplicateSectionError as e:
+        errors.append(f"{locale_file.parent.name}/{locale_file.name}: {str(e)}")
+    except configparser.ParsingError as e:
+        errors.append(f"{locale_file.parent.name}/{locale_file.name}: Parsing error - {str(e)}")
+    except UnicodeDecodeError as e:
+        errors.append(f"{locale_file.parent.name}/{locale_file.name}: Encoding error - {str(e)}")
+    
+    return errors
+
+
+def validate_locale_file_duplicates_manual(locale_file: Path) -> List[str]:
+    """Manual duplicate validation with detailed line number reporting."""
+    errors = []
+    
+    try:
+        with open(locale_file, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+    except UnicodeDecodeError:
+        return [f"{locale_file.parent.name}/{locale_file.name}: File encoding error"]
+    
+    current_section = None
+    section_keys: Dict[str, Dict[str, int]] = {}  # section -> {key -> line_number}
+    
+    for i, line in enumerate(lines, 1):
+        line = line.rstrip('\n')
+        
+        # Skip empty lines and comments
+        if not line.strip() or line.strip().startswith('#'):
+            continue
+        
+        # Check for section headers
+        section_match = re.match(r'^\[([^\]]+)\]$', line.strip())
+        if section_match:
+            current_section = section_match.group(1)
+            if current_section not in section_keys:
+                section_keys[current_section] = {}
+            continue
+        
+        # Check for key=value pairs
+        kv_match = re.match(r'^([^=]+)=(.*)$', line)
+        if kv_match and current_section:
+            key = kv_match.group(1).strip()
+            
+            # Check for duplicate keys
+            if key in section_keys[current_section]:
+                original_line = section_keys[current_section][key]
+                errors.append(
+                    f"{locale_file.parent.name}/{locale_file.name}: Duplicate key '{key}' in section [{current_section}] "
+                    f"(first at line {original_line}, duplicate at line {i})"
+                )
+            else:
+                section_keys[current_section][key] = i
+    
+    return errors
 
 
 def test_locale_directory_exists():
@@ -149,46 +234,18 @@ def test_locale_cfg_valid_sections():
 
 
 def test_locale_cfg_no_duplicate_keys():
-    """Test that locale.cfg doesn't have duplicate keys within sections."""
+    """Test that English locale.cfg doesn't have duplicate keys within sections."""
     project_root = Path(__file__).parent.parent
     locale_file = project_root / "locale" / "en" / "locale.cfg"
     
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
     
-    with open(locale_file, 'r', encoding='utf-8') as f:
-        lines = f.readlines()
+    # Use the manual validation for detailed error reporting
+    errors = validate_locale_file_duplicates_manual(locale_file)
     
-    current_section = None
-    section_keys: Dict[str, Set[str]] = {}
-    duplicate_errors = []
-    
-    for i, line in enumerate(lines, 1):
-        line = line.rstrip('\n')
-        
-        # Skip empty lines and comments
-        if not line.strip() or line.strip().startswith('#'):
-            continue
-        
-        # Check for section headers
-        section_match = re.match(r'^\[([^\]]+)\]$', line.strip())
-        if section_match:
-            current_section = section_match.group(1)
-            if current_section not in section_keys:
-                section_keys[current_section] = set()
-            continue
-        
-        # Check for key=value pairs
-        kv_match = re.match(r'^([^=]+)=(.*)$', line)
-        if kv_match and current_section:
-            key = kv_match.group(1).strip()
-            if key in section_keys[current_section]:
-                duplicate_errors.append(f"Line {i}: Duplicate key '{key}' in section [{current_section}]")
-            else:
-                section_keys[current_section].add(key)
-    
-    if duplicate_errors:
-        pytest.fail("Duplicate keys found:\n" + "\n".join(duplicate_errors))
+    if errors:
+        pytest.fail("Duplicate keys found:\n" + "\n".join(errors))
 
 
 def test_locale_cfg_key_value_format():
@@ -241,6 +298,42 @@ def test_locale_cfg_key_value_format():
         pytest.fail("Key=value format errors:\n" + "\n".join(format_errors))
 
 
+@pytest.mark.parametrize("locale_file", get_all_locale_files())
+def test_all_locale_files_configparser_validation(locale_file):
+    """Test all locale files with configparser for basic validation."""
+    if not locale_file or not locale_file.exists():
+        pytest.skip(f"Locale file not found: {locale_file}")
+    
+    # Use configparser for free validation
+    errors = validate_locale_file_with_configparser(locale_file)
+    
+    if errors:
+        pytest.fail(f"Validation errors in {locale_file.parent.name}/{locale_file.name}:\n" + "\n".join(errors))
+
+
+@pytest.mark.parametrize("locale_file", get_all_locale_files())
+def test_all_locale_files_no_duplicate_keys(locale_file):
+    """Test all locale files for duplicate keys with detailed error reporting."""
+    if not locale_file or not locale_file.exists():
+        pytest.skip(f"Locale file not found: {locale_file}")
+    
+    # Use manual validation for detailed line number reporting
+    errors = validate_locale_file_duplicates_manual(locale_file)
+    
+    if errors:
+        pytest.fail(f"Duplicate key errors in {locale_file.parent.name}/{locale_file.name}:\n" + "\n".join(errors))
+
+
+def test_all_locale_files_exist():
+    """Test that we found at least some locale files."""
+    locale_files = get_all_locale_files()
+    assert len(locale_files) > 0, "No locale files found in the project"
+    
+    # Log which files we found for debugging
+    file_names = [f.name for f in locale_files]
+    print(f"\nFound {len(locale_files)} locale files: {', '.join(file_names)}")
+
+
 if __name__ == "__main__":
     # Allow running these tests directly for debugging
     test_locale_directory_exists()
@@ -251,4 +344,13 @@ if __name__ == "__main__":
     test_locale_cfg_valid_sections()
     test_locale_cfg_no_duplicate_keys()
     test_locale_cfg_key_value_format()
+    test_all_locale_files_exist()
+    
+    # Test all locale files
+    locale_files = get_all_locale_files()
+    for locale_file in locale_files:
+        print(f"Testing {locale_file.name}...")
+        test_all_locale_files_configparser_validation(locale_file)
+        test_all_locale_files_no_duplicate_keys(locale_file)
+    
     print("✓ All locale validation tests passed")
