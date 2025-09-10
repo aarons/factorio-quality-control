@@ -26,7 +26,7 @@ local entity_to_setting_map = {
   ["boiler"] = "enable-boilers",
   ["heat-pipe"] = "enable-heat-pipes",
   ["power-switch"] = "enable-power-switches",
-  ["lightning-rod"] = "enable-lightning-rods",
+  ["lightning-attractor"] = "enable-lightning-rods",
 
   -- Defense entities
   ["turret"] = "enable-turrets",
@@ -107,6 +107,7 @@ local function build_and_store_config()
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
+  settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
 
   storage.config.mod_difficulty = settings.startup["mod-difficulty"].value
 

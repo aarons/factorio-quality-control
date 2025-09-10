@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.0
+Date: 09. 09. 2025
+  Optimizations:
+    - Improved upgrade processing performance by batching multiple attempts into single operations,
+      significantly reducing computational overhead in late game factories with many entities
+---------------------------------------------------------------------------------------------------
 Version: 1.5.3
 Date: 08. 09. 2025
   Modding:

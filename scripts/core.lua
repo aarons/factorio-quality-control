@@ -22,7 +22,7 @@ local entity_list = {}
 local entity_list_index = {}
 local upgrade_queue = {}
 
-local inventory_defines = {
+local module_identifiers = {
   ["agricultural-tower"] = defines.inventory.crafter_modules,
   ["assembling-machine"] = defines.inventory.crafter_modules,
   ["beacon"] = defines.inventory.beacon_modules,
@@ -293,8 +293,6 @@ function core.remove_entity_info(id)
     -- O(1) removal using swap-with-last approach
     local index = entity_list_index[id]
     if index then
-      local batch_index = storage.batch_index
-
       local last_index = #entity_list
       local last_unit_number = entity_list[last_index]
 
@@ -303,10 +301,6 @@ function core.remove_entity_info(id)
 
       entity_list[last_index] = nil
       entity_list_index[id] = nil
-
-      if index < batch_index then
-        storage.batch_index = batch_index - 1
-      end
     end
   end
 end
@@ -386,7 +380,6 @@ end
 local function attempt_upgrade_normal(entity, attempts_count)
   local entity_info = tracked_entities[entity.unit_number]
 
-
   local random_roll = math.random() * attempts_count
   entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
 
@@ -396,50 +389,28 @@ local function attempt_upgrade_normal(entity, attempts_count)
   end
 
   local unit_number = entity.unit_number
-  local entity_type = entity.type
-  local entity_name = entity.name
-  local entity_surface = entity.surface
-  local entity_position = entity.position
-  local entity_force = entity.force
-  local entity_direction = entity.direction
-  local entity_mirroring = entity.mirroring
+  -- local entity_mirroring = entity.mirroring
   local target_quality = entity.quality.next
+  local stored_energy = entity.energy
 
-  script.raise_script_destroy{entity = entity}
+  entity.order_upgrade({
+    target = {name = entity.name, quality = target_quality},
+    force = entity.force
+  })
+  local replacement_entity = entity.apply_upgrade()
+  core.remove_entity_info(unit_number)
 
-  local replacement_entity = entity_surface.create_entity {
-    name = entity_name,
-    position = entity_position,
-    force = entity_force,
-    direction = entity_direction,
-    quality = target_quality,
-    fast_replace = true,
-    spill = false,
-    raise_built=true,
-  }
-
-  if replacement_entity and replacement_entity.valid then
-    if entity_mirroring ~= nil then
-      replacement_entity.mirroring = entity_mirroring
-    end
-
-    core.remove_entity_info(unit_number)
-    update_module_quality(replacement_entity, target_quality)
-    notifications.show_entity_quality_alert(replacement_entity, target_quality.name)
-    return replacement_entity
-  else
-    log("Quality Control - Unexpected Problem: Entity replacement failed")
-    log("  - Entity unit_number: " .. unit_number)
-    log("  - Entity type: " .. entity_type)
-    log("  - Entity name: " .. entity_name)
-    log("  - Target quality: " .. (target_quality and target_quality.name or "nil"))
-    local history = prototypes.get_history(entity_type, entity_name)
-    if history then
-      log("  - From mod: " .. history.created)
-    end
-    core.remove_entity_info(unit_number)
-    return nil
+  if stored_energy > 0 then
+    replacement_entity.energy = stored_energy
   end
+
+  -- if entity_mirroring ~= nil then
+  --   replacement_entity.mirroring = entity_mirroring
+  -- end
+
+  core.remove_entity_info(unit_number)
+  update_module_quality(replacement_entity, target_quality)
+  return replacement_entity
 end
 
 local function attempt_upgrade_uncommon(entity, attempts_count)
@@ -497,7 +468,7 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
       local module_target_quality = get_next_available_quality(entity_info.networks, module_name, current_module_quality)
 
       if module_target_quality then
-        local module_inventory_define = inventory_defines[entity.type]
+        local module_inventory_define = module_identifiers[entity.type]
         local proxy = entity.surface.create_entity({
           name = "item-request-proxy",
           position = entity.position,
@@ -608,12 +579,6 @@ function core.process_secondary_entity()
   return nil
 end
 
-function core.update_manufacturing_hours(entity_info, current_hours)
-  if tracked_entities[entity_info.entity.unit_number] then
-    entity_info.manufacturing_hours = current_hours
-  end
-end
-
 local function process_upgrade_queue()
   local batch_size = settings.global["batch-entities-per-tick"].value
   local processed = 0
@@ -651,12 +616,12 @@ end
 
 function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
-  local entities_processed = 0
-  local quality_changes = {}
-
   local batch_index = storage.batch_index
+  local entities_processed = 0
+  local entities_upgraded = {}
 
   while entities_processed < batch_size do
+    entities_processed = entities_processed + 1
     if batch_index > #entity_list then
       batch_index = 1
       break
@@ -664,15 +629,23 @@ function core.batch_process_entities()
 
     local unit_number = entity_list[batch_index]
     local entity_info = tracked_entities[unit_number]
+    local entity = entity_info.entity
 
-    if not entity_info or not entity_info.entity or not entity_info.entity.valid then
+    if not entity_info or not entity or not entity.valid then
       core.remove_entity_info(unit_number)
       goto continue
     end
 
-    -- if the entity can change quality still, or
+    local can_still_upgrade = entity.quality.next ~= nil
+
+    -- check if radar has reached it's limit
+    if entity.type == "radar" and can_still_upgrade then
+      if entity.quality.level >= settings_data.radar_growth_level_limit then
+        can_still_upgrade = false
+      end
+    end
+
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
-    local can_still_upgrade = entity_info.entity.quality.next ~= nil
     local should_stay_tracked = can_still_upgrade or (entity_info.is_primary and accumulate_at_max_quality)
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
@@ -680,8 +653,6 @@ function core.batch_process_entities()
     end
 
     batch_index = batch_index + 1
-
-    local entity = entity_info.entity
 
     if entity.to_be_deconstructed() or entity.to_be_upgraded() then
       goto continue
@@ -699,14 +670,13 @@ function core.batch_process_entities()
 
       local entity_name, count = next(upgrades)
       if entity_name then
-        quality_changes[entity_name] = (quality_changes[entity_name] or 0) + count
+        entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + count
       elseif entity_info.is_primary then
         -- update hours so that we don't add more credits for the same hours next time
-        core.update_manufacturing_hours(entity_info, result.current_hours)
+        entity_info.manufacturing_hours = result.current_hours
       end
     end
 
-    entities_processed = entities_processed + 1
     ::continue::
   end
 
@@ -716,8 +686,8 @@ function core.batch_process_entities()
     process_upgrade_queue()
   end
 
-  if next(quality_changes) then
-    notifications.show_quality_notifications(quality_changes)
+  if next(entities_upgraded) then
+    notifications.show_quality_notifications(entities_upgraded)
   end
 end
 
