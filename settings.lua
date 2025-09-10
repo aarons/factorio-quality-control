@@ -240,6 +240,15 @@ data:extend({
         order = "d-19a"
     },
     {
+        type = "int-setting",
+        name = "lightning-attractor-growth-level-limit",
+        setting_type = "startup",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-14a"
+    },
+    {
         type = "bool-setting",
         name = "enable-reactors",
         setting_type = "startup",

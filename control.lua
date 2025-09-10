@@ -108,6 +108,7 @@ local function build_and_store_config()
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
   settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
+  settings_data.lightning_attractor_growth_level_limit = settings.startup["lightning-attractor-growth-level-limit"].value
 
   storage.config.mod_difficulty = settings.startup["mod-difficulty"].value
 

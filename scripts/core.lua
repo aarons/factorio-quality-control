@@ -640,7 +640,14 @@ function core.batch_process_entities()
 
     -- check if radar has reached it's limit
     if entity.type == "radar" and can_still_upgrade then
-      if entity.quality.level >= settings_data.radar_growth_level_limit then
+      if entity.quality.level >= (settings_data.radar_growth_level_limit - 1) then
+        can_still_upgrade = false
+      end
+    end
+
+    -- check if lightning attractor has reached it's limit
+    if entity.type == "lightning-attractor" and can_still_upgrade then
+      if entity.quality.level >= (settings_data.lightning_attractor_growth_level_limit - 1) then
         can_still_upgrade = false
       end
     end
