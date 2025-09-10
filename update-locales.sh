@@ -4,7 +4,9 @@ set -euo pipefail
 # Update locale translations using Claude Code
 # This script prompts Claude Code to update locale translations for each language
 # Usage: ./update-locales.sh [language_code]
-# Example: ./update-locales.sh de (to update only German)
+#        ./update-locales.sh --start-at [language_code]
+# Examples: ./update-locales.sh de (to update only German)
+#           ./update-locales.sh --start-at ko (to start from Korean and continue)
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -109,31 +111,52 @@ The English translation file is at locale/en/locale.cfg and is the source refere
 
 # Parse command line arguments
 SINGLE_LANGUAGE=""
+START_AT_LANGUAGE=""
+
 if [ $# -eq 1 ]; then
-    SINGLE_LANGUAGE="$1"
-
-    # Validate that the provided language code exists
-    found_language=false
-    for lang_pair in "${LANGUAGES[@]}"; do
-        lang_code="${lang_pair%%:*}"
-        if [ "$lang_code" = "$SINGLE_LANGUAGE" ]; then
-            found_language=true
-            break
+    if [[ "$1" == --start-at* ]]; then
+        START_AT_LANGUAGE="${1#--start-at=}"
+        if [ -z "$START_AT_LANGUAGE" ]; then
+            echo -e "${RED}Error: --start-at flag requires a language code (e.g., --start-at=ko)${NC}"
+            exit 1
         fi
-    done
+    else
+        SINGLE_LANGUAGE="$1"
+    fi
+elif [ $# -eq 2 ] && [ "$1" = "--start-at" ]; then
+    START_AT_LANGUAGE="$2"
 
-    if [ "$found_language" = false ]; then
-        echo -e "${RED}Error: Language code '$SINGLE_LANGUAGE' not found.${NC}"
-        echo -e "Available language codes:"
+fi
+
+# Validate language codes if provided
+for target_lang in "$SINGLE_LANGUAGE" "$START_AT_LANGUAGE"; do
+    if [ -n "$target_lang" ]; then
+        found_language=false
         for lang_pair in "${LANGUAGES[@]}"; do
             lang_code="${lang_pair%%:*}"
-            lang_name="${lang_pair#*:}"
-            echo "  $lang_code ($lang_name)"
+            if [ "$lang_code" = "$target_lang" ]; then
+                found_language=true
+                break
+            fi
         done
-        exit 1
-    fi
 
+        if [ "$found_language" = false ]; then
+            echo -e "${RED}Error: Language code '$target_lang' not found.${NC}"
+            echo -e "Available language codes:"
+            for lang_pair in "${LANGUAGES[@]}"; do
+                lang_code="${lang_pair%%:*}"
+                lang_name="${lang_pair#*:}"
+                echo "  $lang_code ($lang_name)"
+            done
+            exit 1
+        fi
+    fi
+done
+
+if [ -n "$SINGLE_LANGUAGE" ]; then
     echo -e "${BLUE}Single language mode: Processing only $SINGLE_LANGUAGE${NC}"
+elif [ -n "$START_AT_LANGUAGE" ]; then
+    echo -e "${BLUE}Starting from language: $START_AT_LANGUAGE${NC}"
 fi
 
 echo -e "${BLUE}Quality Control Locale Update Script${NC}"
@@ -143,10 +166,17 @@ echo -e "This script will prompt Claude Code to update locale translations."
 echo -e "Reference file: ${GREEN}$REFERENCE_FILE${NC}"
 if [ -n "$SINGLE_LANGUAGE" ]; then
     echo -e "Target language: ${GREEN}$SINGLE_LANGUAGE${NC}"
+elif [ -n "$START_AT_LANGUAGE" ]; then
+    echo -e "Starting from: ${GREEN}$START_AT_LANGUAGE${NC}"
 fi
 echo ""
 
 # Iterate through each language
+start_processing=false
+if [ -z "$START_AT_LANGUAGE" ]; then
+    start_processing=true
+fi
+
 for lang_pair in "${LANGUAGES[@]}"; do
     lang_code="${lang_pair%%:*}"
     lang_name="${lang_pair#*:}"
@@ -156,6 +186,16 @@ for lang_pair in "${LANGUAGES[@]}"; do
     # Skip if single language mode and this isn't the target language
     if [ -n "$SINGLE_LANGUAGE" ] && [ "$lang_code" != "$SINGLE_LANGUAGE" ]; then
         continue
+    fi
+
+    # Handle start-at logic
+    if [ -n "$START_AT_LANGUAGE" ]; then
+        if [ "$lang_code" = "$START_AT_LANGUAGE" ]; then
+            start_processing=true
+        fi
+        if [ "$start_processing" = false ]; then
+            continue
+        fi
     fi
 
     echo -e "${YELLOW}Processing language: $lang_name ($lang_code)${NC}"
@@ -168,14 +208,14 @@ for lang_pair in "${LANGUAGES[@]}"; do
 
     # Check if locale file exists to determine prompt intro
     if [ -f "$locale_file" ]; then
-        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate and update the $lang_name translation in $locale_file to match appropriately. Only the $locale_file should be updated. It should use locale/en/locale.cfg as the reference."
+        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate the $lang_name translation in $locale_file and apply updates if needed. Use locale/en/locale.cfg as the reference."
     else
         intro="We're introducing $lang_name language support for my factorio mod. We need to add a translation file to $locale_file. Please use locale/en/locale.cfg as the reference."
     fi
 
     # Header
-    header="The $lang_name translation in $locale_file should have a comment at the top: 'This translation was generated by an AI. Corrections are very welcome! Please add feedback to the mod discussion forum (https://mods.factorio.com/mod/quality-control/discussion) or as an issue on the github repo (https://github.com/aarons/factorio-quality-control/issues). Please forgive me for the mistakes!' - The comment should be in $lang_name obviously :)"
-    # header=""
+    header="The $lang_name translation in $locale_file should have a comment at the top, roughly: 'This translation was generated by an AI. Corrections are very welcome! Please add feedback to the mod discussion forum (https://mods.factorio.com/mod/quality-control/discussion) or as an issue on the github repo (https://github.com/aarons/factorio-quality-control/issues). Please forgive me for the mistakes!' - The comment should be in $lang_name obviously :)"
+
     # Common translation guidelines
     guidelines="Important notes:
   - Always keep the section headers [mod-name], [mod-setting-name], etc. in English
@@ -200,7 +240,7 @@ $guidelines"
 
     # Validation step with retry logic
     attempt=1
-    max_attempts=2
+    max_attempts=3
     validation_passed=false
 
     while [ $attempt -le $max_attempts ]; do
