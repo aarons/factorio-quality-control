@@ -93,6 +93,10 @@ PACKAGE_EXCLUSIONS=(
     'validate*'
     'tests/'
     '.luacheckrc'
+    '.pytest_cache'
+    '__pycache__'
+    '.luarc.json'
+    '.claude_code_settings.json'
 )
 
 for exclusion in "${PACKAGE_EXCLUSIONS[@]}"; do
