@@ -58,7 +58,6 @@ LANGUAGES=(
     "zh-TW:Chinese (Traditional)"
 )
 
-# Function to validate a single locale file using pytest
 validate_locale() {
     local lang_code="$1"
     local lang_name="$2"
@@ -67,7 +66,6 @@ validate_locale() {
 
     echo -e "${BLUE}Validating $lang_name translation...${NC}"
 
-    # Run pytest on the specific locale file only
     cd "$(dirname "$0")"
     if [ -d "tests/venv" ]; then
         source tests/venv/bin/activate
