@@ -43,13 +43,6 @@ data:extend({
         order = "a-3"
     },
     {
-        type = "bool-setting",
-        name = "accumulate-at-max-quality",
-        setting_type = "startup",
-        default_value = true,
-        order = "a-3a"
-    },
-    {
         type = "string-setting",
         name = "change-modules-with-entity",
         setting_type = "startup",

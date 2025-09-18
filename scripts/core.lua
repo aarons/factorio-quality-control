@@ -14,7 +14,6 @@ local settings_data = {}
 local is_tracked_type = {}
 local mod_difficulty = nil
 local quality_multipliers = {}
-local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
 local network_inventory = {}
@@ -53,7 +52,6 @@ function core.initialize()
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
   upgrade_queue = storage.upgrade_queue
-  accumulate_at_max_quality = settings_data.accumulate_at_max_quality
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
 end
@@ -187,8 +185,8 @@ function core.get_entity_info(entity)
   local id = entity.unit_number
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
-  -- Only track entities that can change quality OR are primary entities with accumulation enabled
-  local should_track = entity.quality.next ~= nil or (is_primary and accumulate_at_max_quality)
+  -- Only track entities that can change quality OR are primary entities (they always accumulate)
+  local should_track = entity.quality.next ~= nil or is_primary
   if not should_track then
     return "at max quality"
   end
@@ -549,13 +547,9 @@ function core.process_primary_entity(entity_info, entity)
   local credits_earned = math.floor(available_hours / hours_needed)
 
   if credits_earned > 0 then
-    local secondary_count = storage.secondary_entity_count
-    if secondary_count > 0 then
-      local primary_count = storage.primary_entity_count
-      local credit_ratio = secondary_count / math.max(primary_count, 1)
-      local credits_added = credits_earned * credit_ratio
-      storage.accumulated_credits = storage.accumulated_credits + credits_added
-    end
+    local quality_level = entity.quality.level + 1  -- +1 because level is 0-indexed
+    local credits_to_add = quality_level * credits_earned
+    storage.accumulated_credits = storage.accumulated_credits + credits_to_add
 
     return {
       credits_earned = credits_earned,
@@ -664,8 +658,8 @@ function core.batch_process_entities()
       end
     end
 
-    -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
-    local should_stay_tracked = can_still_upgrade or (entity_info.is_primary and accumulate_at_max_quality)
+    -- if the entity is primary, always keep tracking (they always accumulate)
+    local should_stay_tracked = can_still_upgrade or entity_info.is_primary
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
@@ -708,6 +702,11 @@ function core.batch_process_entities()
   if next(entities_upgraded) then
     notifications.show_quality_notifications(entities_upgraded)
   end
+
+  -- Cap accumulated credits to prevent over accumulation
+  local max_quality_level = storage.config.quality_limit.level
+  local max_credits = #entity_list * max_quality_level * 2
+  storage.accumulated_credits = math.min(storage.accumulated_credits, max_credits)
 end
 
 return core
