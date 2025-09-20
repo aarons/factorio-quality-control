@@ -145,13 +145,14 @@ local function setup_data_structures(force_reset)
     storage.quality_control_entities = {}
     storage.entity_list = {}
     storage.entity_list_index = {}
-    storage.batch_index = 1
-    storage.primary_entity_count = 0
-    storage.secondary_entity_count = 0
     storage.accumulated_credits = 0
+    storage.batch_index = 1
+    storage.credits_per_entity = 0
     storage.upgrade_queue = {}
     storage.upgrade_queue_index = 1
     storage.network_inventory = {}
+    storage.upgradeable_entities = {}
+    storage.upgradeable_count = 0
   end
 
   -- Initialize storage tables
@@ -186,16 +187,12 @@ local function setup_data_structures(force_reset)
   end
 
   -- Initialize credit system
-  if not storage.primary_entity_count then
-    storage.primary_entity_count = 0
-  end
-
-  if not storage.secondary_entity_count then
-    storage.secondary_entity_count = 0
-  end
-
   if not storage.accumulated_credits then
     storage.accumulated_credits = 0
+  end
+
+  if not storage.credits_per_entity then
+    storage.credits_per_entity = 0
   end
 
   if not storage.quality_multipliers then
@@ -213,6 +210,15 @@ local function setup_data_structures(force_reset)
 
   if not storage.upgrade_queue_index then
     storage.upgrade_queue_index = 1
+  end
+
+  -- Initialize upgradeable entity tracking structures
+  if not storage.upgradeable_entities then
+    storage.upgradeable_entities = {}
+  end
+
+  if not storage.upgradeable_count then
+    storage.upgradeable_count = 0
   end
 
 end

@@ -205,18 +205,20 @@ function core.get_entity_info(entity)
     entity = entity,
     is_primary = is_primary,
     chance_to_change = base_percentage_chance,
-    upgrade_attempts = 0,
+    luck_accumulation = 0,
   }
-
-  if is_primary then
-    storage.primary_entity_count = storage.primary_entity_count + 1
-  else
-    storage.secondary_entity_count = storage.secondary_entity_count + 1
-  end
 
   -- Use ordered list for O(1) lookup in batch processing
   table.insert(entity_list, id)
   entity_list_index[id] = #entity_list
+
+  -- Add to upgradeable set if entity can still be upgraded
+  if entity.quality.next ~= nil then
+    if not storage.upgradeable_entities[id] then
+      storage.upgradeable_entities[id] = true
+      storage.upgradeable_count = storage.upgradeable_count + 1
+    end
+  end
 
   if mod_difficulty == "Uncommon" then
     local entity_info = update_construction_networks(entity)
@@ -254,7 +256,7 @@ function core.get_entity_info(entity)
     if past_attempts > 0 and accumulation_percentage > 0 then
       local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
       tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-      tracked_entities[id].upgrade_attempts = past_attempts
+      tracked_entities[id].luck_accumulation = past_attempts
     end
     -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
     -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
@@ -278,15 +280,13 @@ end
 
 function core.remove_entity_info(id)
   if tracked_entities and tracked_entities[id] then
-    local entity_info = tracked_entities[id]
-
-    if entity_info.is_primary then
-      storage.primary_entity_count = math.max(0, storage.primary_entity_count - 1)
-    else
-      storage.secondary_entity_count = math.max(0, storage.secondary_entity_count - 1)
-    end
-
     tracked_entities[id] = nil
+
+    -- Remove from upgradeable set if present
+    if storage.upgradeable_entities[id] then
+      storage.upgradeable_entities[id] = nil
+      storage.upgradeable_count = math.max(0, storage.upgradeable_count - 1)
+    end
 
     -- O(1) removal using swap-with-last approach
     local index = entity_list_index[id]
@@ -375,14 +375,13 @@ local function update_module_quality(replacement_entity, target_quality)
   end
 end
 
-local function attempt_upgrade_normal(entity, attempts_count)
+local function attempt_upgrade_normal(entity, credits)
   local entity_info = tracked_entities[entity.unit_number]
+  entity_info.luck_accumulation = entity_info.luck_accumulation + credits
 
-  local random_roll = math.random() * attempts_count
-  entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
-
+  local random_roll = math.random() * credits
   if random_roll >= (entity_info.chance_to_change / 100) then
-    entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * attempts_count)
+    entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * credits)
     return false
   end
 
@@ -418,7 +417,6 @@ local function attempt_upgrade_normal(entity, attempts_count)
     replacement_entity.energy = stored_energy
   end
 
-  core.remove_entity_info(unit_number)
   update_module_quality(replacement_entity, target_quality)
   return replacement_entity
 end
@@ -441,7 +439,7 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
   end
 
   local random_roll = math.random() * attempts_count
-  entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
+  entity_info.luck_accumulation = entity_info.luck_accumulation + attempts_count
 
   if random_roll >= (entity_info.chance_to_change / 100) then
     if accumulation_percentage > 0 then
@@ -503,14 +501,14 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
 end
 
 
-function core.process_upgrade_attempts(entity, attempts_count)
+function core.process_upgrade_attempts(entity, credits)
   local quality_changes = {}
 
   local change_result
   if mod_difficulty == "Uncommon" then
-    change_result = attempt_upgrade_uncommon(entity, attempts_count)
+    change_result = attempt_upgrade_uncommon(entity, credits)
   else
-    change_result = attempt_upgrade_normal(entity, attempts_count)
+    change_result = attempt_upgrade_normal(entity, credits)
   end
 
   -- Handle errors
@@ -529,61 +527,53 @@ function core.process_upgrade_attempts(entity, attempts_count)
     end
   end
 
+  -- Handle notifications internally if there were any upgrades
+  if next(quality_changes) then
+    notifications.show_quality_notifications(quality_changes)
+  end
+
   return quality_changes
 end
 
-function core.process_primary_entity(entity_info, entity)
-  local recipe_time = 0
-  if entity.get_recipe() then
-    recipe_time = entity.get_recipe().prototype.energy
-  elseif entity.type == "furnace" and entity.previous_recipe then
-    recipe_time = entity.previous_recipe.name.energy
-  end
+function core.update_credits(entity_info, entity)
+  local credits_earned = 0
 
-  local hours_needed = quality_multipliers[entity.quality.level]
-  local current_hours = (entity.products_finished * recipe_time) / 3600
-  local previous_hours = entity_info.manufacturing_hours or 0
-  local available_hours = current_hours - previous_hours
-  local credits_earned = math.floor(available_hours / hours_needed)
-
-  if credits_earned > 0 then
-    local quality_level = entity.quality.level + 1  -- +1 because level is 0-indexed
-    local credits_to_add = quality_level * credits_earned
-    storage.accumulated_credits = storage.accumulated_credits + credits_to_add
-
-    return {
-      credits_earned = credits_earned,
-      current_hours = current_hours
-    }
-  end
-
-  return nil
-end
-
-function core.process_secondary_entity()
-  local accumulated_credits = storage.accumulated_credits
-  local secondary_count = storage.secondary_entity_count
-
-  if accumulated_credits > 0 and secondary_count > 0 then
-    local credits_per_entity = accumulated_credits / secondary_count
-    local credits_earned = math.floor(credits_per_entity)
-    local fractional_chance = credits_per_entity - credits_earned
-
-    if fractional_chance > 0 and math.random() < fractional_chance then
-      credits_earned = credits_earned + 1
+  -- Primary entities generate credits from manufacturing hours
+  if entity_info.is_primary then
+    local recipe_time = 0
+    if entity.get_recipe() then
+      recipe_time = entity.get_recipe().prototype.energy
+    elseif entity.type == "furnace" and entity.previous_recipe then
+      recipe_time = entity.previous_recipe.name.energy
     end
+
+    local hours_needed = quality_multipliers[entity.quality.level]
+    local current_hours = (entity.products_finished * recipe_time) / 3600
+    local previous_hours = entity_info.manufacturing_hours or 0
+    local new_hours = current_hours - previous_hours
+    credits_earned = new_hours / hours_needed
 
     if credits_earned > 0 then
-      storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
-      return {
-        credits_earned = credits_earned,
-        current_hours = nil
-      }
+      local quality_level = entity.quality.level + 1  -- +1 because level is 0-indexed
+      local credits_to_add = quality_level * credits_earned
+      storage.accumulated_credits = storage.accumulated_credits + credits_to_add
+      -- Update the entity's hours so we don't add more credits for the same hours next time
+      entity_info.manufacturing_hours = current_hours
     end
   end
 
-  return nil
+  -- distribute credits from the previous batch
+  credits_earned = credits_earned + storage.credits_per_entity
+  -- Handle fractional credits
+  local full_credits = math.floor(credits_earned)
+  local fractional_credits = credits_earned - full_credits
+  if fractional_credits > 0 and math.random() < fractional_credits then
+    full_credits = full_credits + 1
+  end
+
+  return full_credits
 end
+
 
 local function process_upgrade_queue()
   local batch_size = settings.global["batch-entities-per-tick"].value
@@ -624,18 +614,21 @@ function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
   local batch_index = storage.batch_index
   local entities_processed = 0
-  local entities_upgraded = {}
 
   while entities_processed < batch_size do
     entities_processed = entities_processed + 1
     if batch_index > #entity_list then
+      -- setup next batch
       batch_index = 1
+      storage.credits_per_entity = storage.accumulated_credits / math.max(1, storage.upgradeable_count)
+      storage.acumulated_credits = 0
       break
     end
 
     local unit_number = entity_list[batch_index]
     local entity_info = tracked_entities[unit_number]
     local entity = entity_info.entity
+    batch_index = batch_index + 1
 
     if not entity_info or not entity or not entity.valid then
       core.remove_entity_info(unit_number)
@@ -645,49 +638,38 @@ function core.batch_process_entities()
     local can_still_upgrade = entity.quality.next ~= nil
 
     -- check if radar has reached it's limit
-    if entity.type == "radar" and can_still_upgrade then
-      if entity.quality.level >= (settings_data.radar_growth_level_limit - 1) then
-        can_still_upgrade = false
-      end
+    if entity.type == "radar" and entity.quality.level >= (settings_data.radar_growth_level_limit - 1) then
+      can_still_upgrade = false
     end
 
     -- check if lightning attractor has reached it's limit
-    if entity.type == "lightning-attractor" and can_still_upgrade then
-      if entity.quality.level >= (settings_data.lightning_attractor_growth_level_limit - 1) then
-        can_still_upgrade = false
-      end
+    if entity.type == "lightning-attractor" and entity.quality.level >= (settings_data.lightning_attractor_growth_level_limit - 1) then
+      can_still_upgrade = false
     end
 
-    -- if the entity is primary, always keep tracking (they always accumulate)
-    local should_stay_tracked = can_still_upgrade or entity_info.is_primary
-    if not should_stay_tracked then
-      core.remove_entity_info(unit_number)
+    if not can_still_upgrade then
+      -- If secondary entity, remove from tracking entirely
+      if not entity_info.is_primary then
+        core.remove_entity_info(unit_number)
+        goto continue
+      end
+      -- Otherwise it's a primary entitiy, should still process but remove from upgradeable_entities if present
+      if storage.upgradeable_entities[unit_number] then
+        storage.upgradeable_entities[unit_number] = nil
+        storage.upgradeable_count = math.max(0, storage.upgradeable_count - 1)
+      end
+      core.update_credits(entity_info, entity)
       goto continue
     end
-
-    batch_index = batch_index + 1
 
     if entity.to_be_deconstructed() or entity.to_be_upgraded() then
       goto continue
     end
 
-    local result
-    if entity_info.is_primary then
-      result = core.process_primary_entity(entity_info, entity)
-    else
-      result = core.process_secondary_entity()
-    end
+    local credits_earned = core.update_credits(entity_info, entity)
 
-    if result and can_still_upgrade and result.credits_earned > 0 then
-      local upgrades = core.process_upgrade_attempts(entity, result.credits_earned)
-
-      local entity_name, count = next(upgrades)
-      if entity_name then
-        entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + count
-      elseif entity_info.is_primary then
-        -- update hours so that we don't add more credits for the same hours next time
-        entity_info.manufacturing_hours = result.current_hours
-      end
+    if credits_earned > 0 then
+      core.process_upgrade_attempts(entity, credits_earned)
     end
 
     ::continue::
@@ -698,15 +680,6 @@ function core.batch_process_entities()
   if #upgrade_queue > 0 then
     process_upgrade_queue()
   end
-
-  if next(entities_upgraded) then
-    notifications.show_quality_notifications(entities_upgraded)
-  end
-
-  -- Cap accumulated credits to prevent over accumulation
-  local max_quality_level = storage.config.quality_limit.level
-  local max_credits = #entity_list * max_quality_level * 2
-  storage.accumulated_credits = math.min(storage.accumulated_credits, max_credits)
 end
 
 return core
