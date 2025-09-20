@@ -95,70 +95,70 @@ data:extend({
         name = "enable-accumulators",
         setting_type = "startup",
         default_value = true,
-        order = "d-0"
+        order = "d-00"
     },
     {
         type = "bool-setting",
         name = "enable-agricultural-towers",
         setting_type = "startup",
         default_value = true,
-        order = "d-1"
+        order = "d-01"
     },
     {
         type = "bool-setting",
         name = "enable-assembly-machines",
         setting_type = "startup",
         default_value = true,
-        order = "d-2"
+        order = "d-02"
     },
     {
         type = "bool-setting",
         name = "enable-asteroid-collectors",
         setting_type = "startup",
         default_value = true,
-        order = "d-3"
+        order = "d-03"
     },
     {
         type = "bool-setting",
         name = "enable-beacons",
         setting_type = "startup",
         default_value = true,
-        order = "d-4"
+        order = "d-04"
     },
     {
         type = "bool-setting",
         name = "enable-boilers",
         setting_type = "startup",
         default_value = true,
-        order = "d-5"
+        order = "d-05"
     },
     {
         type = "bool-setting",
         name = "enable-combinators-and-speakers",
         setting_type = "startup",
         default_value = true,
-        order = "d-6"
+        order = "d-06"
     },
     {
         type = "bool-setting",
         name = "enable-defense-walls-and-gates",
         setting_type = "startup",
         default_value = true,
-        order = "d-7"
+        order = "d-07"
     },
     {
         type = "bool-setting",
         name = "enable-furnaces",
         setting_type = "startup",
         default_value = true,
-        order = "d-8"
+        order = "d-08"
     },
     {
         type = "bool-setting",
         name = "enable-generators",
         setting_type = "startup",
         default_value = true,
-        order = "d-9"
+        order = "d-09"
     },
     {
         type = "bool-setting",
@@ -231,6 +231,24 @@ data:extend({
         order = "d-19"
     },
     {
+        type = "int-setting",
+        name = "radar-growth-level-limit",
+        setting_type = "startup",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-19a"
+    },
+    {
+        type = "int-setting",
+        name = "lightning-attractor-growth-level-limit",
+        setting_type = "startup",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-14a"
+    },
+    {
         type = "bool-setting",
         name = "enable-reactors",
         setting_type = "startup",
@@ -249,20 +267,20 @@ data:extend({
         name = "enable-solar-panels",
         setting_type = "startup",
         default_value = true,
-        order = "d-23"
+        order = "d-22"
     },
     {
         type = "bool-setting",
         name = "enable-thrusters",
         setting_type = "startup",
         default_value = true,
-        order = "d-24"
+        order = "d-23"
     },
     {
         type = "bool-setting",
         name = "enable-turrets",
         setting_type = "startup",
         default_value = true,
-        order = "d-25"
+        order = "d-24"
     }
 })

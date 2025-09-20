@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.0
+Date: 09. 09. 2025
+  Optimizations:
+    - Improved processing performance by using math instead of iterators for calculating whether
+      multiple quality attempts would be successful. Reduces overhead in late game factories.
+  Features:
+    - Accumulators, lightning collectors, and other entities preserve their charge level when being upgraded
+    - Added optional limit to radar quality levels, to better support modded quality levels and prevent
+      save file bloating from excessive radar coverage.
+    - Added optional limit to lightning attractor quality level. Modded quality levels can increase
+      lightning attractor range to very large values, which will cause major lag spikes at night.
+---------------------------------------------------------------------------------------------------
 Version: 1.5.3
 Date: 08. 09. 2025
   Modding:
