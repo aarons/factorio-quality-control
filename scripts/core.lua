@@ -399,18 +399,6 @@ local function attempt_upgrade_normal(entity, attempts_count)
   local replacement_entity = entity.apply_upgrade()
 
   if not replacement_entity then
-    -- Log detailed information about the entity state when upgrade fails
-    game.print("[QC Debug] apply_upgrade() returned nil")
-    game.print("[QC Debug] Entity valid: " .. tostring(entity.valid))
-    if entity.valid then
-      game.print("[QC Debug] Entity name: " .. entity.name)
-      game.print("[QC Debug] Entity position: " .. entity.position.x .. "," .. entity.position.y)
-      game.print("[QC Debug] To be deconstructed: " .. tostring(entity.to_be_deconstructed()))
-      game.print("[QC Debug] To be upgraded: " .. tostring(entity.to_be_upgraded()))
-      game.print("[QC Debug] Entity quality: " .. entity.quality.name)
-      game.print("[QC Debug] Target quality: " .. (target_quality and target_quality.name or "nil"))
-      game.print("[QC Debug] Unit number: " .. tostring(unit_number))
-    end
     return nil -- upgrade failed for some reason
   end
 
