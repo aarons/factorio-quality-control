@@ -93,6 +93,7 @@ PACKAGE_EXCLUSIONS=(
     'validate*'
     'tests/'
     '.luacheckrc'
+    '.luarc.json'
 )
 
 for exclusion in "${PACKAGE_EXCLUSIONS[@]}"; do
