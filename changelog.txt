@@ -6,9 +6,10 @@ Date: 28. 09. 2025
       Now primary entities continue to earn credits.
   Balancing:
     - Previously, credits were earned as a ratio of secondary entities / primary entities, this could
-      lead to a single assembler driving upgrades for the entire factory, which doesn't make sense.
-      Now, assemblers earn upgrade credits based on their quality level (legendary = 5 credits for example).
-      This leads to a more steady growth rate throughout the game.
+      lead to a single assembler driving upgrades for the entire factory, or would punish the player for
+      having idle assemblers, which wasn't the intention. Now, assemblers earn upgrade credits based on
+      their current quality level (legendary = 5 credits for example). This leads to steady growth
+      throughout the game.
   Optimizations:
     - Simplified credit distribution system for more consistent secondary entity upgrades
     - Improved batch processing efficiency by calculating credits once per batch instead of per entity

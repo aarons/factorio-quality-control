@@ -647,6 +647,9 @@ function core.batch_process_entities()
       can_still_upgrade = false
     end
 
+    -- TODO:
+    -- should track credit earners vs upgradeable entitites
+    -- or find a more deterministic way to handle this than all the if branches
     if not can_still_upgrade then
       -- If secondary entity, remove from tracking entirely
       if not entity_info.is_primary then
