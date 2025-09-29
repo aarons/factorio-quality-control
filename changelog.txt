@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.1
+Date: 29. 09. 2025
+  Modding:
+    - Automatically excludes sandbox and testing surfaces created by other mods (such as Blueprint Sandboxes)
+      to prevent interference with blueprint design and testing workflows
+---------------------------------------------------------------------------------------------------
 Version: 1.6.0
 Date: 09. 09. 2025
   Optimizations:
