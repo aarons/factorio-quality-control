@@ -77,6 +77,11 @@ local function should_exclude_entity(entity)
     return true
   end
 
+  -- exclude entities in a blueprint sandbox
+  if string.sub(entity.surface.name, 1, 5) == "bpsb-" then
+    return true
+  end
+
   -- check if entity has no placeable items
   if get_entity_item_name(entity) == nil then
     return true
@@ -401,8 +406,6 @@ local function attempt_upgrade_normal(entity, attempts_count)
   if not replacement_entity then
     return nil -- upgrade failed for some reason
   end
-
-  core.remove_entity_info(unit_number)
 
   if stored_energy > 0 then
     replacement_entity.energy = stored_energy
