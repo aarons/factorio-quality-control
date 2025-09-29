@@ -1,9 +1,9 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.1
 Date: 29. 09. 2025
-  Modding:
-    - Automatically excludes sandbox and testing surfaces created by other mods (such as Blueprint Sandboxes)
-      to prevent interference with blueprint design and testing workflows
+  Bugfixes:
+    - Compatibility fix for the Blueprint Sandboxes mod, entities in a blueprint sandbox will no longer
+      attempt to be upgraded, which was causing a crash. Thanks to Smougtea and Vadeblade for reporting!
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.0
 Date: 09. 09. 2025
