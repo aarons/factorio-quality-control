@@ -26,7 +26,7 @@ def find_lua_files(project_root: Path = None) -> List[Path]:
     lua_files = []
     
     # Directories to exclude from search
-    exclude_dirs = {'archive', 'test', 'tests', '.git', '__pycache__', 'node_modules', 'validation'}
+    exclude_dirs = {'archive', 'test', 'tests', '.git', '__pycache__', 'node_modules', 'validation', 'references'}
     
     for root, dirs, files in os.walk(project_root):
         # Remove excluded directories from search
