@@ -33,7 +33,7 @@ Just about all entity types are supported. Here's the full list:
 
 They can be toggled off in the settings if you want to avoid affecting certain items.
 
-These secondary entities do not have way to track their activity level (like solar panels or inserters). So these receive upgrade attempts based on the work that primary entities are doing.
+Secondary entities (such as solar panels or inserters) do not have way to track their activity level, so they receive upgrade attempts based on the work from primary entities (assemblers and furnaces).
 
 ## Customization options
 ---

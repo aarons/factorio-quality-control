@@ -106,7 +106,6 @@ local function build_and_store_config()
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
-  settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
   settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
   settings_data.lightning_attractor_growth_level_limit = settings.startup["lightning-attractor-growth-level-limit"].value
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
@@ -146,13 +145,14 @@ local function setup_data_structures(force_reset)
     storage.quality_control_entities = {}
     storage.entity_list = {}
     storage.entity_list_index = {}
-    storage.batch_index = 1
-    storage.primary_entity_count = 0
-    storage.secondary_entity_count = 0
     storage.accumulated_credits = 0
+    storage.batch_index = 1
+    storage.credits_per_entity = 0
     storage.upgrade_queue = {}
     storage.upgrade_queue_index = 1
     storage.network_inventory = {}
+    storage.upgradeable_entities = {}
+    storage.upgradeable_count = 0
   end
 
   if not storage.quality_control_entities then
@@ -184,16 +184,12 @@ local function setup_data_structures(force_reset)
     }
   end
 
-  if not storage.primary_entity_count then
-    storage.primary_entity_count = 0
-  end
-
-  if not storage.secondary_entity_count then
-    storage.secondary_entity_count = 0
-  end
-
   if not storage.accumulated_credits then
     storage.accumulated_credits = 0
+  end
+
+  if not storage.credits_per_entity then
+    storage.credits_per_entity = 0
   end
 
   if not storage.quality_multipliers then
@@ -211,6 +207,16 @@ local function setup_data_structures(force_reset)
   if not storage.upgrade_queue_index then
     storage.upgrade_queue_index = 1
   end
+
+  -- Initialize upgradeable entity tracking structures
+  if not storage.upgradeable_entities then
+    storage.upgradeable_entities = {}
+  end
+
+  if not storage.upgradeable_count then
+    storage.upgradeable_count = 0
+  end
+
 end
 
 local function reinitialize_quality_control_storage(command)
