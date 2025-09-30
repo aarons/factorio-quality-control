@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.6.2
+Date: 29. 09. 2025
+  Bugfixes:
+    - Improved safety of upgrade code, only proceeding with entities that can be marked for upgrade
+  Balancing:
+    - Will not downgrade higher quality modules when the module upgrade setting is 'extra-enabled'. So it's safe to
+      put higher quality modules in lower quality entities.
+---------------------------------------------------------------------------------------------------
 Version: 1.6.1
 Date: 29. 09. 2025
   Bugfixes:

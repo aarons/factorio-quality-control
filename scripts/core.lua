@@ -21,6 +21,7 @@ local network_inventory = {}
 local entity_list = {}
 local entity_list_index = {}
 local upgrade_queue = {}
+local module_upgrade_setting = "disabled"
 
 local module_identifiers = {
   ["agricultural-tower"] = defines.inventory.crafter_modules,
@@ -56,6 +57,7 @@ function core.initialize()
   accumulate_at_max_quality = settings_data.accumulate_at_max_quality
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
+  module_upgrade_setting = settings_data.change_modules_with_entity
 end
 
 -- Get the item name for placing an entity
@@ -340,19 +342,18 @@ function core.on_entity_destroyed(event)
   end
 end
 
--- Quality upgrade processing
 
-local function update_module_quality(replacement_entity, target_quality)
-  local module_setting = settings.startup["change-modules-with-entity"].value
-
-  if module_setting == "disabled" then
+local function update_module_quality(entity)
+  if module_upgrade_setting == "disabled" then
     return
   end
 
-  local module_inventory = replacement_entity.get_module_inventory()
+  local module_inventory = entity.get_module_inventory()
   if not module_inventory then
     return
   end
+
+  local target_quality = entity.quality
 
   for i = 1, #module_inventory do
     local stack = module_inventory[i]
@@ -362,14 +363,12 @@ local function update_module_quality(replacement_entity, target_quality)
       local current_module_quality = stack.quality
       local new_module_quality = nil
 
-      if module_setting == "extra-enabled" then
-        if current_module_quality.level ~= target_quality.level then
+      if module_upgrade_setting == "extra-enabled" then
+        if current_module_quality.level < target_quality.level then
           new_module_quality = target_quality
         end
-      elseif module_setting == "enabled" then
-        local can_increase = current_module_quality.level < target_quality.level and current_module_quality.next
-
-        if can_increase then
+      elseif module_upgrade_setting == "enabled" then
+        if current_module_quality.level < target_quality.level then
           new_module_quality = current_module_quality.next
         end
       end
@@ -393,27 +392,32 @@ local function attempt_upgrade_normal(entity, attempts_count)
     return false
   end
 
-  local unit_number = entity.unit_number
-  local target_quality = entity.quality.next
-  local stored_energy = entity.energy
-
-  entity.order_upgrade({
-    target = {name = entity.name, quality = target_quality},
+  local marked_for_upgrade = entity.order_upgrade({
+    target = {name = entity.name, quality = entity.quality.next},
     force = entity.force
   })
-  local replacement_entity = entity.apply_upgrade()
 
-  if not replacement_entity then
-    return nil -- upgrade failed for some reason
+  -- whether mark for upgrade succeeds or fails, we should remove the old entity from tracking
+  -- if it failed: then we shouldn't try to upgrade it again as something went wrong
+  -- if it succeeded, then we are about to replace the entity with the new upgrade
+  core.remove_entity_info(entity.unit_number)
+  if not marked_for_upgrade then
+    return false
   end
 
-  if stored_energy > 0 then
-    replacement_entity.energy = stored_energy
+  local old_entity_energy = entity.energy
+
+  -- apply_upgrade can return up to two entities
+  -- not sure when we would get multiple entities back, but in this case we just need to
+  -- handle modules and stored energy
+  local new_entity_1, _ = entity.apply_upgrade()
+  if new_entity_1 then
+    -- successfully upgraded into at least 1 entity
+    new_entity_1.energy = old_entity_energy
+    update_module_quality(new_entity_1)
   end
 
-  core.remove_entity_info(unit_number)
-  update_module_quality(replacement_entity, target_quality)
-  return replacement_entity
+  return true
 end
 
 local function attempt_upgrade_uncommon(entity, attempts_count)
@@ -443,10 +447,16 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
     return false
   end
 
-  entity.order_upgrade({
+  local marked_for_upgrade = entity.order_upgrade({
     target = {name = entity.name, quality = target_quality},
     force = entity.force
   })
+
+  if not marked_for_upgrade then
+    -- there was an issue with upgrading this entity, stop tracking it to prevent future issues
+    core.remove_entity_info(entity.unit_number)
+    return false
+  end
 
   update_reservations(entity, entity_info.network_ids, get_entity_item_name(entity), target_quality.level, 1)
 
@@ -497,32 +507,20 @@ end
 
 
 function core.process_upgrade_attempts(entity, attempts_count)
-  local quality_changes = {}
+  local entity_name = entity.name
+  local entity_upgraded
 
-  local change_result
   if mod_difficulty == "Uncommon" then
-    change_result = attempt_upgrade_uncommon(entity, attempts_count)
+    entity_upgraded = attempt_upgrade_uncommon(entity, attempts_count)
   else
-    change_result = attempt_upgrade_normal(entity, attempts_count)
+    entity_upgraded = attempt_upgrade_normal(entity, attempts_count)
   end
 
-  -- Handle errors
-  if change_result == nil then
-    return quality_changes
+  if entity_upgraded then
+    return {[entity_name] = 1}
   end
 
-  -- Handle successful upgrades
-  if change_result then
-    if mod_difficulty == "Uncommon" then
-      -- Uncommon mode returns true on success, use current entity
-      quality_changes[entity.name] = (quality_changes[entity.name] or 0) + 1
-    else
-      -- Normal mode returns the new entity on success
-      quality_changes[change_result.name] = (quality_changes[change_result.name] or 0) + 1
-    end
-  end
-
-  return quality_changes
+  return {}
 end
 
 function core.process_primary_entity(entity_info, entity)
@@ -682,6 +680,7 @@ function core.batch_process_entities()
       if entity_name then
         entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + count
       elseif entity_info.is_primary then
+        -- it wasn't upgraded and is a primary entity
         -- update hours so that we don't add more credits for the same hours next time
         entity_info.manufacturing_hours = result.current_hours
       end

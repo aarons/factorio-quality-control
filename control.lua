@@ -109,7 +109,7 @@ local function build_and_store_config()
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
   settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
   settings_data.lightning_attractor_growth_level_limit = settings.startup["lightning-attractor-growth-level-limit"].value
-
+  settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
   storage.config.mod_difficulty = settings.startup["mod-difficulty"].value
 
   local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
@@ -155,7 +155,6 @@ local function setup_data_structures(force_reset)
     storage.network_inventory = {}
   end
 
-  -- Initialize storage tables
   if not storage.quality_control_entities then
     storage.quality_control_entities = {}
   end
@@ -178,7 +177,6 @@ local function setup_data_structures(force_reset)
     storage.batch_index = 1
   end
 
-  -- Initialize notification system
   if not storage.aggregate_notifications then
     storage.aggregate_notifications = {
       accumulated_changes = {},
@@ -186,7 +184,6 @@ local function setup_data_structures(force_reset)
     }
   end
 
-  -- Initialize credit system
   if not storage.primary_entity_count then
     storage.primary_entity_count = 0
   end
@@ -207,7 +204,6 @@ local function setup_data_structures(force_reset)
     storage.network_inventory = {}
   end
 
-  -- Initialize upgrade queue structures for Uncommon mode
   if not storage.upgrade_queue then
     storage.upgrade_queue = {}
   end
@@ -215,7 +211,6 @@ local function setup_data_structures(force_reset)
   if not storage.upgrade_queue_index then
     storage.upgrade_queue_index = 1
   end
-
 end
 
 local function reinitialize_quality_control_storage(command)
