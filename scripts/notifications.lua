@@ -10,6 +10,40 @@ local notifications = {}
 -- Aggregate notification throttling (5 minutes = 18000 ticks)
 local cooldown_ticks = 18000
 
+-- Calculate total credits spent on upgrade attempts based on current chance_to_change
+-- Returns the equivalent number of credits that have been used in failed upgrade attempts
+local function calculate_credits_spent_on_attempts(entity_info)
+  local base_percentage_chance = storage.config.settings_data.base_percentage_chance
+  local accumulation_percentage = storage.config.settings_data.accumulation_percentage
+
+  if accumulation_percentage == 0 then
+    return 0
+  end
+
+  local chance_increase = entity_info.chance_to_change - base_percentage_chance
+  if chance_increase <= 0 then
+    return 0
+  end
+
+  local credits_spent = (chance_increase * 100) / (base_percentage_chance * accumulation_percentage)
+  return credits_spent
+end
+
+-- Format number with thousands separator
+local function format_number_with_commas(number, decimal_places)
+  local formatted = string.format("%." .. decimal_places .. "f", number)
+  local int_part, dec_part = formatted:match("^([^.]*)(.*)$")
+
+  -- Add commas to integer part
+  local k
+  while true do
+    int_part, k = int_part:gsub("^(-?%d+)(%d%d%d)", '%1,%2')
+    if k == 0 then break end
+  end
+
+  return int_part .. dec_part
+end
+
 function notifications.accumulate_quality_changes(quality_changes)
   for entity_name, count in pairs(quality_changes) do
     storage.aggregate_notifications.accumulated_changes[entity_name] =
@@ -53,6 +87,21 @@ function notifications.show_quality_notifications(quality_changes)
   end
 end
 
+-- **Secondary Entity** Notification format:
+-- Bulk inserter - Normal quality
+-- The next credit provides a 1.35% chance of upgrade
+-- Credits used on upgrade attempts so far: 0.02
+
+-- TODO: cool feature idea
+-- Estimated time until next attempt: 3 minutes, 12 seconds
+    -- calculated by dividing total_tracked_entities / entities per tick / ticks per second - take into account batch process percentage complete / position in batch
+
+-- **Primary Entity** Notification format:
+-- Assembler 1 - Uncommon Quality
+-- The next credit provides a 12.35% chance of upgrade
+-- Credits earned for upgrade attempts: 11.38
+
+
 function notifications.show_entity_quality_info(player, get_entity_info)
   local selected_entity = player.selected
 
@@ -85,49 +134,41 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
     local can_change_quality = selected_entity.quality ~= storage.config.quality_limit
 
-    -- Show eligibility status
+    -- Calculate credits earned for primary entities (based on total manufacturing hours)
+    local credits_earned = 0
+    if is_primary_type and current_recipe then
+      local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
+      local recipe_time = current_recipe.prototype.energy
+      local current_hours = (selected_entity.products_finished * recipe_time) / 3600
+      credits_earned = current_hours / hours_needed
+    end
+
+    -- Show eligibility status only if not eligible
     local eligible_text
     if not is_enabled then
       eligible_text = "No - disabled in settings"
+      table.insert(info_parts, {"quality-control.eligible-for-quality-changes", eligible_text})
     elseif not can_change_quality then
       eligible_text = "No - at quality limit"
-    else
-      eligible_text = "Yes"
+      table.insert(info_parts, {"quality-control.eligible-for-quality-changes", eligible_text})
     end
-    table.insert(info_parts, {"quality-control.eligible-for-quality-changes", eligible_text})
 
     if can_change_quality then
-      -- For entities that can change quality - show attempts based on entity type
+      -- Current chance of change and credits (capped at 100% for display)
       if is_primary_type then
-        table.insert(info_parts, {"quality-control.credits-earned", entity_info.upgrade_attempts})
+        table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
+        table.insert(info_parts, {"quality-control.primary-credits-earned", format_number_with_commas(credits_earned, 2)})
       else
-        table.insert(info_parts, {"quality-control.upgrade-attempts", entity_info.upgrade_attempts})
+        table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
+        local credits_spent = calculate_credits_spent_on_attempts(entity_info)
+        table.insert(info_parts, {"quality-control.secondary-credits-used", format_number_with_commas(credits_spent, 2)})
       end
-
-      -- Progress to next attempt (for primary types with manufacturing hours)
-      if is_primary_type and current_recipe then
-        local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
-        local recipe_time = current_recipe.prototype.energy
-        local current_hours = (selected_entity.products_finished * recipe_time) / 3600
-        local previous_hours = entity_info.manufacturing_hours or 0
-        local progress_hours = current_hours - previous_hours
-        local progress_percentage = math.min(100, (progress_hours / hours_needed) * 100)
-
-        table.insert(info_parts, {"quality-control.progress-to-next-attempt", string.format("%.0f", progress_percentage)})
-      end
-
-      -- Current chance of change (capped at 100% for display)
-      table.insert(info_parts, {"quality-control.chance-of-success", string.format("%.0f", math.min(100, entity_info.chance_to_change))})
     else
-      -- For entities that cannot change quality but are tracked - show attempts based on entity type
-      if is_primary_type then
-        table.insert(info_parts, {"quality-control.credits-earned", entity_info.upgrade_attempts})
-      else
-        table.insert(info_parts, {"quality-control.upgrade-attempts", entity_info.upgrade_attempts})
-      end
+      -- For entities that cannot change quality but are tracked (primary entities only)
+      table.insert(info_parts, {"quality-control.credits-earned", format_number_with_commas(credits_earned, 2)})
 
-      -- Progress to next event generation (for primary types with manufacturing hours)
-      if is_primary_type and current_recipe then
+      -- Progress to next event generation
+      if current_recipe then
         local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
         local recipe_time = current_recipe.prototype.energy
         local current_hours = (selected_entity.products_finished * recipe_time) / 3600

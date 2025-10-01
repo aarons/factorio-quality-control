@@ -213,8 +213,7 @@ function core.get_entity_info(entity)
   tracked_entities[id] = {
     entity = entity,
     is_primary = is_primary,
-    chance_to_change = base_percentage_chance,
-    upgrade_attempts = 0,
+    chance_to_change = base_percentage_chance
   }
 
   if is_primary then
@@ -263,7 +262,6 @@ function core.get_entity_info(entity)
     if past_attempts > 0 and accumulation_percentage > 0 then
       local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
       tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-      tracked_entities[id].upgrade_attempts = past_attempts
     end
     -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
     -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
@@ -381,14 +379,16 @@ local function update_module_quality(entity)
   end
 end
 
-local function attempt_upgrade_normal(entity, attempts_count)
+local function attempt_upgrade_normal(entity, upgrade_credit)
   local entity_info = tracked_entities[entity.unit_number]
 
-  local random_roll = math.random() * attempts_count
-  entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
+  -- determine the chance that an upgrade will succeed
+  -- if 1% base rate chance to change x 3 credits => 3% to change
+  -- if 1% base rate chance to change x 0.2 credits => 0.2% chance to change
+  local chance_to_change = (entity_info.chance_to_change / 100) * upgrade_credit
 
-  if random_roll >= (entity_info.chance_to_change / 100) then
-    entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * attempts_count)
+  if math.random() >= chance_to_change then -- we failed the upgrade attempt
+    entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * upgrade_credit)
     return false
   end
 
@@ -420,7 +420,7 @@ local function attempt_upgrade_normal(entity, attempts_count)
   return true
 end
 
-local function attempt_upgrade_uncommon(entity, attempts_count)
+local function attempt_upgrade_uncommon(entity, upgrade_credit)
   if entity.to_be_upgraded() then
     return false
   end
@@ -437,12 +437,11 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
     return false
   end
 
-  local random_roll = math.random() * attempts_count
-  entity_info.upgrade_attempts = entity_info.upgrade_attempts + attempts_count
+  local chance_to_change = (entity_info.chance_to_change / 100) * upgrade_credit
 
-  if random_roll >= (entity_info.chance_to_change / 100) then
+  if math.random() >= chance_to_change then
     if accumulation_percentage > 0 then
-      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * attempts_count)
+      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * upgrade_credit)
     end
     return false
   end
@@ -534,50 +533,29 @@ function core.process_primary_entity(entity_info, entity)
   local hours_needed = quality_multipliers[entity.quality.level]
   local current_hours = (entity.products_finished * recipe_time) / 3600
   local previous_hours = entity_info.manufacturing_hours or 0
-  local available_hours = current_hours - previous_hours
-  local credits_earned = math.floor(available_hours / hours_needed)
+  local hours_worked = current_hours - previous_hours
+  local credits_earned = hours_worked / hours_needed
 
-  if credits_earned > 0 then
-    local secondary_count = storage.secondary_entity_count
-    if secondary_count > 0 then
-      local primary_count = storage.primary_entity_count
-      local credit_ratio = secondary_count / math.max(primary_count, 1)
-      local credits_added = credits_earned * credit_ratio
-      storage.accumulated_credits = storage.accumulated_credits + credits_added
-    end
+  storage.accumulated_credits = storage.accumulated_credits + credits_earned
 
-    return {
-      credits_earned = credits_earned,
-      current_hours = current_hours
-    }
-  end
-
-  return nil
+  return {
+    credits_earned = credits_earned,
+    current_hours = current_hours
+  }
 end
 
 function core.process_secondary_entity()
   local accumulated_credits = storage.accumulated_credits
   local secondary_count = storage.secondary_entity_count
 
-  if accumulated_credits > 0 and secondary_count > 0 then
-    local credits_per_entity = accumulated_credits / secondary_count
-    local credits_earned = math.floor(credits_per_entity)
-    local fractional_chance = credits_per_entity - credits_earned
+  secondary_count = math.max(secondary_count, 1) -- this shouldn't be necessary but gaurantee's the division is always safe
+  local credits_earned = accumulated_credits / secondary_count
+  storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
 
-    if fractional_chance > 0 and math.random() < fractional_chance then
-      credits_earned = credits_earned + 1
-    end
-
-    if credits_earned > 0 then
-      storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
-      return {
-        credits_earned = credits_earned,
-        current_hours = nil
-      }
-    end
-  end
-
-  return nil
+  return {
+    credits_earned = credits_earned,
+    current_hours = nil
+  }
 end
 
 local function process_upgrade_queue()

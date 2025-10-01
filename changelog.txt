@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.0
+Date: 01. 10. 2025
+  Balancing:
+    - Improved secondary entity upgrade algorithm to be more predictable. Secondary entities now receive
+      equal shares of credits based on primary entity quality levels, creating clearer progression and
+      rewarding higher quality production machines with faster infrastructure upgrades.
+  Changes:
+    - Improved information display when inspecting entities with control-shift-q
+---------------------------------------------------------------------------------------------------
 Version: 1.6.2
 Date: 29. 09. 2025
   Bugfixes:
