@@ -503,63 +503,51 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
 end
 
 
-function core.process_upgrade_attempts(entity, attempts_count)
+function core.process_upgrade_attempts(entity, credits)
   local entity_name = entity.name
   local entity_upgraded
 
   if mod_difficulty == "Uncommon" then
-    entity_upgraded = attempt_upgrade_uncommon(entity, attempts_count)
+    entity_upgraded = attempt_upgrade_uncommon(entity, credits)
   else
-    entity_upgraded = attempt_upgrade_normal(entity, attempts_count)
+    entity_upgraded = attempt_upgrade_normal(entity, credits)
   end
 
   if entity_upgraded then
-    return {[entity_name] = 1}
+    local upgrade_info = {[entity_name] = 1}
+    notifications.show_quality_notifications(upgrade_info)
+    return(upgrade_info)
+  else
+    return {}
   end
-
-  -- Handle notifications internally if there were any upgrades
-  if next(quality_changes) then
-    notifications.show_quality_notifications(quality_changes)
-  end
-
-  return {}
 end
 
-function core.process_primary_entity(entity_info, entity)
-  local recipe_time = 0
-  if entity.get_recipe() then
-    recipe_time = entity.get_recipe().prototype.energy
-  elseif entity.type == "furnace" and entity.previous_recipe then
-    recipe_time = entity.previous_recipe.name.energy
-  end
 
+function core.update_credits(entity_info, entity)
   local credits_earned = 0
-  local hours_needed = quality_multipliers[entity.quality.level]
-  local current_hours = (entity.products_finished * recipe_time) / 3600
-  local previous_hours = entity_info.manufacturing_hours or 0
-  local new_hours = current_hours - previous_hours
-  credits_earned = new_hours / hours_needed
 
-  -- remove if statement
-  if credits_earned > 0 then
-    local quality_level = entity.quality.level + 1  -- +1 because level is 0-indexed
-    local credits_to_add = quality_level * credits_earned
-    storage.accumulated_credits = storage.accumulated_credits + credits_to_add
-    -- Update the entity's hours so we don't add more credits for the same hours next time
+  -- Primary entities generate credits from manufacturing hours
+  if entity_info.is_primary then
+    local recipe_time = 0
+    if entity.get_recipe() then
+      recipe_time = entity.get_recipe().prototype.energy
+    elseif entity.type == "furnace" and entity.previous_recipe then
+      recipe_time = entity.previous_recipe.name.energy
+    end
+
+    local hours_needed = quality_multipliers[entity.quality.level]
+    local current_hours = (entity.products_finished * recipe_time) / 3600
+    local previous_hours = entity_info.manufacturing_hours or 0
+    local new_hours = current_hours - previous_hours
+    credits_earned = (new_hours / hours_needed) * (entity.quality.level + 1) -- +1 because level is 0-indexed
+    -- increment accumulated credits for all entities
+    storage.accumulated_credits = storage.accumulated_credits + credits_earned
     entity_info.manufacturing_hours = current_hours
   end
 
-  -- add credits from the previous batch
+  -- add shared credits
   credits_earned = credits_earned + storage.credits_per_entity
-  -- Handle fractional credits
-  -- can we simplify this and not?
-  local full_credits = math.floor(credits_earned)
-  local fractional_credits = credits_earned - full_credits
-  if fractional_credits > 0 and math.random() < fractional_credits then
-    full_credits = full_credits + 1
-  end
-
-  return full_credits
+  return credits_earned
 end
 
 
@@ -613,40 +601,26 @@ function core.batch_process_entities()
       break
     end
 
-    local unit_number = entity_list[batch_index]
-    local entity_info = tracked_entities[unit_number]
-    local entity = entity_info.entity
     batch_index = batch_index + 1
 
-    if not entity_info or not entity or not entity.valid then
+    local unit_number = entity_list[batch_index]
+    local entity_info = tracked_entities[unit_number]
+    local entity = entity_info and entity_info.entity
+
+    if not entity or not entity.valid then
       core.remove_entity_info(unit_number)
       goto continue
     end
 
-    local can_still_upgrade = entity.quality.next ~= nil
-
     -- check if radar has reached it's limit
     if entity.type == "radar" and entity.quality.level >= (settings_data.radar_growth_level_limit - 1) then
-      can_still_upgrade = false
+      core.remove_entity_info(unit_number)
+      goto continue
     end
 
     -- check if lightning attractor has reached it's limit
     if entity.type == "lightning-attractor" and entity.quality.level >= (settings_data.lightning_attractor_growth_level_limit - 1) then
-      can_still_upgrade = false
-    end
-
-    if not can_still_upgrade then
-      -- If secondary entity, remove from tracking entirely
-      if not entity_info.is_primary then
-        core.remove_entity_info(unit_number)
-        goto continue
-      end
-      -- Otherwise it's a primary entitiy, should still process but remove from upgradeable_entities if present
-      if storage.upgradeable_entities[unit_number] then
-        storage.upgradeable_entities[unit_number] = nil
-        storage.upgradeable_count = math.max(0, storage.upgradeable_count - 1)
-      end
-      core.update_credits(entity_info, entity)
+      core.remove_entity_info(unit_number)
       goto continue
     end
 
@@ -654,9 +628,11 @@ function core.batch_process_entities()
       goto continue
     end
 
-    local credits_earned = core.update_credits(entity_info, entity)
-
-    if credits_earned > 0 then
+    if entity.quality.next == nil then
+      -- it's a primary entity that just needs to accumulate credits
+      core.update_credits(entity_info, entity)
+    else
+      local credits_earned = core.update_credits(entity_info, entity)
       core.process_upgrade_attempts(entity, credits_earned)
     end
 
