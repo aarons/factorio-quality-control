@@ -211,8 +211,7 @@ function core.get_entity_info(entity)
   tracked_entities[id] = {
     entity = entity,
     is_primary = is_primary,
-    chance_to_change = base_percentage_chance,
-    luck_accumulation = 0,
+    chance_to_change = base_percentage_chance
   }
 
   -- Use ordered list for O(1) lookup in batch processing
@@ -261,7 +260,6 @@ function core.get_entity_info(entity)
     if past_attempts > 0 and accumulation_percentage > 0 then
       local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
       tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
-      tracked_entities[id].luck_accumulation = past_attempts
     end
     -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
     -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
@@ -415,7 +413,7 @@ local function attempt_upgrade_normal(entity, credits)
   return true
 end
 
-local function attempt_upgrade_uncommon(entity, attempts_count)
+local function attempt_upgrade_uncommon(entity, credits)
   if entity.to_be_upgraded() then
     return false
   end
@@ -432,12 +430,11 @@ local function attempt_upgrade_uncommon(entity, attempts_count)
     return false
   end
 
-  local random_roll = math.random() * attempts_count
-  entity_info.luck_accumulation = entity_info.luck_accumulation + attempts_count
+  local chance_to_change = (entity_info.chance_to_change / 100) * credits
 
-  if random_roll >= (entity_info.chance_to_change / 100) then
+  if math.random() >= chance_to_change then
     if accumulation_percentage > 0 then
-      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * attempts_count)
+      entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * credits)
     end
     return false
   end
@@ -537,7 +534,7 @@ function core.update_credits(entity_info, entity)
     local current_hours = (entity.products_finished * recipe_time) / 3600
     local previous_hours = entity_info.manufacturing_hours or 0
     local new_hours = current_hours - previous_hours
-    credits_earned = (new_hours / hours_needed) -- * (entity.quality.level + 1) -- +1 because level is 0-indexed
+    credits_earned = (new_hours / hours_needed)
     -- increment accumulated credits for all entities
     storage.accumulated_credits = storage.accumulated_credits + credits_earned
     entity_info.manufacturing_hours = current_hours

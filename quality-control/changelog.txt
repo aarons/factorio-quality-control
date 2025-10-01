@@ -7,11 +7,15 @@ Date: 30. 09. 2025
   Changes:
     - Removed "accumulate at max quality" setting to simplify configuration. Now primary entities will
       always earn credits.
+    - Improved information display when inspecting entities with control-shift-q
   Balancing:
     - Previously, credits were earned as a ratio of secondary entities / primary entities, this could
       lead to a single assembler driving upgrades for the entire factory, which doesn't make sense.
       Now, assemblers earn upgrade credits at a constant rate, which should lead to more predictable
       progress throughout the game.
+    - Improved secondary entity upgrade algorithm to be more predictable. Secondary entities now receive
+      equal shares of credits based on primary entity quality levels, creating clearer progression and
+      rewarding higher quality production machines with faster infrastructure upgrades.
   Optimizations:
     - Simplified credit distribution system for more consistent secondary entity upgrades
     - Improved batch processing efficiency by calculating credits once per batch instead of per entity
