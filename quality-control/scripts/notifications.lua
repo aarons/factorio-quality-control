@@ -92,20 +92,24 @@ function notifications.show_quality_notifications(quality_changes)
   end
 end
 
--- **Secondary Entity** Notification format:
--- Bulk inserter - Normal quality
--- The next credit provides a 1.35% chance of upgrade
--- Credits used on upgrade attempts so far: 0.02
-
 -- TODO: cool feature idea
 -- Estimated time until next attempt: 3 minutes, 12 seconds
     -- calculated by dividing total_tracked_entities / entities per tick / ticks per second - take into account batch process percentage complete / position in batch
 
--- **Primary Entity** Notification format:
+-- Primary entity that can still upgrade notification example:
 -- Assembler 1 - Uncommon Quality
 -- The next credit provides a 12.35% chance of upgrade
 -- Credits earned for upgrade attempts: 11.38
 
+-- Primary entity that is at max quality notification:
+-- Assembler 1 - Legendary Quality
+-- This entity is at max quality.
+-- Credits earned for upgrade attempts: 11.38
+
+-- Secondary entity notification format:
+-- Bulk inserter - Normal quality
+-- The next credit provides a 1.35% chance of upgrade
+-- Credits used on upgrade attempts so far: 0.02
 
 function notifications.show_entity_quality_info(player, get_entity_info)
   local selected_entity = player.selected
@@ -130,7 +134,7 @@ function notifications.show_entity_quality_info(player, get_entity_info)
 
   -- Check if entity_info is an error code (string) instead of a table
   if type(entity_info) == "string" then
-    -- Entity can't change quality - show simple message
+    -- Not an entity but an error, show simple message
     table.insert(info_parts, {"quality-control.entity-not-tracked-reason", entity_info})
   else
     -- Normal entity_info table - show tracking data
@@ -148,41 +152,23 @@ function notifications.show_entity_quality_info(player, get_entity_info)
       credits_earned = current_hours / hours_needed
     end
 
-    -- Show eligibility status only if not eligible
-    local eligible_text
-    if not is_enabled then
-      eligible_text = "No - disabled in settings"
-      table.insert(info_parts, {"quality-control.eligible-for-quality-changes", eligible_text})
-    elseif not can_change_quality then
-      eligible_text = "No - at quality limit"
-      table.insert(info_parts, {"quality-control.eligible-for-quality-changes", eligible_text})
-    end
-
-    if can_change_quality then
+    if is_enabled and can_change_quality then
       -- Current chance of change and credits (capped at 100% for display)
       if is_primary_type then
         table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
-        table.insert(info_parts, {"quality-control.primary-credits-earned", format_number_with_commas(credits_earned, 2)})
+        table.insert(info_parts, {"quality-control.credits-earned", format_number_with_commas(credits_earned, 2)})
       else
         table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
         local credits_spent = calculate_credits_spent_on_attempts(entity_info)
-        table.insert(info_parts, {"quality-control.secondary-credits-used", format_number_with_commas(credits_spent, 2)})
+        table.insert(info_parts, {"quality-control.credits-used", format_number_with_commas(credits_spent, 2)})
       end
-    else
-      -- For entities that cannot change quality but are tracked (primary entities only)
+    elseif is_enabled then
+      -- For entities that cannot change quality but are still generating credits
+      table.insert(info_parts, {"quality-control.entity-at-quality-limit"})
       table.insert(info_parts, {"quality-control.credits-earned", format_number_with_commas(credits_earned, 2)})
-
-      -- Progress to next event generation
-      if current_recipe then
-        local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
-        local recipe_time = current_recipe.prototype.energy
-        local current_hours = (selected_entity.products_finished * recipe_time) / 3600
-        local previous_hours = entity_info.manufacturing_hours or 0
-        local progress_hours = current_hours - previous_hours
-        local progress_percentage = math.min(100, (progress_hours / hours_needed) * 100)
-
-        table.insert(info_parts, {"quality-control.progress-to-next-attempt", string.format("%.0f", progress_percentage)})
-      end
+    else
+      -- entity is not enabled for quality control tracking
+      table.insert(info_parts, {"quality-control.entity-type-disabled"})
     end
   end
 
