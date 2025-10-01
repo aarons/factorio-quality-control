@@ -147,16 +147,11 @@ function notifications.show_entity_quality_info(player, get_entity_info)
       credits_earned = current_hours / hours_needed
     end
 
+    local credits_spent = calculate_credits_spent_on_attempts(entity_info)
+
     if is_enabled and can_change_quality then
-      -- Current chance of change and credits (capped at 100% for display)
-      if is_primary_type then
-        table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
-        table.insert(info_parts, {"quality-control.credits-earned", format_number_with_commas(credits_earned, 2)})
-      else
-        table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
-        local credits_spent = calculate_credits_spent_on_attempts(entity_info)
-        table.insert(info_parts, {"quality-control.credits-used", format_number_with_commas(credits_spent, 2)})
-      end
+      table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
+      table.insert(info_parts, {"quality-control.credits-used", format_number_with_commas(credits_spent, 2)})
     elseif is_enabled then
       -- For entities that cannot change quality but are still generating credits
       table.insert(info_parts, {"quality-control.entity-at-quality-limit"})
