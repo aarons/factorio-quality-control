@@ -17,8 +17,8 @@ local quality_multipliers = {}
 local base_percentage_chance = nil
 local accumulation_percentage = nil
 local network_inventory = {}
-local entity_list = {}
-local entity_list_index = {}
+local batch_process_queue = {}
+local batch_process_queue_index = {}
 local upgrade_queue = {}
 local module_upgrade_setting = "disabled"
 
@@ -50,8 +50,8 @@ function core.initialize()
   mod_difficulty = storage.config.mod_difficulty
   quality_multipliers = storage.quality_multipliers
   network_inventory = storage.network_inventory
-  entity_list = storage.entity_list
-  entity_list_index = storage.entity_list_index
+  batch_process_queue = storage.batch_process_queue
+  batch_process_queue_index = storage.batch_process_queue_index
   upgrade_queue = storage.upgrade_queue
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
@@ -216,15 +216,13 @@ function core.get_entity_info(entity)
   }
 
   -- Use ordered list for O(1) lookup in batch processing
-  table.insert(entity_list, id)
-  entity_list_index[id] = #entity_list
+  table.insert(batch_process_queue, id)
+  batch_process_queue_index[id] = #batch_process_queue
 
   -- Add to upgradeable set if entity can still be upgraded
-  if entity.quality.next ~= nil then
-    if not storage.upgradeable_entities[id] then
-      storage.upgradeable_entities[id] = true
-      storage.upgradeable_count = storage.upgradeable_count + 1
-    end
+  if entity.quality.next ~= nil and not storage.upgradeable_entities[id] then
+    storage.upgradeable_entities[id] = true
+    storage.upgradeable_count = storage.upgradeable_count + 1
   end
 
   if mod_difficulty == "Uncommon" then
@@ -286,26 +284,26 @@ function core.scan_and_populate_entities()
 end
 
 function core.remove_entity_info(id)
-  if tracked_entities and tracked_entities[id] then
+  if tracked_entities[id] then
     tracked_entities[id] = nil
 
     -- Remove from upgradeable set if present
     if storage.upgradeable_entities[id] then
       storage.upgradeable_entities[id] = nil
-      storage.upgradeable_count = math.max(0, storage.upgradeable_count - 1)
+      storage.upgradeable_count = storage.upgradeable_count - 1
     end
 
     -- O(1) removal using swap-with-last approach
-    local index = entity_list_index[id]
+    local index = batch_process_queue_index[id]
     if index then
-      local last_index = #entity_list
-      local last_unit_number = entity_list[last_index]
+      local last_index = #batch_process_queue
+      local last_unit_number = batch_process_queue[last_index]
 
-      entity_list[index] = last_unit_number
-      entity_list_index[last_unit_number] = index
+      batch_process_queue[index] = last_unit_number
+      batch_process_queue_index[last_unit_number] = index
 
-      entity_list[last_index] = nil
-      entity_list_index[id] = nil
+      batch_process_queue[last_index] = nil
+      batch_process_queue_index[id] = nil
     end
   end
 end
@@ -334,10 +332,7 @@ function core.on_entity_cloned(event)
 end
 
 function core.on_entity_destroyed(event)
-  local entity = event.entity
-  if entity and entity.valid and is_tracked_type[entity.type] then
-    core.remove_entity_info(entity.unit_number)
-  end
+  core.remove_entity_info(event.entity.unit_number)
 end
 
 
@@ -593,7 +588,7 @@ function core.batch_process_entities()
 
   while entities_processed < batch_size do
     entities_processed = entities_processed + 1
-    if batch_index > #entity_list then
+    if batch_index > #batch_process_queue then
       -- setup next batch
       batch_index = 1
       storage.credits_per_entity = storage.accumulated_credits / math.max(1, storage.upgradeable_count)
@@ -603,7 +598,7 @@ function core.batch_process_entities()
 
     batch_index = batch_index + 1
 
-    local unit_number = entity_list[batch_index]
+    local unit_number = batch_process_queue[batch_index]
     local entity_info = tracked_entities[unit_number]
     local entity = entity_info and entity_info.entity
 

@@ -143,8 +143,8 @@ local function setup_data_structures(force_reset)
   -- Handle force reset by clearing everything
   if force_reset then
     storage.quality_control_entities = {}
-    storage.entity_list = {}
-    storage.entity_list_index = {}
+    storage.batch_process_queue = {}
+    storage.batch_process_queue_index = {}
     storage.accumulated_credits = 0
     storage.batch_index = 1
     storage.credits_per_entity = 0
@@ -159,16 +159,16 @@ local function setup_data_structures(force_reset)
     storage.quality_control_entities = {}
   end
 
-  if not storage.entity_list then
-    storage.entity_list = {}
+  if not storage.batch_process_queue then
+    storage.batch_process_queue = {}
   end
 
-  if not storage.entity_list_index then
-    storage.entity_list_index = {}
-    -- Rebuild index from existing entity_list for migration
-    for i, unit_number in ipairs(storage.entity_list or {}) do
+  if not storage.batch_process_queue_index then
+    storage.batch_process_queue_index = {}
+    -- Rebuild index from existing batch_process_queue for migration
+    for i, unit_number in ipairs(storage.batch_process_queue or {}) do
       if unit_number then
-        storage.entity_list_index[unit_number] = i
+        storage.batch_process_queue_index[unit_number] = i
       end
     end
   end
