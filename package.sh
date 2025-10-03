@@ -48,8 +48,8 @@ else
 fi
 
 # Read mod name and version from info.json
-MOD_NAME=$(jq -r .name info.json)
-MOD_VERSION=$(jq -r .version info.json)
+MOD_NAME=$(jq -r .name quality-control/info.json)
+MOD_VERSION=$(jq -r .version quality-control/info.json)
 
 if [ -z "$MOD_NAME" ] || [ -z "$MOD_VERSION" ]; then
   echo "Error: Could not read mod name or version from info.json."
@@ -101,7 +101,7 @@ for exclusion in "${PACKAGE_EXCLUSIONS[@]}"; do
 done
 
 # Copy all files to the temporary directory with exclusions
-eval "rsync -av $EXCLUSIONS ./ \"$FULL_PACKAGE_DIR/\""
+eval "rsync -av $EXCLUSIONS quality-control/ \"$FULL_PACKAGE_DIR/\""
 
 # Create archive folder if it doesn't exist
 mkdir -p archive
@@ -187,13 +187,13 @@ echo ""
 echo "Mod installed at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
 
 # Check for debug mode in core.lua and show warning at the end
-if grep -q "debug_enabled = true" scripts/core.lua; then
+if grep -q "debug_enabled = true" quality-control/scripts/core.lua; then
     echo ""
     echo "========================================="
     echo "⚠️  WARNING: DEBUG MODE IS ENABLED!"
     echo "========================================="
     echo ""
-    echo "Found 'debug_enabled = true' in scripts/core.lua"
+    echo "Found 'debug_enabled = true' in quality-control/scripts/core.lua"
     echo "This will cause excessive logging in production."
     echo ""
     echo "Please set 'debug_enabled = false' before packaging"
