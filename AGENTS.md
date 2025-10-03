@@ -10,23 +10,25 @@ Factorio's API and best practices are available via answer-agent.
 
 ## Repository Structure
 
+All mod files are located in the `quality-control/` subdirectory.
+
 ### Configuration & Metadata
-- `info.json` - metadata including name, version, dependencies, and version requirements
-- `settings.lua` - configurable options available to the end user
-- `data.lua` - custom input prototypes (keyboard shortcuts bound to mod functions)
-- `locale/en/locale.cfg` - localization strings
+- `quality-control/info.json` - metadata including name, version, dependencies, and version requirements
+- `quality-control/settings.lua` - configurable options available to the end user
+- `quality-control/data.lua` - custom input prototypes (keyboard shortcuts bound to mod functions)
+- `quality-control/locale/en/locale.cfg` - localization strings
 
 ### Main Entry Point
-- `control.lua` - main entry point, event handlers, initialization, and configuration setup
+- `quality-control/control.lua` - main entry point, event handlers, initialization, and configuration setup
 
 ### Core Modules
-- `scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
-- `scripts/notifications.lua` - manages notifications and alerts
+- `quality-control/scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
+- `quality-control/scripts/notifications.lua` - manages notifications and alerts
 
 ### Development & Testing
 - `validate.sh` - runs all validations and tests
 - `package.sh` - packages the mod for distribution
-- `migrations/` - database migration scripts for version updates
+- `quality-control/migrations/` - database migration scripts for version updates
 - `tests/test_*.py` - various pytests
 
 ## Core Functionality
