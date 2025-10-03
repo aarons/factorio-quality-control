@@ -106,10 +106,13 @@ eval "rsync -av $EXCLUSIONS quality-control/ \"$FULL_PACKAGE_DIR/\""
 # Create archive folder if it doesn't exist
 mkdir -p archive
 
-# Move any existing version zip files to archive folder
-if ls quality-control_*.zip 1> /dev/null 2>&1; then
-    echo "Moving existing version files to archive folder..."
-    mv quality-control_*.zip archive/
+# Archive current version if it exists with hourly timestamp
+CURRENT_VERSION_FILE="${MOD_NAME}_${MOD_VERSION}.zip"
+if [ -f "$CURRENT_VERSION_FILE" ]; then
+    TIMESTAMP=$(date '+%Y-%m-%d-%H')
+    ARCHIVE_NAME="${MOD_NAME}_${MOD_VERSION}_${TIMESTAMP}.zip"
+    echo "Archiving existing version: $CURRENT_VERSION_FILE -> archive/$ARCHIVE_NAME"
+    mv "$CURRENT_VERSION_FILE" "archive/$ARCHIVE_NAME"
 fi
 
 # Create the zip file
