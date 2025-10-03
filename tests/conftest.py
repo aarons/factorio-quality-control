@@ -12,30 +12,30 @@ from typing import List, Tuple, Generator
 def find_lua_files(project_root: Path = None) -> List[Path]:
     """
     Find all Lua files in the project, excluding certain directories.
-    
+
     Args:
         project_root: Root directory to search from. If None, uses parent of validation dir.
-        
+
     Returns:
         List of Path objects for all Lua files found.
     """
     if project_root is None:
-        # Default to parent directory of validation folder
-        project_root = Path(__file__).parent.parent
-        
+        # Default to parent directory of validation folder, then look in quality-control subdirectory
+        project_root = Path(__file__).parent.parent / "quality-control"
+
     lua_files = []
-    
+
     # Directories to exclude from search
     exclude_dirs = {'archive', 'test', 'tests', '.git', '__pycache__', 'node_modules', 'validation', 'references'}
-    
+
     for root, dirs, files in os.walk(project_root):
         # Remove excluded directories from search
         dirs[:] = [d for d in dirs if d not in exclude_dirs]
-        
+
         for file in files:
             if file.endswith('.lua'):
                 lua_files.append(Path(root) / file)
-    
+
     return lua_files
 
 

@@ -230,14 +230,14 @@ class ChangelogValidator:
 def test_project_changelog():
     """Test the main project changelog.txt file."""
     project_root = Path(__file__).parent.parent
-    changelog_path = project_root / "changelog.txt"
-    
+    changelog_path = project_root / "quality-control" / "changelog.txt"
+
     if not changelog_path.exists():
         pytest.fail(f"Changelog file not found: {changelog_path}")
-    
+
     validator = ChangelogValidator()
     is_valid = validator.validate_file(changelog_path)
-    
+
     if not is_valid:
         error_messages = [str(error) for error in validator.errors]
         pytest.fail(f"Project changelog validation failed:\n" + "\n".join(error_messages))

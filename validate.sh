@@ -40,7 +40,7 @@ setup_validation_env() {
 # Function to run luacheck
 run_luacheck() {
     local output
-    output=$(luacheck . --quiet --exclude-files references/ 2>&1)
+    output=$(luacheck quality-control/ --quiet 2>&1)
     local exit_code=$?
 
     if [ $exit_code -eq 0 ]; then

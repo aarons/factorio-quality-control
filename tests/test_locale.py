@@ -15,18 +15,18 @@ from typing import List, Set, Dict, Tuple
 def get_all_locale_files() -> List[Path]:
     """Get all locale.cfg files across all language directories."""
     project_root = Path(__file__).parent.parent
-    locale_root = project_root / "locale"
-    
+    locale_root = project_root / "quality-control" / "locale"
+
     if not locale_root.exists():
         return []
-    
+
     locale_files = []
     for lang_dir in locale_root.iterdir():
         if lang_dir.is_dir():
             locale_file = lang_dir / "locale.cfg"
             if locale_file.exists():
                 locale_files.append(locale_file)
-    
+
     return sorted(locale_files)  # Sort for consistent test ordering
 
 
@@ -99,8 +99,8 @@ def validate_locale_file_duplicates_manual(locale_file: Path) -> List[str]:
 def test_locale_directory_exists():
     """Test that locale/en directory exists."""
     project_root = Path(__file__).parent.parent
-    locale_dir = project_root / "locale" / "en"
-    
+    locale_dir = project_root / "quality-control" / "locale" / "en"
+
     if not locale_dir.exists():
         pytest.skip("No locale directory found - this is optional for mods")
 
@@ -108,11 +108,11 @@ def test_locale_directory_exists():
 def test_locale_cfg_exists():
     """Test that locale.cfg exists if locale directory exists."""
     project_root = Path(__file__).parent.parent
-    locale_dir = project_root / "locale" / "en"
-    
+    locale_dir = project_root / "quality-control" / "locale" / "en"
+
     if not locale_dir.exists():
         pytest.skip("No locale directory found")
-    
+
     locale_file = locale_dir / "locale.cfg"
     assert locale_file.exists(), "locale.cfg must exist in locale/en/ directory"
 
@@ -120,11 +120,11 @@ def test_locale_cfg_exists():
 def test_locale_cfg_format():
     """Test that locale.cfg follows proper INI-style format."""
     project_root = Path(__file__).parent.parent
-    locale_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    locale_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
-    
+
     with open(locale_file, 'r', encoding='utf-8') as f:
         lines = f.readlines()
     
@@ -163,8 +163,8 @@ def test_locale_cfg_format():
 def test_locale_cfg_no_tabs():
     """Test that locale.cfg doesn't contain tabs."""
     project_root = Path(__file__).parent.parent
-    locale_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    locale_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
     
@@ -183,8 +183,8 @@ def test_locale_cfg_no_tabs():
 def test_locale_cfg_no_trailing_whitespace():
     """Test that locale.cfg doesn't have trailing whitespace."""
     project_root = Path(__file__).parent.parent
-    locale_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    locale_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
     
@@ -203,8 +203,8 @@ def test_locale_cfg_no_trailing_whitespace():
 def test_locale_cfg_valid_sections():
     """Test that locale.cfg contains valid section names."""
     project_root = Path(__file__).parent.parent
-    locale_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    locale_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
     
@@ -236,8 +236,8 @@ def test_locale_cfg_valid_sections():
 def test_locale_cfg_no_duplicate_keys():
     """Test that English locale.cfg doesn't have duplicate keys within sections."""
     project_root = Path(__file__).parent.parent
-    locale_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    locale_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
     
@@ -251,8 +251,8 @@ def test_locale_cfg_no_duplicate_keys():
 def test_locale_cfg_key_value_format():
     """Test that key=value pairs are properly formatted."""
     project_root = Path(__file__).parent.parent
-    locale_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    locale_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not locale_file.exists():
         pytest.skip("No locale.cfg found")
     
@@ -337,8 +337,8 @@ def test_all_locale_files_exist():
 def get_reference_locale_structure() -> Tuple[Dict[str, Set[str]], Path]:
     """Get the sections and keys from the English locale as reference."""
     project_root = Path(__file__).parent.parent
-    reference_file = project_root / "locale" / "en" / "locale.cfg"
-    
+    reference_file = project_root / "quality-control" / "locale" / "en" / "locale.cfg"
+
     if not reference_file.exists():
         return {}, reference_file
     
