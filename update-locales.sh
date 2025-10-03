@@ -16,7 +16,7 @@ RED='\033[0;31m'
 NC='\033[0m' # No Color
 
 # Reference file
-REFERENCE_FILE="locale/en/locale.cfg"
+REFERENCE_FILE="quality-control/locale/en/locale.cfg"
 
 # Check if reference file exists
 if [ ! -f "$REFERENCE_FILE" ]; then
@@ -97,7 +97,7 @@ Please fix the error problem in $locale_file.
 Additional Context:
 This is a locale file for a factorio mod called Quality Control. AGENTS.md and mod-description.md have more context if helpful, and source code is located mostly in .lua files.
 
-The English translation file is at locale/en/locale.cfg and is the source reference. Focus on fixing the failure for the $lang_name translation in $locale_file."
+The English translation file is at quality-control/locale/en/locale.cfg and is the source reference. Focus on fixing the failure for the $lang_name translation in $locale_file."
 
         echo -e "${BLUE}Prompting Claude Code to fix validation errors...${NC}"
         claude --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file) Write($locale_file) MultiEdit($locale_file)" -p "$fix_prompt"
@@ -180,7 +180,7 @@ fi
 for lang_pair in "${LANGUAGES[@]}"; do
     lang_code="${lang_pair%%:*}"
     lang_name="${lang_pair#*:}"
-    locale_dir="locale/$lang_code"
+    locale_dir="quality-control/locale/$lang_code"
     locale_file="$locale_dir/locale.cfg"
 
     # Skip if single language mode and this isn't the target language
@@ -208,9 +208,9 @@ for lang_pair in "${LANGUAGES[@]}"; do
 
     # Check if locale file exists to determine prompt intro
     if [ -f "$locale_file" ]; then
-        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate the $lang_name translation in $locale_file and apply updates if needed. Use locale/en/locale.cfg as the reference."
+        intro="We made some recent changes to quality-control/locale/en/locale.cfg. Please evaluate the $lang_name translation in $locale_file and apply updates if needed. Use quality-control/locale/en/locale.cfg as the reference."
     else
-        intro="We're introducing $lang_name language support for my factorio mod. We need to add a translation file to $locale_file. Please use locale/en/locale.cfg as the reference."
+        intro="We're introducing $lang_name language support for my factorio mod. We need to add a translation file to $locale_file. Please use quality-control/locale/en/locale.cfg as the reference."
     fi
 
     # Header
