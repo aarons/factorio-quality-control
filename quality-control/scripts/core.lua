@@ -376,10 +376,13 @@ end
 
 local function attempt_upgrade_normal(entity, credits)
   local entity_info = tracked_entities[entity.unit_number]
-  entity_info.luck_accumulation = entity_info.luck_accumulation + credits
 
-  local random_roll = math.random() * credits
-  if random_roll >= (entity_info.chance_to_change / 100) then
+  -- determine the chance that an upgrade will succeed
+  -- if 1% base rate chance to change x 3 credits => 3% to change
+  -- if 1% base rate chance to change x 0.2 credits => 0.2% chance to change
+  local chance_to_change = (entity_info.chance_to_change / 100) * credits
+
+  if math.random() >= chance_to_change then -- we failed the upgrade attempt
     entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * credits)
     return false
   end
@@ -534,7 +537,7 @@ function core.update_credits(entity_info, entity)
     local current_hours = (entity.products_finished * recipe_time) / 3600
     local previous_hours = entity_info.manufacturing_hours or 0
     local new_hours = current_hours - previous_hours
-    credits_earned = (new_hours / hours_needed) * (entity.quality.level + 1) -- +1 because level is 0-indexed
+    credits_earned = (new_hours / hours_needed) -- * (entity.quality.level + 1) -- +1 because level is 0-indexed
     -- increment accumulated credits for all entities
     storage.accumulated_credits = storage.accumulated_credits + credits_earned
     entity_info.manufacturing_hours = current_hours
