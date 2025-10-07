@@ -7,9 +7,6 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 
 local notifications = {}
 
--- Aggregate notification throttling (5 minutes = 18000 ticks)
-local cooldown_ticks = 18000
-
 function notifications.accumulate_quality_changes(quality_changes)
   for entity_name, count in pairs(quality_changes) do
     storage.aggregate_notifications.accumulated_changes[entity_name] =
@@ -18,16 +15,23 @@ function notifications.accumulate_quality_changes(quality_changes)
 end
 
 function notifications.try_show_accumulated_notifications()
+  if not next(storage.aggregate_notifications.accumulated_changes) then
+    return
+  end
+
+  -- Get cooldown from global settings (convert minutes to ticks: 1 minute = 3600 ticks)
+  local cooldown_minutes = settings.global["aggregate-notification-cooldown-minutes"].value
+  local cooldown_ticks = cooldown_minutes * 3600
+
   local current_tick = game.tick
   local time_since_last = current_tick - storage.aggregate_notifications.last_notification_tick
 
-  if time_since_last >= cooldown_ticks and next(storage.aggregate_notifications.accumulated_changes) then
-    local player = game.players[1]
-    if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
-      player.print({"quality-control.aggregate-notification-header"})
+  if time_since_last >= cooldown_ticks then
+    if settings.global["quality-change-aggregate-alerts-enabled"].value then
+      game.print({"quality-control.aggregate-notification-header"})
 
       for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
-        player.print(entity_name .. ": " .. count)
+        game.print(entity_name .. ": " .. count)
       end
     end
 
@@ -38,11 +42,12 @@ function notifications.try_show_accumulated_notifications()
 end
 
 function notifications.show_entity_quality_alert(entity, target_quality_name)
-  local player = game.players[1] -- In single player, this is the player
-  if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
-    local message = "upgraded quality to " .. target_quality_name
-
-    player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = target_quality_name}, message, true)
+  -- Check each player's individual setting
+  for _, player in pairs(game.players) do
+    if player.mod_settings["quality-change-entity-alerts-enabled"].value then
+      local message = "upgraded quality to " .. target_quality_name
+      player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = target_quality_name}, message, true)
+    end
   end
 end
 

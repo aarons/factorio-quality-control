@@ -1,4 +1,6 @@
-Please add a new changelog entry with context about our latest work. Be sure to also update the version in `info.json`.
+Please add a new changelog entry with context about our latest work.
+- Be sure to also update the version in `./quality-control/info.json`
+- The changelog is in `./quality-control/changelog.txt`
 
 $ARGUMENTS
 

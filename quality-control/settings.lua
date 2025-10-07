@@ -66,21 +66,30 @@ data:extend({
         default_value = 1,
         min_value = 1,
         max_value = 6000, -- about 15 minutes
-        order = "b-1"
+        order = "b-01"
     },
     {
         type = "bool-setting",
         name = "quality-change-aggregate-alerts-enabled",
-        setting_type = "runtime-per-user",
+        setting_type = "runtime-global",
         default_value = false,
-        order = "c-0"
+        order = "b-02"
+    },
+    {
+        type = "int-setting",
+        name = "aggregate-notification-cooldown-minutes",
+        setting_type = "runtime-global",
+        default_value = 5,
+        min_value = 1,
+        max_value = 720,
+        order = "b-03"
     },
     {
         type = "bool-setting",
         name = "quality-change-entity-alerts-enabled",
         setting_type = "runtime-per-user",
         default_value = true,
-        order = "c-1"
+        order = "c-01"
     },
     -- Entity types (alphabetized)
     {

@@ -1,9 +1,12 @@
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.0
 Date: 30. 09. 2025
+  Features:
+    - Added configurable timing for summary notifications (aggregate console alerts) and moved the
+      console alert configuration to the map settings tab.
   Changes:
-    - Removed "accumulate at max quality" setting to simplify configuration and improve performance
-      Now primary entities will always continue to earn credits.
+    - Removed "accumulate at max quality" setting to simplify configuration. Now primary entities will
+      always earn credits.
   Balancing:
     - Previously, credits were earned as a ratio of secondary entities / primary entities, this could
       lead to a single assembler driving upgrades for the entire factory, which doesn't make sense.

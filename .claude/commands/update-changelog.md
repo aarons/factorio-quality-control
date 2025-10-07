@@ -2,6 +2,8 @@ Please update the latest changelog entry with context about our recent work.
 
 The changelog should only contain details that are relevant to players and users of the mod; it should not contain details specific to the development process or repo management.
 
+The changelog is at ./quality-control/changelog.txt
+
 Factorio's Change Log Specification:
 
 ```
