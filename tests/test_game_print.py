@@ -77,6 +77,7 @@ def test_no_game_print():
     Use 'log' instead of 'game.print' for logging.
 
     migrations/1.3.0.lua is excluded as it needs game.print for user communication.
+    notifications.lua is excluded as it uses game.print for user notifications.
     """
     lua_files = find_lua_files()
     all_errors = []
@@ -84,6 +85,10 @@ def test_no_game_print():
     for lua_file in lua_files:
         # Skip migrations/1.3.0.lua - it needs game.print for user communication
         if lua_file.name == '1.3.0.lua' and 'migrations' in lua_file.parts:
+            continue
+
+        # Skip notifications.lua - it uses game.print for user notifications
+        if lua_file.name == 'notifications.lua' and 'scripts' in lua_file.parts:
             continue
 
         file_errors = check_game_print_usage(lua_file)
