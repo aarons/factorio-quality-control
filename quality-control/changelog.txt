@@ -1,23 +1,23 @@
 ---------------------------------------------------------------------------------------------------
-Version: 1.7.0
-Date: 30. 09. 2025
-  Features:
-    - Added configurable timing for summary notifications (aggregate console alerts) and moved the
-      console alert configuration to the map settings tab.
+Version: 2.0.0
+Date: 10. 11. 2025
+  Balancing:
+    - Changed the upgrade algorithm to provide more predictable and steady progress. Primary entities
+      earn credits at a fixed rate, and secondary entities receive equal credit shares.
+  Bugfixes:
+    - Restored map notifications for individual unit upgrades
   Changes:
     - Removed "accumulate at max quality" setting to simplify configuration. Now primary entities will
       always earn credits.
     - Improved information display when inspecting entities with control-shift-q
-  Balancing:
-    - Changed the upgrade algorithm to provide more predictable and steady progress. Primary entities
-      earn credits at a fixed rate, and secondary entities receive equal credit shares.
-  Ease of use:
-    - Improved entity inspection display (control-shift-q) with clearer upgrade tracking information
+  Features:
+    - Added configurable timing for summary notifications (aggregate console alerts) and moved the
+      console alert configuration to the map settings tab.
+  Modding:
+    - Added logging when entity upgrades fail to help diagnose issues
   Optimizations:
     - Simplified credit distribution system for more consistent secondary entity upgrades
     - Improved batch processing efficiency by calculating credits once per batch instead of per entity
-  Modding:
-    - Added logging when entity upgrades fail to help diagnose issues
 ---------------------------------------------------------------------------------------------------
 Version: 1.6.2
 Date: 29. 09. 2025

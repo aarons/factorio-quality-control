@@ -1,13 +1,5 @@
 data:extend({
     {
-        type = "string-setting",
-        name = "mod-difficulty",
-        setting_type = "startup",
-        default_value = "Normal",
-        allowed_values = {"Normal", "Uncommon"},
-        order = "a--1"
-    },
-    {
         type = "double-setting",
         name = "manufacturing-hours-for-change",
         setting_type = "startup",
