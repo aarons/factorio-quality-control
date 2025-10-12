@@ -401,13 +401,12 @@ local function attempt_upgrade_normal(entity, credits)
   local old_entity_energy = entity.energy
 
   -- apply_upgrade can return up to two entities
-  -- not sure when we would get multiple entities back, but in this case we just need to
-  -- handle modules and stored energy
+  -- not sure when we would get multiple entities back
   local new_entity_1, _ = entity.apply_upgrade()
   if new_entity_1 then
-    -- successfully upgraded into at least 1 entity
     new_entity_1.energy = old_entity_energy
     update_module_quality(new_entity_1)
+    notifications.show_entity_quality_alert(new_entity_1, new_entity_1.quality.name)
   end
 
   return true
