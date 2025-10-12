@@ -257,7 +257,7 @@ local function update_module_quality(entity)
   end
 end
 
-local function attempt_upgrade_normal(entity, credits)
+local function attempt_upgrade(entity, credits)
   local entity_info = tracked_entities[entity.unit_number]
 
   -- determine the chance that an upgrade will succeed
@@ -267,7 +267,7 @@ local function attempt_upgrade_normal(entity, credits)
 
   if math.random() >= chance_to_change then -- we failed the upgrade attempt
     entity_info.chance_to_change = entity_info.chance_to_change + (base_percentage_chance * (accumulation_percentage / 100) * credits)
-    return false
+    return
   end
 
   local marked_for_upgrade = entity.order_upgrade({
@@ -280,10 +280,11 @@ local function attempt_upgrade_normal(entity, credits)
   -- if it succeeded, then we are about to replace the entity with the new upgrade
   core.remove_entity_info(entity.unit_number)
   if not marked_for_upgrade then
-    return false
+    return
   end
 
   local old_entity_energy = entity.energy
+  local entity_name = entity.name
 
   -- apply_upgrade can return up to two entities
   -- not sure when we would get multiple entities back
@@ -292,22 +293,7 @@ local function attempt_upgrade_normal(entity, credits)
     new_entity_1.energy = old_entity_energy
     update_module_quality(new_entity_1)
     notifications.show_entity_quality_alert(new_entity_1, new_entity_1.quality.name)
-  end
-
-  return true
-end
-
-
-function core.process_upgrade_attempts(entity, credits)
-  local entity_name = entity.name
-  local entity_upgraded = attempt_upgrade_normal(entity, credits)
-
-  if entity_upgraded then
-    local upgrade_info = {[entity_name] = 1}
-    notifications.show_quality_notifications(upgrade_info)
-    return(upgrade_info)
-  else
-    return {}
+    notifications.accumulate_quality_changes({[entity_name] = 1})
   end
 end
 
@@ -352,6 +338,7 @@ function core.batch_process_entities()
       batch_index = 1
       storage.credits_per_entity = storage.accumulated_credits / math.max(1, storage.upgradeable_count)
       storage.acumulated_credits = 0
+      notifications.try_show_accumulated_notifications()
       break
     end
 
@@ -387,7 +374,7 @@ function core.batch_process_entities()
       core.update_credits(entity_info, entity)
     else
       local credits_earned = core.update_credits(entity_info, entity)
-      core.process_upgrade_attempts(entity, credits_earned)
+      attempt_upgrade(entity, credits_earned)
     end
 
     ::continue::
