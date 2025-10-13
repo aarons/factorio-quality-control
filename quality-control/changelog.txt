@@ -7,6 +7,7 @@ Date: 10. 11. 2025
   Bugfixes:
     - Restored map notifications for individual unit upgrades
   Changes:
+    - Removed uncommon difficulty mode
     - Removed "accumulate at max quality" setting to simplify configuration. Now primary entities will
       always earn credits.
     - Improved information display when inspecting entities with control-shift-q

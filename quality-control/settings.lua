@@ -1,11 +1,11 @@
 data:extend({
     {
         type = "double-setting",
-        name = "manufacturing-hours-for-change",
+        name = "manufacturing-minutes-for-change",
         setting_type = "startup",
-        default_value = 3,
-        min_value = 0.001,
-        max_value = 1000,
+        default_value = 180,
+        min_value = 1,
+        max_value = 720,
         order = "a-0"
     },
     {

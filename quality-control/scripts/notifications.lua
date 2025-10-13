@@ -135,13 +135,13 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
     local can_change_quality = selected_entity.quality ~= storage.config.quality_limit
 
-    -- Calculate credits earned for primary entities (based on total manufacturing hours)
+    -- Calculate credits earned for primary entities (based on total manufacturing minutes)
     local credits_earned = 0
     if is_primary_type and current_recipe then
-      local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
+      local minutes_needed = storage.time_multipliers[selected_entity.quality.level]
       local recipe_time = current_recipe.prototype.energy
-      local current_hours = (selected_entity.products_finished * recipe_time) / 3600
-      credits_earned = current_hours / hours_needed
+      local current_minutes = (selected_entity.products_finished * recipe_time) / (60 * selected_entity.crafting_speed)
+      credits_earned = current_minutes / minutes_needed
     end
 
     local credits_spent = calculate_credits_spent_on_attempts(entity_info)

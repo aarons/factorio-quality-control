@@ -103,7 +103,7 @@ local function build_and_store_config()
   storage.config.can_attempt_quality_change = can_attempt_quality_change
 
   local settings_data = {}
-  settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
+  settings_data.manufacturing_minutes_for_change = settings.startup["manufacturing-minutes-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
   settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
@@ -128,11 +128,11 @@ local function build_and_store_config()
   end
   storage.config.quality_limit = quality_limit
 
-  storage.quality_multipliers = {}
+  storage.time_multipliers = {}
   local current_quality = prototypes.quality["normal"]
   while current_quality do
-    storage.quality_multipliers[current_quality.level] =
-      settings_data.manufacturing_hours_for_change *
+    storage.time_multipliers[current_quality.level] =
+      settings_data.manufacturing_minutes_for_change *
       (1 + settings_data.quality_increase_cost) ^ current_quality.level
     current_quality = current_quality.next
   end
@@ -188,8 +188,8 @@ local function setup_data_structures(force_reset)
     storage.credits_per_entity = 0
   end
 
-  if not storage.quality_multipliers then
-    storage.quality_multipliers = {}
+  if not storage.time_multipliers then
+    storage.time_multipliers = {}
   end
 
   -- Initialize upgradeable entity tracking structures

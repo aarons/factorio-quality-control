@@ -12,7 +12,7 @@ local core = {}
 local tracked_entities = {}
 local settings_data = {}
 local is_tracked_type = {}
-local quality_multipliers = {}
+local time_multipliers = {}
 local base_percentage_chance = nil
 local accumulation_percentage = nil
 local batch_process_queue = {}
@@ -35,7 +35,7 @@ function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
   is_tracked_type = storage.config.is_tracked_type
-  quality_multipliers = storage.quality_multipliers
+  time_multipliers = storage.time_multipliers
   batch_process_queue = storage.batch_process_queue
   batch_process_queue_index = storage.batch_process_queue_index
   base_percentage_chance = settings_data.base_percentage_chance
@@ -123,8 +123,8 @@ function core.get_entity_info(entity)
     return tracked_entities[id]
   end
 
-  -- Initialize manufacturing hours based on current products_finished
-  -- This ensures we don't double-count hours for already-producing entities
+  -- Initialize manufacturing minutes
+  -- This ensures we don't double-count minutes for already-producing entities
   local recipe_time = 0
   if entity.get_recipe() then
     recipe_time = entity.get_recipe().prototype.energy
@@ -132,14 +132,14 @@ function core.get_entity_info(entity)
     recipe_time = entity.previous_recipe.name.energy
   end
 
-  local current_hours = (entity.products_finished * recipe_time) / 3600
-  tracked_entities[id].manufacturing_hours = current_hours
+  local total_time_worked = (entity.products_finished * recipe_time) / (60 * entity.crafting_speed)
+  tracked_entities[id].time_worked = total_time_worked
 
   -- Calculate how many upgrade attempts would have occurred in the past
   -- and adjust the chance percentage accordingly
-  if current_hours > 0 then
-    local hours_needed = quality_multipliers[entity.quality.level]
-    local past_attempts = math.floor(current_hours / hours_needed)
+  if total_time_worked > 0 then
+    local time_needed_per_credit = time_multipliers[entity.quality.level]
+    local past_attempts = math.floor(total_time_worked / time_needed_per_credit)
 
     -- Simulate the chance accumulation from missed upgrade attempts
     if past_attempts > 0 and accumulation_percentage > 0 then
@@ -301,7 +301,7 @@ end
 function core.update_credits(entity_info, entity)
   local credits_earned = 0
 
-  -- Primary entities generate credits from manufacturing hours
+  -- Primary entities generate credits from manufacturing minutes
   if entity_info.is_primary then
     local recipe_time = 0
     if entity.get_recipe() then
@@ -310,14 +310,14 @@ function core.update_credits(entity_info, entity)
       recipe_time = entity.previous_recipe.name.energy
     end
 
-    local hours_needed = quality_multipliers[entity.quality.level]
-    local current_hours = (entity.products_finished * recipe_time) / 3600
-    local previous_hours = entity_info.manufacturing_hours or 0
-    local new_hours = current_hours - previous_hours
-    credits_earned = (new_hours / hours_needed)
+    local time_needed_per_credit = time_multipliers[entity.quality.level]
+    local total_time_worked = (entity.products_finished * recipe_time) / (60 * entity.crafting_speed)
+    local previous_time_worked = entity_info.time_worked or 0
+    local time_worked_since_last_check = total_time_worked - previous_time_worked
+    credits_earned = (time_worked_since_last_check / time_needed_per_credit)
     -- increment accumulated credits for all entities
     storage.accumulated_credits = storage.accumulated_credits + credits_earned
-    entity_info.manufacturing_hours = current_hours
+    entity_info.time_worked = total_time_worked
   end
 
   -- add shared credits
