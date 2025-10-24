@@ -7,8 +7,10 @@ Date: 24. 10. 2025
 Version: 1.7.0
 Date: 01. 10. 2025
   Balancing:
-    - Changed the upgrade algorithm to provide more predictable and steady progress. Primary entities
-      earn credits at a fixed rate
+    - Changed the upgrade algorithm to provide more steady and predictable progress. Primary entities
+      now earn upgrade credits at a fixed rate, instead of at a ratio of primary to secondary entities.
+      This may slow down progress for some configurations. Lowering the number of hours needed per upgrade
+      attempt will compensate though.
   Ease of use:
     - Improved entity inspection display (control-shift-q) with clearer upgrade tracking information
 ---------------------------------------------------------------------------------------------------
