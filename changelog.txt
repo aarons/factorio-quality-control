@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.7.1
+Date: 24. 10. 2025
+  Bugfixes:
+    - Lamps now preserve their always-on status when upgraded. Thanks Athon for reporting the bug!
+---------------------------------------------------------------------------------------------------
 Version: 1.7.0
 Date: 01. 10. 2025
   Balancing:
