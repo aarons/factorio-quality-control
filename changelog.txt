@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.8.0
+Date: 28. 11. 2025
+  Features:
+    - Added support for hidden quality variants, such as shiny items from Quality++ Shiny Mechanics
+    - New "Skip hidden qualities" setting prevents entities from becoming hidden variants through upgrades
+    - New "Hidden qualities are sticky" setting preserves hidden variant entities from further upgrades
+  Modding:
+    - Quality upgrades now respect Factorio's quality probability chain, fixing compatibility with mods that modify quality progression
+---------------------------------------------------------------------------------------------------
 Version: 1.7.1
 Date: 24. 10. 2025
   Bugfixes:

@@ -89,6 +89,21 @@ data:extend({
         default_value = true,
         order = "c-1"
     },
+    -- Hidden quality handling (for mods like Quality++ Shiny)
+    {
+        type = "bool-setting",
+        name = "quality_control_skip_hidden_qualities",
+        setting_type = "startup",
+        default_value = false,
+        order = "c-10"
+    },
+    {
+        type = "bool-setting",
+        name = "quality_control_hidden_qualities_sticky",
+        setting_type = "startup",
+        default_value = true,
+        order = "c-11"
+    },
     -- Entity types (alphabetized)
     {
         type = "bool-setting",
