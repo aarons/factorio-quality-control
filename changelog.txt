@@ -6,7 +6,7 @@ Date: 28. 11. 2025
     - New "Skip hidden qualities" setting prevents entities from becoming hidden variants through upgrades
     - New "Hidden qualities are sticky" setting preserves hidden variant entities from further upgrades
   Modding:
-    - Quality upgrades now respect Factorio's quality probability chain, fixing compatibility with mods that modify quality progression
+    - Quality upgrades now respect Factorio's quality probability chain, fixing compatibility with mods that modify quality progression. Thanks to Spacey for reporting this issue!
 ---------------------------------------------------------------------------------------------------
 Version: 1.7.1
 Date: 24. 10. 2025
