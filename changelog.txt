@@ -2,7 +2,9 @@
 Version: 2.0.0
 Date: 16. 12. 2025
   Changes:
-    - Removed "Uncommon" difficulty mode setting which required logistics items for upgrades
+    - Removed "Uncommon" difficulty mode setting. I wasn't happy that this required a choice between
+      one mode or another. I think it would be better as a standalone mod. The BeltUpgrader mod by Mylon
+      has a nice approach and looks good for this usecase.
     - Reorganized internal code structure for improved maintainability
 ---------------------------------------------------------------------------------------------------
 Version: 1.8.1
