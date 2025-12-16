@@ -1,7 +1,8 @@
 ---------------------------------------------------------------------------------------------------
-Version: 1.8.2
+Version: 2.0.0
 Date: 16. 12. 2025
-  Scripting:
+  Changes:
+    - Removed "Uncommon" difficulty mode setting which required logistics items for upgrades
     - Reorganized internal code structure for improved maintainability
 ---------------------------------------------------------------------------------------------------
 Version: 1.8.1

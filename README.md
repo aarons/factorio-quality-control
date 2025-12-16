@@ -2,12 +2,6 @@
 
 A Factorio mod that adds a chance for machines to upgrade in quality as they work. The harder they work, the more opportunities they get to change quality levels.
 
-## Difficulty Modes
-
-**Normal** - quality upgrades are earned through work and applied instantly, no items required in network inventory.
-
-**Uncommon** - the factory must have upgraded items in inventory, entities are only marked for upgrade for bots to handle. Only affects entities covered by construction networks that have an upgraded item available in network inventory.
-
 ## How It Works
 
 Quality Control will attempt to upgrade machines based on how hard they are working. The mod tracks actual manufacturing hours by accounting for recipe duration, ensuring fair progression - an assembler making gears will advance at the same rate as one making science packs.
@@ -160,7 +154,6 @@ The mod also automatically reinitializes if it detects corruption in the trackin
 
 All settings are configurable at game startup:
 
-- **Difficulty Mode**: Normal (free upgrades) or Uncommon (requires logistics network and construction bots)
 - **Manufacturing Hours for Change**: Base hours required before a quality change (0.001 - 1000 hours)
 - **Percentage Chance**: Likelihood of quality change when hours are met (0.0001% - 100%)
 - **Cost Increases per Quality Level**: Compounds the hour requirement at higher quality levels
@@ -252,7 +245,8 @@ quality-control/
 ├── scripts/             # Core mod logic (modular architecture)
 │   ├── core.lua             # Entity tracking, quality upgrade management, and batch processing
 │   ├── notifications.lua    # Notification and UI systems
-│   └── inventory.lua        # Inventory tracking for logistic networks
+│   ├── quality_selector.lua # Quality level selection logic
+│   └── exclusions.lua       # Entity and surface exclusion rules
 ├── locale/
 │   └── en/
 │       └── locale.cfg  # English localization strings

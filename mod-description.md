@@ -1,11 +1,5 @@
 This mod adds a chance for machines to upgrade in quality as they work. The harder they work, the more opportunities they get to change quality levels.
 
-## Difficulty Modes
----
-
-**Normal** - quality upgrades are earned through work and applied instantly, no items required in network inventory.
-**Uncommon** - the factory must have upgraded items in inventory, entities are only marked for upgrade for bots to handle. Only affects entities covered by construction networks that have an upgraded item available in network inventory.
-
 ## Gacha-style progression
 ---
 Individual machines roll for quality upgrades when they hit work milestones, similar to the chance-based progression of Factorio's quality system. By default there's a 1% chance per attempt, but you can adjust this up to 100% for guaranteed upgrades.
