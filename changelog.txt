@@ -10,7 +10,11 @@ Date: 16. 12. 2025
 Version: 1.8.1
 Date: 16. 12. 2025
   Bugfixes:
-    - Improved Factorissimo & Blueprint-Sandbox compatibility: entities in factories inside blueprint-sandboxes will no longer be upgrade targets. Thanks to Cris2435 for reporting this issue!
+    - Improved Factorissimo & Blueprint-Sandbox compatibility: entities inside factories inside
+      blueprint-sandboxes will no longer be upgrade targets. Thanks to Cris2435 for reporting this issue!
+  Modding:
+    - Solar Productivity compatibility fix is no longer needed (yay! thank you RedRafe!). Now upgraded
+      solar panels are tracked immediately instead of requiring a 60 second delay.
 ---------------------------------------------------------------------------------------------------
 Version: 1.8.0
 Date: 28. 11. 2025
