@@ -167,6 +167,46 @@ local function get_entity_item_name(entity)
   return nil
 end
 
+-- Check if Factorissimo remote interface is available
+local function factorissimo_available()
+  return remote.interfaces["factorissimo"] ~= nil
+end
+
+-- Find the factory that has the given surface as its inside_surface
+-- Returns nil if not found (surface is not a factory interior)
+local function find_factory_by_inside_surface(surface_index)
+  if not factorissimo_available() then return nil end
+  local factories = remote.call("factorissimo", "get_global", {"factories"})
+  if not factories then return nil end
+  for _, factory in pairs(factories) do
+    if factory.inside_surface and factory.inside_surface.valid
+       and factory.inside_surface.index == surface_index then
+      return factory
+    end
+  end
+  return nil
+end
+
+-- Find the root (outermost non-factory) surface for a factory floor
+-- Traverses up through nested factories until reaching a non-factory surface
+local function get_root_surface(surface, depth)
+  depth = depth or 0
+  if depth > 100 then return nil end  -- Prevent infinite recursion (factories can contain themselves)
+
+  local factory = find_factory_by_inside_surface(surface.index)
+  if not factory then return surface end  -- Not a factory interior, this is the root
+
+  local outside = factory.outside_surface
+  if not outside or not outside.valid then return nil end
+
+  -- If outside surface is also a factory floor, recurse
+  if remote.call("factorissimo", "is_factorissimo_surface", outside) then
+    return get_root_surface(outside, depth + 1)
+  end
+
+  return outside
+end
+
 -- Evaluate whether a surface should be excluded from entity tracking
 -- Called once per surface when created, result cached in storage.excluded_surfaces
 function core.evaluate_surface_exclusion(surface)
@@ -182,15 +222,14 @@ function core.evaluate_surface_exclusion(surface)
     return false
   end
 
-  -- Check for Factorissimo factory floor pattern
-  if string.match(name, "%-factory%-floor$") then
-    -- Extract base name (e.g., "nauvis" from "nauvis-factory-floor")
-    local base_name = string.gsub(name, "%-factory%-floor$", "")
-    -- Check if base name matches a real planet
-    if game.planets[base_name] then
-      return false -- Factory on a real planet
+  -- Check for Factorissimo factory floor (requires Factorissimo mod)
+  if factorissimo_available() and remote.call("factorissimo", "is_factorissimo_surface", surface) then
+    local root = get_root_surface(surface, 0)
+    if root then
+      -- If root is a sandbox, exclude; otherwise include
+      return string.sub(root.name, 1, 5) == "bpsb-"
     end
-    -- Numeric or unknown base (factory in sandbox) - exclude
+    -- Couldn't determine root - exclude to be safe
     return true
   end
 
