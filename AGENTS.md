@@ -31,25 +31,13 @@ Factorio's API and best practices are available via answer-agent.
 
 ## Core Functionality
 
-The mod assigns upgrade attempts based on manufacturing hours - a normalized measure of actual work completed.
+The mod assigns upgrade attempts based on manufacturing hours - a normalized measure of work completed.
 
 When entities reach manufacturing hour thresholds, they attempt quality upgrades:
 - Random roll compared against configured percentage chance (default 1%)
 - Failed attempts don't reset progress - entities continue accumulating hours
-- Maintains Factorio's random quality upgrade spirit
 
-The mod distinguishes between two entity categories:
-
-Primary Entities (assemblers, furnaces) which have a way to track exact manufacturing hours, and secondary entities which have no way to measure work (power poles, inserters, etc.)
-
-Primary entities generate upgrade credits that are used by themselves and secondary entities. Secondary entities consume these in a round-robin process. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
-
-## Mod Exclusion Logic
-
-The mod filters out entities that are incompatible with upgrades:
-- Non-selectable entities
-- Indestructible entities
-- Entities from certain mods
+This mod makes a distinction between primary entities (those whose hours of work can be tracked) and secondary entities (those that have no way to track work done). Primary entities generate credits that all other entities utilize for upgrade attempts.
 
 ## Development Testing
 
