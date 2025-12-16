@@ -113,7 +113,6 @@ local function build_and_store_config()
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
   settings_data.skip_hidden_qualities = settings.startup["quality_control_skip_hidden_qualities"].value
   settings_data.sticky_hidden_qualities = settings.startup["quality_control_hidden_qualities_sticky"].value
-  storage.config.mod_difficulty = settings.startup["mod-difficulty"].value
 
   local accumulation_rate_setting = settings.startup["quality-chance-accumulation-rate"].value
   settings_data.accumulation_percentage = 0
@@ -153,9 +152,6 @@ local function setup_data_structures(force_reset)
     storage.primary_entity_count = 0
     storage.secondary_entity_count = 0
     storage.accumulated_credits = 0
-    storage.upgrade_queue = {}
-    storage.upgrade_queue_index = 1
-    storage.network_inventory = {}
     storage.excluded_surfaces = {}
   end
 
@@ -202,18 +198,6 @@ local function setup_data_structures(force_reset)
 
   if not storage.quality_multipliers then
     storage.quality_multipliers = {}
-  end
-
-  if not storage.network_inventory then
-    storage.network_inventory = {}
-  end
-
-  if not storage.upgrade_queue then
-    storage.upgrade_queue = {}
-  end
-
-  if not storage.upgrade_queue_index then
-    storage.upgrade_queue_index = 1
   end
 
   if not storage.excluded_surfaces then
