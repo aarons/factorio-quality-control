@@ -7,13 +7,8 @@ Combines upgrade processing, entity tracking, and batch processing functionality
 ]]
 
 local notifications = require("scripts.notifications")
+local quality_selector = require("scripts.quality_selector")
 local core = {}
-
--- Quality bucket system for probability-based quality selection
-local BUCKET_COUNT = 1000
-local quality_buckets = {}
-local skip_hidden_qualities = false
-local sticky_hidden_qualities = true
 
 local tracked_entities = {}
 local settings_data = {}
@@ -28,93 +23,6 @@ local entity_list = {}
 local entity_list_index = {}
 local upgrade_queue = {}
 local module_upgrade_setting = "disabled"
-
--- Build a bucket array for a single starting quality
--- Each bucket contains a target quality name, distributed according to next_probability
-local function build_bucket_array(start_quality)
-  local buckets = {}
-  local idx = 1
-  local remaining_prob = 1.0
-  local current = start_quality.next
-
-  -- Walk chain until terminal quality or probability exhausted
-  while current and current.next and remaining_prob >= 0.0001 do
-    -- Skip hidden qualities if setting enabled
-    -- IMPORTANT: Do NOT apply the hidden quality's probability - pretend it doesn't exist
-    if skip_hidden_qualities and current.hidden then
-      current = current.next
-    else
-      -- Clamp next_probability to valid range (protect against buggy mods)
-      local continue_prob = math.max(0, math.min(1, current.next_probability or 0.1))
-      local stop_prob = 1 - continue_prob
-
-      -- Minimum 1 bucket ensures rare outcomes remain possible
-      local bucket_count = math.max(1, math.floor(remaining_prob * stop_prob * BUCKET_COUNT + 0.5))
-
-      -- Don't exceed remaining buckets
-      bucket_count = math.min(bucket_count, BUCKET_COUNT - idx + 1)
-
-      for _ = 1, bucket_count do
-        buckets[idx] = current.name
-        idx = idx + 1
-      end
-
-      remaining_prob = remaining_prob * continue_prob
-      current = current.next
-    end
-  end
-
-  -- Terminal quality gets remaining buckets
-  if current then
-    -- If terminal is hidden and we're skipping, find next non-hidden
-    if skip_hidden_qualities and current.hidden then
-      while current and current.hidden do
-        current = current.next
-      end
-    end
-
-    if current then
-      while idx <= BUCKET_COUNT do
-        buckets[idx] = current.name
-        idx = idx + 1
-      end
-    end
-  end
-
-  return buckets
-end
-
--- Precompute quality bucket lookup tables for all qualities
--- Called at init and on configuration change
-function core.precompute_quality_buckets()
-  quality_buckets = {}
-
-  for name, quality in pairs(prototypes.quality) do
-    -- Terminal quality: no upgrade path
-    if not quality.next then
-      quality_buckets[name] = nil
-    -- Sticky hidden: shiny entities don't upgrade
-    elseif sticky_hidden_qualities and quality.hidden then
-      quality_buckets[name] = nil
-    else
-      quality_buckets[name] = build_bucket_array(quality)
-    end
-  end
-end
-
--- Get the next quality for an upgrade using probability-weighted bucket selection
--- Returns nil if no upgrade path exists (terminal quality, sticky hidden, or empty buckets)
-local function next_quality(current_quality_name)
-  local buckets = quality_buckets[current_quality_name]
-  if not buckets or buckets[1] == nil then return nil end -- Terminal, sticky hidden, or empty
-  return buckets[math.random(1, BUCKET_COUNT)]
-end
-
--- Check if a quality has any upgrade path (for tracking decisions)
-local function has_upgrade_path(quality_name)
-  local buckets = quality_buckets[quality_name]
-  return buckets ~= nil and buckets[1] ~= nil
-end
 
 local module_identifiers = {
   ["agricultural-tower"] = defines.inventory.crafter_modules,
@@ -151,11 +59,12 @@ function core.initialize()
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
   module_upgrade_setting = settings_data.change_modules_with_entity
-  skip_hidden_qualities = settings_data.skip_hidden_qualities
-  sticky_hidden_qualities = settings_data.sticky_hidden_qualities
 
-  -- Precompute quality buckets for probability-based upgrades
-  core.precompute_quality_buckets()
+  -- Initialize quality selector with settings
+  quality_selector.initialize(
+    settings_data.skip_hidden_qualities,
+    settings_data.sticky_hidden_qualities
+  )
 end
 
 -- Get the item name for placing an entity
@@ -355,7 +264,7 @@ local function get_next_available_quality(networks, item_name, current_quality)
   -- Scan for next available quality across networks the entity is covered by
   while next_qual do
     -- Skip hidden qualities if setting enabled
-    if not (skip_hidden_qualities and next_qual.hidden) then
+    if not quality_selector.should_skip_quality(next_qual) then
       for _, network in ipairs(networks) do
         local network_id = network.network_id
         if network_inventory[network_id] and
@@ -380,8 +289,7 @@ function core.get_entity_info(entity)
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
-  -- Use has_upgrade_path to respect hidden quality settings
-  local can_upgrade = has_upgrade_path(entity.quality.name)
+  local can_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
   local should_track = can_upgrade or (is_primary and accumulate_at_max_quality)
   if not should_track then
     return "at max quality"
@@ -577,7 +485,7 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
   local entity_info = tracked_entities[unit_number]
 
   -- Select target quality using probability-weighted bucket system
-  local target_quality = next_quality(entity_quality)
+  local target_quality = quality_selector.get_next_quality(entity_quality)
   if not target_quality then return false end -- No upgrade path (terminal or sticky hidden)
 
   -- determine the chance that an upgrade will succeed
@@ -836,8 +744,7 @@ function core.batch_process_entities()
       goto continue
     end
 
-    -- Use has_upgrade_path to respect hidden quality settings
-    local can_still_upgrade = has_upgrade_path(entity.quality.name)
+    local can_still_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
 
     -- check if radar has reached it's limit
     if entity.type == "radar" and can_still_upgrade then
