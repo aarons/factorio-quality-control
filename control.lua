@@ -7,6 +7,7 @@ Handles initialization, event registration, configuration setup, and orchestrate
 
 local core = require("scripts.core")
 local notifications = require("scripts.notifications")
+local exclusions = require("scripts.exclusions")
 local solar_productivity = require("scripts.compatibility.solar-productivity")
 
 -- Entity type to setting name mappings
@@ -224,7 +225,7 @@ end
 local function populate_excluded_surfaces_cache()
   storage.excluded_surfaces = {}
   for _, surface in pairs(game.surfaces) do
-    storage.excluded_surfaces[surface.index] = core.evaluate_surface_exclusion(surface)
+    storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
   end
 end
 
@@ -285,8 +286,8 @@ local function register_event_handlers()
   end)
 
   -- Surface lifecycle events for exclusion cache
-  script.on_event(defines.events.on_surface_created, core.on_surface_created)
-  script.on_event(defines.events.on_surface_deleted, core.on_surface_deleted)
+  script.on_event(defines.events.on_surface_created, exclusions.on_surface_created)
+  script.on_event(defines.events.on_surface_deleted, exclusions.on_surface_deleted)
 
   -- Initialize compatibility modules
   solar_productivity.initialize()
