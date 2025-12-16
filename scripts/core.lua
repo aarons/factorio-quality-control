@@ -567,13 +567,9 @@ local function update_module_quality(entity)
 end
 
 local function attempt_upgrade_normal(entity, upgrade_credit)
-  -- Capture entity info upfront before any API calls that might invalidate the entity
   local unit_number = entity.unit_number
   local entity_name = entity.name
-  local entity_type = entity.type
   local entity_quality = entity.quality.name
-  local entity_force = entity.force.name
-  local entity_surface = entity.surface.name
   local entity_info = tracked_entities[unit_number]
 
   -- Select target quality using probability-weighted bucket system
@@ -601,22 +597,6 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
   core.remove_entity_info(unit_number)
   if not marked_for_upgrade then
     return false
-  end
-
-  -- TEMPORARY DIAGNOSTIC: Log if entity became invalid after order_upgrade
-  -- This helps identify what causes the "LuaEntity was invalid" error
-  if not entity.valid then
-    log("[Quality Control] Entity became invalid after order_upgrade! " ..
-        "unit_number=" .. tostring(unit_number) ..
-        ", name=" .. tostring(entity_name) ..
-        ", type=" .. tostring(entity_type) ..
-        ", quality=" .. tostring(entity_quality) ..
-        ", target_quality=" .. tostring(target_quality) ..
-        ", force=" .. tostring(entity_force) ..
-        ", surface=" .. tostring(entity_surface) ..
-        ", is_primary=" .. tostring(entity_info.is_primary) ..
-        ", marked_for_upgrade=" .. tostring(marked_for_upgrade))
-    return true  -- Entity was removed, tracking already cleaned up
   end
 
   local old_entity_energy = entity.energy

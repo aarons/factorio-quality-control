@@ -7,7 +7,6 @@ Handles initialization, event registration, configuration setup, and orchestrate
 
 local core = require("scripts.core")
 local notifications = require("scripts.notifications")
-local solar_productivity = require("scripts.compatibility.solar-productivity")
 
 -- Entity type to setting name mappings
 local entity_to_setting_map = {
@@ -288,8 +287,6 @@ local function register_event_handlers()
   script.on_event(defines.events.on_surface_created, core.on_surface_created)
   script.on_event(defines.events.on_surface_deleted, core.on_surface_deleted)
 
-  -- Initialize compatibility modules
-  solar_productivity.initialize()
 end
 
 -- Register console command
