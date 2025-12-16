@@ -16,7 +16,10 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:forums.factorio.com)",
       "WebFetch(domain:lua-api.factorio.com)",
-      "WebFetch(domain:wiki.factorio.com)"
+      "WebFetch(domain:wiki.factorio.com)",
+      "WebFetch(domain:mods.factorio.com)",
+      "Bash(find:*)",
+      "WebFetch(domain:api.github.com)"
     ],
     "deny": []
   }

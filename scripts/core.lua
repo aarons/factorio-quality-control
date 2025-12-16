@@ -483,10 +483,17 @@ local function update_module_quality(entity)
 end
 
 local function attempt_upgrade_normal(entity, upgrade_credit)
-  local entity_info = tracked_entities[entity.unit_number]
+  -- Capture entity info upfront before any API calls that might invalidate the entity
+  local unit_number = entity.unit_number
+  local entity_name = entity.name
+  local entity_type = entity.type
+  local entity_quality = entity.quality.name
+  local entity_force = entity.force.name
+  local entity_surface = entity.surface.name
+  local entity_info = tracked_entities[unit_number]
 
   -- Select target quality using probability-weighted bucket system
-  local target_quality = next_quality(entity.quality.name)
+  local target_quality = next_quality(entity_quality)
   if not target_quality then return false end -- No upgrade path (terminal or sticky hidden)
 
   -- determine the chance that an upgrade will succeed
@@ -500,16 +507,32 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
   end
 
   local marked_for_upgrade = entity.order_upgrade({
-    target = {name = entity.name, quality = target_quality},
+    target = {name = entity_name, quality = target_quality},
     force = entity.force
   })
 
   -- whether mark for upgrade succeeds or fails, we should remove the old entity from tracking
   -- if it failed: then we shouldn't try to upgrade it again as something went wrong
   -- if it succeeded, then we are about to replace the entity with the new upgrade
-  core.remove_entity_info(entity.unit_number)
+  core.remove_entity_info(unit_number)
   if not marked_for_upgrade then
     return false
+  end
+
+  -- TEMPORARY DIAGNOSTIC: Log if entity became invalid after order_upgrade
+  -- This helps identify what causes the "LuaEntity was invalid" error
+  if not entity.valid then
+    log("[Quality Control] Entity became invalid after order_upgrade! " ..
+        "unit_number=" .. tostring(unit_number) ..
+        ", name=" .. tostring(entity_name) ..
+        ", type=" .. tostring(entity_type) ..
+        ", quality=" .. tostring(entity_quality) ..
+        ", target_quality=" .. tostring(target_quality) ..
+        ", force=" .. tostring(entity_force) ..
+        ", surface=" .. tostring(entity_surface) ..
+        ", is_primary=" .. tostring(entity_info.is_primary) ..
+        ", marked_for_upgrade=" .. tostring(marked_for_upgrade))
+    return true  -- Entity was removed, tracking already cleaned up
   end
 
   local old_entity_energy = entity.energy

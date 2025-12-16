@@ -6,8 +6,6 @@ This is a Factorio mod called "Quality Control" that upgrades machine quality ov
 
 Keep code clear to understand for other engineers. Clarity is more important than brevity or clever solutions.
 
-Factorio's API and best practices are available via answer-agent.
-
 ## Repository Structure
 
 ### Configuration & Metadata

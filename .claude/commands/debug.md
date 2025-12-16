@@ -5,6 +5,5 @@ $ARGUMENTS
 
 Please do the following:
 - inspect the code and think through the root cause, what is likely the issue here?
-- use answer-agent to investigate factorio API details, or other mod implementation details if appropriate
 - do not try to fix the issue, but rather to understand well
 
