@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 1.8.1
+Date: 16. 12. 2025
+  Bugfixes:
+    - Improved Factorissimo & Blueprint-Sandbox compatibility: entities in factories inside blueprint-sandboxes will no longer be upgrade targets. Thanks to Cris2435 for reporting this issue!
+---------------------------------------------------------------------------------------------------
 Version: 1.8.0
 Date: 28. 11. 2025
   Features:
