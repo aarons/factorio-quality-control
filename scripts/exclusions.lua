@@ -38,15 +38,11 @@ end
 -- Returns nil if not found (surface is not a factory interior)
 local function find_factory_by_inside_surface(surface_index)
   if not factorissimo_available() then return nil end
-  local factories = remote.call("factorissimo", "get_global", {"factories"})
-  if not factories then return nil end
-  for _, factory in pairs(factories) do
-    if factory.inside_surface and factory.inside_surface.valid
-       and factory.inside_surface.index == surface_index then
-      return factory
-    end
-  end
-  return nil
+  local surface = game.get_surface(surface_index)
+  if not surface then return nil end
+  -- Use find_surrounding_factory which properly accesses storage.surface_factories
+  -- Position {0, 0} is always inside factory interiors
+  return remote.call("factorissimo", "find_surrounding_factory", surface, {x = 0, y = 0})
 end
 
 -- Find the root (outermost non-factory) surface for a factory floor
