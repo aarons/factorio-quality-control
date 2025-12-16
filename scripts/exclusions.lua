@@ -113,6 +113,23 @@ function exclusions.on_surface_deleted(event)
   end
 end
 
+-- Handler for surface rename - re-evaluate exclusion status
+function exclusions.on_surface_renamed(event)
+  local surface = game.surfaces[event.surface_index]
+  if surface and storage.excluded_surfaces then
+    storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
+  end
+end
+
+-- Handler for surface import - evaluate exclusion for imported surface
+function exclusions.on_surface_imported(event)
+  local surface = game.surfaces[event.surface_index]
+  if surface then
+    storage.excluded_surfaces = storage.excluded_surfaces or {}
+    storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
+  end
+end
+
 -- Check if an entity should be excluded from quality tracking
 function exclusions.should_exclude_entity(entity)
   if not entity.prototype.selectable_in_game then

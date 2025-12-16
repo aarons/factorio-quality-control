@@ -271,6 +271,8 @@ local function register_event_handlers()
   -- Surface lifecycle events for exclusion cache
   script.on_event(defines.events.on_surface_created, exclusions.on_surface_created)
   script.on_event(defines.events.on_surface_deleted, exclusions.on_surface_deleted)
+  script.on_event(defines.events.on_surface_renamed, exclusions.on_surface_renamed)
+  script.on_event(defines.events.on_surface_imported, exclusions.on_surface_imported)
 
 end
 
