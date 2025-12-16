@@ -22,6 +22,15 @@ local entity_list = {}
 local entity_list_index = {}
 local module_upgrade_setting = "disabled"
 
+local function get_recipe_time(entity)
+  if entity.get_recipe() then
+    return entity.get_recipe().prototype.energy
+  elseif entity.type == "furnace" and entity.previous_recipe then
+    return entity.previous_recipe.name.energy
+  end
+  return 0
+end
+
 function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
@@ -86,14 +95,7 @@ function core.get_entity_info(entity)
 
   -- Initialize manufacturing hours based on current products_finished
   -- This ensures we don't double-count hours for already-producing entities
-  local recipe_time = 0
-  if entity.get_recipe() then
-    recipe_time = entity.get_recipe().prototype.energy
-  elseif entity.type == "furnace" and entity.previous_recipe then
-    recipe_time = entity.previous_recipe.name.energy
-  end
-
-  local current_hours = (entity.products_finished * recipe_time) / 3600
+  local current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
   tracked_entities[id].manufacturing_hours = current_hours
 
   -- Calculate how many upgrade attempts would have occurred in the past
@@ -299,27 +301,9 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
 end
 
 
-function core.process_upgrade_attempts(entity, attempts_count)
-  local entity_name = entity.name
-  local entity_upgraded = attempt_upgrade_normal(entity, attempts_count)
-
-  if entity_upgraded then
-    return {[entity_name] = 1}
-  end
-
-  return {}
-end
-
 function core.process_primary_entity(entity_info, entity)
-  local recipe_time = 0
-  if entity.get_recipe() then
-    recipe_time = entity.get_recipe().prototype.energy
-  elseif entity.type == "furnace" and entity.previous_recipe then
-    recipe_time = entity.previous_recipe.name.energy
-  end
-
   local hours_needed = quality_multipliers[entity.quality.level]
-  local current_hours = (entity.products_finished * recipe_time) / 3600
+  local current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
   local previous_hours = entity_info.manufacturing_hours or 0
   local hours_worked = current_hours - previous_hours
   local credits_earned = hours_worked / hours_needed
@@ -365,7 +349,7 @@ function core.batch_process_entities()
     local entity_info = tracked_entities[unit_number]
     local entity = entity_info.entity
 
-    if not entity_info or not entity or not entity.valid then
+    if not entity or not entity.valid then
       core.remove_entity_info(unit_number)
       goto continue
     end
@@ -406,12 +390,12 @@ function core.batch_process_entities()
       result = core.process_secondary_entity()
     end
 
-    if result and can_still_upgrade and result.credits_earned > 0 then
-      local upgrades = core.process_upgrade_attempts(entity, result.credits_earned)
+    if can_still_upgrade and result.credits_earned > 0 then
+      local entity_name = entity.name
+      local entity_upgraded = attempt_upgrade_normal(entity, result.credits_earned)
 
-      local entity_name, count = next(upgrades)
-      if entity_name then
-        entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + count
+      if entity_upgraded then
+        entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + 1
       elseif entity_info.is_primary then
         -- it wasn't upgraded and is a primary entity
         -- update hours so that we don't add more credits for the same hours next time
