@@ -155,6 +155,7 @@ local function setup_data_structures(force_reset)
     storage.upgrade_queue = {}
     storage.upgrade_queue_index = 1
     storage.network_inventory = {}
+    storage.excluded_surfaces = {}
   end
 
   if not storage.quality_control_entities then
@@ -213,6 +214,18 @@ local function setup_data_structures(force_reset)
   if not storage.upgrade_queue_index then
     storage.upgrade_queue_index = 1
   end
+
+  if not storage.excluded_surfaces then
+    storage.excluded_surfaces = {}
+  end
+end
+
+-- Populate excluded_surfaces cache for all existing surfaces
+local function populate_excluded_surfaces_cache()
+  storage.excluded_surfaces = {}
+  for _, surface in pairs(game.surfaces) do
+    storage.excluded_surfaces[surface.index] = core.evaluate_surface_exclusion(surface)
+  end
 end
 
 local function reinitialize_quality_control_storage(command)
@@ -225,6 +238,7 @@ local function reinitialize_quality_control_storage(command)
 
   setup_data_structures(true)
   build_and_store_config()
+  populate_excluded_surfaces_cache()
   core.initialize()
   core.scan_and_populate_entities()
 
@@ -270,6 +284,10 @@ local function register_event_handlers()
     end
   end)
 
+  -- Surface lifecycle events for exclusion cache
+  script.on_event(defines.events.on_surface_created, core.on_surface_created)
+  script.on_event(defines.events.on_surface_deleted, core.on_surface_deleted)
+
   -- Initialize compatibility modules
   solar_productivity.initialize()
 end
@@ -283,6 +301,7 @@ commands.add_command("quality-control-init", "Reinitialize Quality Control stora
 script.on_init(function()
   setup_data_structures()
   build_and_store_config()
+  populate_excluded_surfaces_cache()
   core.initialize()
   core.scan_and_populate_entities()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value

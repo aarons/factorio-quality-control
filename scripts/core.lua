@@ -167,6 +167,51 @@ local function get_entity_item_name(entity)
   return nil
 end
 
+-- Evaluate whether a surface should be excluded from entity tracking
+-- Called once per surface when created, result cached in storage.excluded_surfaces
+function core.evaluate_surface_exclusion(surface)
+  local name = surface.name
+
+  -- Direct blueprint-sandbox surfaces: bpsb-lab-* or bpsb-sb-*
+  if string.sub(name, 1, 5) == "bpsb-" then
+    return true
+  end
+
+  -- Surface has a planet - it's a real game surface
+  if surface.planet then
+    return false
+  end
+
+  -- Check for Factorissimo factory floor pattern
+  if string.match(name, "%-factory%-floor$") then
+    -- Extract base name (e.g., "nauvis" from "nauvis-factory-floor")
+    local base_name = string.gsub(name, "%-factory%-floor$", "")
+    -- Check if base name matches a real planet
+    if game.planets[base_name] then
+      return false -- Factory on a real planet
+    end
+    -- Numeric or unknown base (factory in sandbox) - exclude
+    return true
+  end
+
+  -- Unknown surface without planet - include by default
+  return false
+end
+
+-- Handler for surface creation - evaluate and cache exclusion status
+function core.on_surface_created(event)
+  local surface = event.surface
+  storage.excluded_surfaces = storage.excluded_surfaces or {}
+  storage.excluded_surfaces[surface.index] = core.evaluate_surface_exclusion(surface)
+end
+
+-- Handler for surface deletion - clean up cache
+function core.on_surface_deleted(event)
+  if storage.excluded_surfaces then
+    storage.excluded_surfaces[event.surface_index] = nil
+  end
+end
+
 -- Exclude entities that shouldn't be upgraded
 local function should_exclude_entity(entity)
   if not entity.prototype.selectable_in_game then
@@ -177,8 +222,8 @@ local function should_exclude_entity(entity)
     return true
   end
 
-  -- exclude entities in a blueprint sandbox
-  if string.sub(entity.surface.name, 1, 5) == "bpsb-" then
+  -- exclude entities on sandbox surfaces or factories inside sandboxes
+  if storage.excluded_surfaces and storage.excluded_surfaces[entity.surface.index] then
     return true
   end
 
