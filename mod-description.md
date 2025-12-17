@@ -10,7 +10,7 @@ If an upgrade attempt fails, the machine tries again when it reaches the next mi
 ___
 Every assembler progresses at the same rate when actively working. An assembler making iron gears will upgrade just as fast as one making science packs - what matters is the time spent working, not what they're making.
 
-Crafting speed does impact progression though; an assembler with crafting speed of 2 will change twice as fast as an assembler with crafting speed 1.
+Crafting speed impacts progression - an assembler with crafting speed of 2 will change twice as fast as an assembler with crafting speed 1.
 
 ## Works with the whole factory
 ___
@@ -76,14 +76,14 @@ Some modded entities don't do well with quality changes. This mod is generally s
 - [Bulk Rail Loader 2.0 Temporary Patch](https://mods.factorio.com/mod/railloader2-patch)
 - [Miniloader Redux](https://mods.factorio.com/mod/miniloader-redux)
 
-In general, this mod avoids altering entities in the game that are hidden or indestructible.
+In general, this mod avoids altering hidden or indestructible entities in the game.
 
 
 **Unsupported Vanilla Entity Types**
 
 There are a few entity types that are not supported: belts, pipes, rails, and storage containers.
 
-There are edge cases to handle (and test) before adding support. Things such as UPS impacts of belts with varying quality segments, rail signals being replaced at the wrong moment causing accidents, storage containers changing size and losing blocked slots etc. Also, having everything with mixed quality has other gameplay impacts, such as making it hard to copy/paste parts of the factory, and blowing up the players inventory.
+It seems impractical to add those. It's very disruptive having mixed qualities on those kind of infrastructure items (makes it hard to copy/paste among other issues). Also not sure if there is a UPS impact if there are lots of quality changes on connected belts and pipes.
 
 ## Localization
 ---
@@ -103,6 +103,3 @@ This mod was inspired by a few others:
 [Level Up](https://mods.factorio.com/mod/levelup)
 [Upgradeable Quality](https://mods.factorio.com/mod/upgradeable-quality)
 
----
-
-*More technical details and performance info is available on the [github repo](https://github.com/aarons/factorio-quality-control)*
