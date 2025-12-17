@@ -5,7 +5,7 @@ Date: 16. 12. 2025
     - Removed "Uncommon" difficulty mode setting. I don't think anyone was using this, and wasn't happy
       with the implementation or that it was designed to required a choice between one mode or another.
       For now it seems better as a standalone mod. The BeltUpgrader mod by Mylon has a nice approach and
-      looks good for this usecase.
+      looks good for this usecase. If you were using this mode, please let me know! It can be added back.
     - Reorganized internal code structure for improved maintainability
   Modding:
     - ControlTech entities can now upgraded :D
