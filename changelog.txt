@@ -1,4 +1,21 @@
 ---------------------------------------------------------------------------------------------------
+<<<<<<< Updated upstream
+=======
+Version: 2.0.0
+Date: 16. 12. 2025
+  Changes:
+    - Removed "Uncommon" difficulty mode setting. I don't think anyone was using this, and wasn't happy
+      with the implementation or that it was designed to required a choice between one mode or another.
+      For now it seems better as a standalone mod. The BeltUpgrader mod by Mylon has a nice approach and
+      looks good for this usecase.
+    - Reorganized internal code structure for improved maintainability
+  Modding:
+    - ControlTech entities can now upgraded :D
+  Bugfixes:
+    - Fixed a crash when Blueprint Sandboxes creates new surfaces, such as when switching between
+      sandbox scenarios.
+---------------------------------------------------------------------------------------------------
+>>>>>>> Stashed changes
 Version: 1.8.1
 Date: 16. 12. 2025
   Bugfixes:
