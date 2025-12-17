@@ -11,7 +11,6 @@ local exclusions = {}
 -- Mods with fast_replace issues that should be excluded
 local excluded_mods_lookup = {
   ["ammo-loader"] = true,
-  ["fct-ControlTech"] = true, -- patch requested, may be able to remove once they are greater than version 2.0.5
   ["miniloader-redux"] = true,
   ["quality-condenser"] = true,
   ["railloader2-patch"] = true,
@@ -68,6 +67,9 @@ end
 -- Evaluate whether a surface should be excluded from entity tracking
 -- Called once per surface when created, result cached in storage.excluded_surfaces
 function exclusions.evaluate_surface_exclusion(surface)
+  if not surface or not surface.valid then
+    return true  -- Exclude invalid surfaces to be safe
+  end
   local name = surface.name
 
   -- Direct blueprint-sandbox surfaces: bpsb-lab-* or bpsb-sb-*
@@ -97,7 +99,8 @@ end
 
 -- Handler for surface creation - evaluate and cache exclusion status
 function exclusions.on_surface_created(event)
-  local surface = event.surface
+  local surface = game.surfaces[event.surface_index]
+  if not surface then return end
   storage.excluded_surfaces = storage.excluded_surfaces or {}
   storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
 end
@@ -136,7 +139,10 @@ function exclusions.should_exclude_entity(entity)
     return true
   end
 
-  -- exclude entities on sandbox surfaces or factories inside sandboxes
+  -- exclude entities on invalid or excluded surfaces
+  if not entity.surface or not entity.surface.valid then
+    return true
+  end
   if storage.excluded_surfaces and storage.excluded_surfaces[entity.surface.index] then
     return true
   end

@@ -72,7 +72,6 @@ Some modded entities don't do well with quality changes. This mod is generally s
 - [Warp Drive Machine](https://mods.factorio.com/mod/Warp-Drive-Machine)
 - [Quality Condenser](https://mods.factorio.com/mod/quality-condenser)
 - [Realistic Reactors Reborn](https://mods.factorio.com/mod/RealisticReactorsReborn)
-- [ControlTech updated for Factorio 2](https://mods.factorio.com/mod/fct-ControlTech)
 - [Circuit-Controlled Routers](https://mods.factorio.com/mod/router)
 - [Bulk Rail Loader 2.0 Temporary Patch](https://mods.factorio.com/mod/railloader2-patch)
 - [Miniloader Redux](https://mods.factorio.com/mod/miniloader-redux)
