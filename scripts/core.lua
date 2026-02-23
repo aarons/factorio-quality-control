@@ -258,11 +258,6 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     return false
   end
 
-  -- Another mod may have replaced the entity during on_marked_for_upgrade (e.g. blueprint-sandboxes)
-  if not entity.valid then
-    return true
-  end
-
   local old_entity_energy = entity.energy
   local old_always_on = nil
   if entity.type == "lamp" then
