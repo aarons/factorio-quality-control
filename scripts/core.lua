@@ -258,6 +258,11 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     return false
   end
 
+  -- Another mod may have replaced the entity during on_marked_for_upgrade (e.g. blueprint-sandboxes)
+  if not entity.valid then
+    return true
+  end
+
   local old_entity_energy = entity.energy
   local old_always_on = nil
   if entity.type == "lamp" then
@@ -331,6 +336,12 @@ function core.batch_process_entities()
     local entity = entity_info.entity
 
     if not entity or not entity.valid then
+      core.remove_entity_info(unit_number)
+      goto continue
+    end
+
+    -- Safety: remove entity if it's on an excluded surface (e.g. blueprint sandbox)
+    if storage.excluded_surfaces and storage.excluded_surfaces[entity.surface.index] then
       core.remove_entity_info(unit_number)
       goto continue
     end
