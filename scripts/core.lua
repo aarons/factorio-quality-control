@@ -245,6 +245,7 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     return false
   end
 
+  -- capture lamp settings and accumulator energy, to transfer to the new entity
   local old_entity_energy = entity.energy
   local old_always_on = nil
   if entity.type == "lamp" then
