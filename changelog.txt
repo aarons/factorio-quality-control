@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.0.1
+Date: 24. 02. 2026
+  Bugfixes:
+    - Fixed quality upgrade alerts not appearing on the map when entities are upgraded
+    - Potentially fixed a compatability issue with blueprint sandboxes. Thanks to 380958934 for reporting this!
+---------------------------------------------------------------------------------------------------
 Version: 2.0.0
 Date: 16. 12. 2025
   Changes:
