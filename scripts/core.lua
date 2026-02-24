@@ -245,6 +245,12 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     return false
   end
 
+  local old_entity_energy = entity.energy
+  local old_always_on = nil
+  if entity.type == "lamp" then
+    old_always_on = entity.always_on
+  end
+
   local marked_for_upgrade = entity.order_upgrade({
     target = {name = entity_name, quality = target_quality},
     force = entity.force
@@ -258,10 +264,9 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     return false
   end
 
-  local old_entity_energy = entity.energy
-  local old_always_on = nil
-  if entity.type == "lamp" then
-    old_always_on = entity.always_on
+  -- another mod's event handler may have destroyed/replaced the entity
+  if not entity.valid then
+    return false
   end
 
   -- apply_upgrade can return up to two entities
@@ -367,6 +372,7 @@ function core.batch_process_entities()
     local result
     if entity_info.is_primary then
       result = core.process_primary_entity(entity_info, entity)
+      entity_info.manufacturing_hours = result.current_hours
     else
       result = core.process_secondary_entity()
     end
@@ -374,13 +380,8 @@ function core.batch_process_entities()
     if can_still_upgrade and result.credits_earned > 0 then
       local entity_name = entity.name
       local entity_upgraded = attempt_upgrade_normal(entity, result.credits_earned)
-
       if entity_upgraded then
         entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + 1
-      elseif entity_info.is_primary then
-        -- it wasn't upgraded and is a primary entity
-        -- update hours so that we don't add more credits for the same hours next time
-        entity_info.manufacturing_hours = result.current_hours
       end
     end
 
