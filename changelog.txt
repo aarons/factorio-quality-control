@@ -12,6 +12,7 @@ Date: 16. 12. 2025
   Bugfixes:
     - Fixed a crash when Blueprint Sandboxes creates new surfaces, such as when switching between
       sandbox scenarios.
+    - Fixed a crash during quality upgrades when another mod replaces or destroys the entity being upgraded.
 ---------------------------------------------------------------------------------------------------
 Version: 1.8.1
 Date: 16. 12. 2025
