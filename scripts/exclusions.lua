@@ -66,13 +66,13 @@ end
 
 -- Evaluate whether a surface should be excluded from entity tracking
 -- Called once per surface when created, result cached in storage.excluded_surfaces
-function exclusions.evaluate_surface_exclusion(surface)
+function exclusions.should_exclude_surface(surface)
   if not surface or not surface.valid then
     return true  -- Exclude invalid surfaces to be safe
   end
   local name = surface.name
 
-  -- Direct blueprint-sandbox surfaces: bpsb-lab-* or bpsb-sb-*
+  -- Detect blueprint-sandbox surfaces: bpsb-lab-* or bpsb-sb-*
   if string.sub(name, 1, 5) == "bpsb-" then
     return true
   end
@@ -102,7 +102,7 @@ function exclusions.on_surface_created(event)
   local surface = game.surfaces[event.surface_index]
   if not surface then return end
   storage.excluded_surfaces = storage.excluded_surfaces or {}
-  storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
+  storage.excluded_surfaces[surface.index] = exclusions.should_exclude_surface(surface)
 end
 
 -- Handler for surface deletion - clean up cache
@@ -116,7 +116,7 @@ end
 function exclusions.on_surface_renamed(event)
   local surface = game.surfaces[event.surface_index]
   if surface and storage.excluded_surfaces then
-    storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
+    storage.excluded_surfaces[surface.index] = exclusions.should_exclude_surface(surface)
   end
 end
 
@@ -125,7 +125,7 @@ function exclusions.on_surface_imported(event)
   local surface = game.surfaces[event.surface_index]
   if surface then
     storage.excluded_surfaces = storage.excluded_surfaces or {}
-    storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
+    storage.excluded_surfaces[surface.index] = exclusions.should_exclude_surface(surface)
   end
 end
 

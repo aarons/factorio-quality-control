@@ -281,7 +281,7 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
       new_entity_1.always_on = old_always_on
     end
     update_module_quality(new_entity_1)
-    notifications.show_entity_quality_alert(new_entity_1, target_quality.name)
+    notifications.show_entity_quality_alert(new_entity_1, target_quality)
   end
 
   return true

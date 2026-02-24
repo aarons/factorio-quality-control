@@ -208,7 +208,7 @@ end
 local function populate_excluded_surfaces_cache()
   storage.excluded_surfaces = {}
   for _, surface in pairs(game.surfaces) do
-    storage.excluded_surfaces[surface.index] = exclusions.evaluate_surface_exclusion(surface)
+    storage.excluded_surfaces[surface.index] = exclusions.should_exclude_surface(surface)
   end
 end
 
