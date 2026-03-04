@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.0.2
+Date: 04. 03. 2026
+  Features:
+    - Re-enabled rocket silo quality control. The "send to orbit automatically" setting is now
+      preserved during upgrades using the newly available API.
+    - New "Rocket Silos" setting to enable or disable rocket silo quality upgrades (enabled by default)
+  Translation:
+    - Added localization for the new rocket silo setting
+---------------------------------------------------------------------------------------------------
 Version: 2.0.0
 Date: 16. 12. 2025
   Changes:
