@@ -264,6 +264,13 @@ data:extend({
     },
     {
         type = "bool-setting",
+        name = "enable-rocket-silos",
+        setting_type = "startup",
+        default_value = true,
+        order = "d-20a"
+    },
+    {
+        type = "bool-setting",
         name = "enable-roboports",
         setting_type = "startup",
         default_value = true,

@@ -1,12 +1,15 @@
 --[[
 Migration 1.3.1 - Remove rocket silo tracking entirely
 
-This migration removes rocket silos from Quality Control tracking entirely due to an issue
-discovered by Stargateur where upgrading rocket silos resets the 'send to orbit automatically'
-setting. Since we cannot preserve this setting through the modding API, rocket silos are no
-longer supported by the mod.
+This migration was originally added because upgrading rocket silos reset the
+'send to orbit automatically' setting, and the modding API had no way to preserve it.
 
-This migration removes any existing rocket silos from tracking and informs users of the change.
+Rocket silo support has since been re-added now that LuaEntity.send_to_orbit_automatically
+is available as a read/write property. The mod's entity rescan on configuration change will
+automatically pick up rocket silos again.
+
+This migration still runs for saves upgrading from pre-1.3.1 versions to clean up any
+rocket silos that were tracked under the old (broken) behavior.
 ]]
 
 log("[Quality Control Migration 1.3.1] Starting migration - removing rocket silo tracking")

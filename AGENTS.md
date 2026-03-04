@@ -30,7 +30,7 @@ Keep code clear to understand for other engineers. Clarity is more important tha
 
 ### Localizations
 
-Only update the English localization at `locale/en/locale.cfg` unless specifically asked. Generally we have others manage the non-english localizations.
+Only update the English localization at `locale/en/locale.cfg` unless specifically asked. Generally we have others manage the non-english localizations. When adding new locale keys (e.g. for a new setting), locale test failures for non-English files are expected and can be ignored — translations are handled by another developer.
 
 ## Core Functionality
 

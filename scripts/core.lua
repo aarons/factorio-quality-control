@@ -263,6 +263,10 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
   if entity.type == "lamp" then
     old_always_on = entity.always_on
   end
+  local old_send_to_orbit_automatically = nil
+  if entity.type == "rocket-silo" then
+    old_send_to_orbit_automatically = entity.send_to_orbit_automatically
+  end
 
   -- apply_upgrade can return up to two entities
   -- not sure when we would get multiple entities back, but in this case we just need to
@@ -273,6 +277,9 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     new_entity_1.energy = old_entity_energy
     if old_always_on ~= nil then
       new_entity_1.always_on = old_always_on
+    end
+    if old_send_to_orbit_automatically ~= nil then
+      new_entity_1.send_to_orbit_automatically = old_send_to_orbit_automatically
     end
     update_module_quality(new_entity_1)
   end
