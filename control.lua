@@ -14,6 +14,7 @@ local entity_to_setting_map = {
   -- Production entities (includes primary entities)
   ["assembling-machine"] = "enable-assembly-machines",
   ["furnace"] = "enable-furnaces",
+  ["rocket-silo"] = "enable-rocket-silos",
   ["agricultural-tower"] = "enable-agricultural-towers",
   ["mining-drill"] = "enable-mining-drills",
 
@@ -57,7 +58,7 @@ local entity_to_setting_map = {
 }
 
 -- Primary entity types for determining manufacturing hours logic
-local primary_entity_types = {"assembling-machine", "furnace"}
+local primary_entity_types = {"assembling-machine", "furnace", "rocket-silo"}
 
 local function build_entity_type_lists()
   local primary_types = {}
@@ -67,7 +68,7 @@ local function build_entity_type_lists()
   -- Build lists by checking individual entity type settings
   for entity_type, setting_name in pairs(entity_to_setting_map) do
     if settings.startup[setting_name].value then
-      if entity_type == "assembling-machine" or entity_type == "furnace" then
+      if entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo" then
         table.insert(primary_types, entity_type)
       else
         table.insert(secondary_types, entity_type)
