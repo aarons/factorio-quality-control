@@ -58,7 +58,10 @@ local entity_to_setting_map = {
 }
 
 -- Primary entity types for determining manufacturing hours logic
-local primary_entity_types = {"assembling-machine", "furnace", "rocket-silo"}
+local primary_entity_types = {
+  "assembling-machine", "furnace", "rocket-silo",
+  "turret", "ammo-turret", "electric-turret", "fluid-turret", "artillery-turret"
+}
 
 local function build_entity_type_lists()
   local primary_types = {}
@@ -68,7 +71,9 @@ local function build_entity_type_lists()
   -- Build lists by checking individual entity type settings
   for entity_type, setting_name in pairs(entity_to_setting_map) do
     if settings.startup[setting_name].value then
-      if entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo" then
+      if entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo"
+        or entity_type == "turret" or entity_type == "ammo-turret" or entity_type == "electric-turret"
+        or entity_type == "fluid-turret" or entity_type == "artillery-turret" then
         table.insert(primary_types, entity_type)
       else
         table.insert(secondary_types, entity_type)
@@ -111,6 +116,7 @@ local function build_and_store_config()
   settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
   settings_data.lightning_attractor_growth_level_limit = settings.startup["lightning-attractor-growth-level-limit"].value
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
+  settings_data.turret_damage_per_manufacturing_hour = settings.startup["turret-damage-per-manufacturing-hour"].value
   settings_data.skip_hidden_qualities = settings.startup["quality_control_skip_hidden_qualities"].value
   settings_data.sticky_hidden_qualities = settings.startup["quality_control_hidden_qualities_sticky"].value
 
