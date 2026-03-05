@@ -296,5 +296,14 @@ data:extend({
         setting_type = "startup",
         default_value = true,
         order = "d-24"
+    },
+    {
+        type = "double-setting",
+        name = "turret-damage-per-manufacturing-hour",
+        setting_type = "startup",
+        default_value = 36000,
+        min_value = 1,
+        max_value = 10000000,
+        order = "d-24a"
     }
 })

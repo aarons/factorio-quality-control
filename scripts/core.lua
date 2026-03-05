@@ -21,6 +21,12 @@ local accumulation_percentage = nil
 local entity_list = {}
 local entity_list_index = {}
 local module_upgrade_setting = "disabled"
+local turret_damage_per_manufacturing_hour = 36000
+
+local turret_types = {
+  ["turret"] = true, ["ammo-turret"] = true, ["electric-turret"] = true,
+  ["fluid-turret"] = true, ["artillery-turret"] = true,
+}
 
 local function get_recipe_time(entity)
   if entity.get_recipe() then
@@ -42,6 +48,7 @@ function core.initialize()
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
   module_upgrade_setting = settings_data.change_modules_with_entity
+  turret_damage_per_manufacturing_hour = settings_data.turret_damage_per_manufacturing_hour
 
   -- Initialize quality selector with settings
   quality_selector.initialize(
@@ -53,7 +60,8 @@ end
 
 function core.get_entity_info(entity)
   local id = entity.unit_number
-  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace")
+  local is_turret = turret_types[entity.type] or false
+  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace" or is_turret)
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
   local can_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
@@ -75,6 +83,7 @@ function core.get_entity_info(entity)
   tracked_entities[id] = {
     entity = entity,
     is_primary = is_primary,
+    is_turret = is_turret,
     chance_to_change = base_percentage_chance
   }
 
@@ -93,9 +102,14 @@ function core.get_entity_info(entity)
     return tracked_entities[id]
   end
 
-  -- Initialize manufacturing hours based on current products_finished
-  -- This ensures we don't double-count hours for already-producing entities
-  local current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
+  -- Initialize manufacturing hours based on current activity
+  -- This ensures we don't double-count hours for already-active entities
+  local current_hours
+  if is_turret then
+    current_hours = entity.damage_dealt / turret_damage_per_manufacturing_hour
+  else
+    current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
+  end
   tracked_entities[id].manufacturing_hours = current_hours
 
   -- Calculate how many upgrade attempts would have occurred in the past
@@ -297,7 +311,12 @@ end
 
 function core.process_primary_entity(entity_info, entity)
   local hours_needed = quality_multipliers[entity.quality.level]
-  local current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
+  local current_hours
+  if entity_info.is_turret then
+    current_hours = entity.damage_dealt / turret_damage_per_manufacturing_hour
+  else
+    current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
+  end
   local previous_hours = entity_info.manufacturing_hours or 0
   local hours_worked = current_hours - previous_hours
   local credits_earned = hours_worked / hours_needed
