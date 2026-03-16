@@ -383,6 +383,20 @@ function core.batch_process_entities()
       end
     end
 
+    -- check if thruster has reached its limit
+    if entity.type == "thruster" and can_still_upgrade then
+      if entity.quality.level >= (settings_data.thruster_growth_level_limit - 1) then
+        can_still_upgrade = false
+      end
+    end
+
+    -- check if asteroid collector has reached its limit
+    if entity.type == "asteroid-collector" and can_still_upgrade then
+      if entity.quality.level >= (settings_data.asteroid_collector_growth_level_limit - 1) then
+        can_still_upgrade = false
+      end
+    end
+
     -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
     local should_stay_tracked = can_still_upgrade or (entity_info.is_primary and accumulate_at_max_quality)
     if not should_stay_tracked then
