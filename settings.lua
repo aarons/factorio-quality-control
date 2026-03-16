@@ -143,7 +143,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-combinators-and-speakers",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-06"
     },
     {
@@ -171,7 +171,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-heat-pipes",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-10"
     },
     {
@@ -192,7 +192,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-lamps",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-13"
     },
     {
@@ -213,14 +213,14 @@ data:extend({
         type = "bool-setting",
         name = "enable-poles",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-16"
     },
     {
         type = "bool-setting",
         name = "enable-power-switches",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-17"
     },
     {

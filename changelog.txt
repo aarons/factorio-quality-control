@@ -1,4 +1,13 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.1.1
+Date: 15. 03. 2026
+  Changes:
+    - Changed the default setting for combinators, speakers, heat pipes, lamps, power poles,
+      and power switches to not upgrade. This only affects new mod installs; existing playthroughs
+      and mod installations are not affected. The entities can still be enabled in startup settings.
+      This was done because changing quality on those entities can be disruptive or bothersome in
+      some circumstances.
+---------------------------------------------------------------------------------------------------
 Version: 2.1.0
 Date: 04. 03. 2026
   Features:
