@@ -1,4 +1,9 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.1.2
+Date: 24. 03. 2026
+  Features:
+    - Added quality upgrade support for fusion reactors and fusion generators from Space Age.
+---------------------------------------------------------------------------------------------------
 Version: 2.1.1
 Date: 15. 03. 2026
   Changes:
