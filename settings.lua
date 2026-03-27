@@ -126,6 +126,15 @@ data:extend({
         order = "d-03"
     },
     {
+        type = "int-setting",
+        name = "asteroid-collector-growth-level-limit",
+        setting_type = "startup",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-03a"
+    },
+    {
         type = "bool-setting",
         name = "enable-beacons",
         setting_type = "startup",
@@ -143,7 +152,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-combinators-and-speakers",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-06"
     },
     {
@@ -171,7 +180,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-heat-pipes",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-10"
     },
     {
@@ -192,7 +201,7 @@ data:extend({
         type = "bool-setting",
         name = "enable-lamps",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-13"
     },
     {
@@ -213,14 +222,14 @@ data:extend({
         type = "bool-setting",
         name = "enable-poles",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-16"
     },
     {
         type = "bool-setting",
         name = "enable-power-switches",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-17"
     },
     {
@@ -287,8 +296,17 @@ data:extend({
         type = "bool-setting",
         name = "enable-thrusters",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
         order = "d-23"
+    },
+    {
+        type = "int-setting",
+        name = "thruster-growth-level-limit",
+        setting_type = "startup",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-23a"
     },
     {
         type = "bool-setting",

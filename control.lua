@@ -24,6 +24,8 @@ local entity_to_setting_map = {
   ["accumulator"] = "enable-accumulators",
   ["generator"] = "enable-generators",
   ["reactor"] = "enable-reactors",
+  ["fusion-reactor"] = "enable-reactors",
+  ["fusion-generator"] = "enable-generators",
   ["boiler"] = "enable-boilers",
   ["heat-pipe"] = "enable-heat-pipes",
   ["power-switch"] = "enable-power-switches",
@@ -115,6 +117,8 @@ local function build_and_store_config()
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
   settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
   settings_data.lightning_attractor_growth_level_limit = settings.startup["lightning-attractor-growth-level-limit"].value
+  settings_data.thruster_growth_level_limit = settings.startup["thruster-growth-level-limit"].value
+  settings_data.asteroid_collector_growth_level_limit = settings.startup["asteroid-collector-growth-level-limit"].value
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
   settings_data.turret_damage_per_manufacturing_hour = settings.startup["turret-damage-per-manufacturing-hour"].value
   settings_data.skip_hidden_qualities = settings.startup["quality_control_skip_hidden_qualities"].value
