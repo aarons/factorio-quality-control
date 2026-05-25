@@ -2,7 +2,7 @@ This mod adds a chance for machines to upgrade in quality as they work.
 
 ## Gacha-style progression
 ---
-Individual machines roll for quality upgrades when they hit work milestones, similar to the chance-based progression of Factorio's quality system. By default there's a 1% chance per 3 hours of crafting, but you can adjust both the chance of success and the time of work required.
+Individual machines roll for quality upgrades as they work. By default there's a 1% chance per 3 hours of crafting, but you can adjust both the chance of success and the time of work required.
 
 ## Fair assembler treatment
 ___
@@ -12,7 +12,7 @@ Crafting speed does impact progression; so an assembler with speed modules will 
 
 ## Works with the whole factory
 ___
-Just about all entity types are supported:
+Most entity types are supported:
 
 - Manufacturing: assembling machines, furnaces, rocket silos
 - Producers: mining drills, agriculture towers, water pumps
@@ -28,7 +28,7 @@ Entity types can be toggled on or off in the settings if you want to avoid affec
 ---
 It's very configurable. Almost all settings can be enabled/disabled or min/maxed to fairly extreme levels.
 
-Here are the main options:
+Here are the main concepts and options:
 
 **Work hours needed**
 
@@ -99,12 +99,11 @@ Some modded entities don't do well with quality changes. This mod is generally s
 
 In general, this mod avoids altering hidden or indestructible entities in the game.
 
-
 **Unsupported Entity Types**
 
 There are a few entity types that are not supported: belts, pipes, rails, and storage containers.
 
-It's very disruptive having mixed qualities on those kind of infrastructure items (makes it hard to copy/paste among other issues). Also not sure if there is a UPS impact if there are lots of quality changes on connected belts and pipes.
+It's disruptive having mixed qualities on those kind of infrastructure items (makes it hard to copy/paste among other issues). Also not sure if there is a UPS impact if there are lots of quality changes on connected belts and pipes.
 
 
 ## Localization
