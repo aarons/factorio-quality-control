@@ -8,10 +8,13 @@ Includes Factorissimo compatibility for nested factory detection.
 
 local exclusions = {}
 
--- Mods with fast_replace issues that should be excluded
+-- Entities created by these mods are never tracked or upgraded.
+-- Most have fast_replace issues; planet-muluna script-manages its entities
+-- (e.g. the telescope) and replacing them breaks that mod's tracking.
 local excluded_mods_lookup = {
   ["ammo-loader"] = true,
   ["miniloader-redux"] = true,
+  ["planet-muluna"] = true,
   ["quality-condenser"] = true,
   ["railloader2-patch"] = true,
   ["RealisticReactorsReborn"] = true,
