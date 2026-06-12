@@ -14,6 +14,7 @@ local core = {}
 local tracked_entities = {}
 local settings_data = {}
 local is_tracked_type = {}
+local can_attempt_quality_change = {}
 local quality_multipliers = {}
 local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
@@ -41,6 +42,7 @@ function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
   is_tracked_type = storage.config.is_tracked_type
+  can_attempt_quality_change = storage.config.can_attempt_quality_change
   quality_multipliers = storage.quality_multipliers
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
@@ -61,7 +63,8 @@ end
 function core.get_entity_info(entity)
   local id = entity.unit_number
   local is_turret = turret_types[entity.type] or false
-  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace" or is_turret)
+  local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace"
+    or entity.type == "rocket-silo" or is_turret)
 
   -- Only track entities that can change quality OR are primary entities with accumulation enabled
   local can_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
@@ -418,7 +421,9 @@ function core.batch_process_entities()
       result = core.process_secondary_entity()
     end
 
-    if can_still_upgrade and result.credits_earned > 0 then
+    -- Primary types disabled via their enable-* setting stay tracked so they keep
+    -- generating credits, but they never attempt upgrades themselves
+    if can_still_upgrade and can_attempt_quality_change[entity.type] and result.credits_earned > 0 then
       local entity_name = entity.name
       local entity_upgraded = attempt_upgrade_normal(entity, result.credits_earned)
       if entity_upgraded then

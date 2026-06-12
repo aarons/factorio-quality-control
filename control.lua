@@ -248,8 +248,10 @@ end
 
 --- Registers the main processing loop based on the current setting
 local function register_main_loop()
-  local tick_interval = storage.ticks_between_batches
-  script.on_nth_tick(tick_interval, core.batch_process_entities)
+  -- on_nth_tick registrations are keyed by interval, so clear any existing
+  -- registration first or the loop would run at both the old and new cadence
+  script.on_nth_tick(nil)
+  script.on_nth_tick(storage.ticks_between_batches, core.batch_process_entities)
 end
 
 local function register_event_handlers()
@@ -285,6 +287,13 @@ local function register_event_handlers()
   script.on_event(defines.events.on_surface_renamed, exclusions.on_surface_renamed)
   script.on_event(defines.events.on_surface_imported, exclusions.on_surface_imported)
 
+  -- Re-register the main loop when its tick interval is changed mid-game
+  script.on_event(defines.events.on_runtime_mod_setting_changed, function(event)
+    if event.setting == "batch-ticks-between-processing" then
+      storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
+      register_main_loop()
+    end
+  end)
 end
 
 -- Register console command
