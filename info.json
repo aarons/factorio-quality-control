@@ -1,11 +1,11 @@
 {
   "name": "quality-control",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "title": "Quality Control",
   "author": "raley",
   "homepage": "https://github.com/aarons/factorio-quality-control",
   "description": "The factory earns quality upgrades based on activity level. Quality Control is highly configurable, performant, and works well with other quality mods.",
-  "factorio_version": "2.0",
+  "factorio_version": "2.1",
   "dependencies": [
     "base",
     "quality",
