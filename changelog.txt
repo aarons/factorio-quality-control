@@ -1,4 +1,10 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.1.5
+Date: 12. 07. 2026
+  Bugfixes:
+    - Quality upgrades were jumping too many levels in 2.1 due to an API change.
+      Thanks to Cristall for discovering the issue and providing the fix!
+---------------------------------------------------------------------------------------------------
 Version: 2.1.4
 Date: 03. 07. 2026
   Modding:

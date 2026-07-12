@@ -14,7 +14,7 @@ local skip_hidden_qualities = false
 local sticky_hidden_qualities = true
 
 -- Build a bucket array for a single starting quality
--- Each bucket contains a target quality name, distributed according to next_probability
+-- Each bucket contains a target quality name, distributed according to chain_probability
 local function build_bucket_array(start_quality)
   local buckets = {}
   local idx = 1
@@ -28,8 +28,8 @@ local function build_bucket_array(start_quality)
     if skip_hidden_qualities and current.hidden then
       current = current.next
     else
-      -- Clamp next_probability to valid range (protect against buggy mods)
-      local continue_prob = math.max(0, math.min(1, current.next_probability or 0.1))
+      -- Clamp chain_probability to valid range (protect against buggy mods)
+      local continue_prob = math.max(0, math.min(1, current.chain_probability or 0.1))
       local stop_prob = 1 - continue_prob
 
       -- Minimum 1 bucket ensures rare outcomes remain possible
