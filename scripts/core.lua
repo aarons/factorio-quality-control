@@ -110,8 +110,10 @@ function core.get_entity_info(entity)
   local current_hours
   if is_turret then
     current_hours = entity.damage_dealt / turret_damage_per_manufacturing_hour
+    tracked_entities[id].damage_dealt = entity.damage_dealt
   else
     current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
+    tracked_entities[id].products_finished = entity.products_finished
   end
   tracked_entities[id].manufacturing_hours = current_hours
 
@@ -314,21 +316,32 @@ end
 
 function core.process_primary_entity(entity_info, entity)
   local hours_needed = quality_multipliers[entity.quality.level]
-  local current_hours
+  local hours_worked
   if entity_info.is_turret then
-    current_hours = entity.damage_dealt / turret_damage_per_manufacturing_hour
+    -- The damage-per-hour divisor is a startup setting that can change between
+    -- sessions, so the raw damage counter is stored and only the damage dealt
+    -- since the last check is converted at the current rate
+    local damage_dealt = entity.damage_dealt
+    local previous_damage = entity_info.damage_dealt or damage_dealt
+    hours_worked = (damage_dealt - previous_damage) / turret_damage_per_manufacturing_hour
+    entity_info.damage_dealt = damage_dealt
   else
-    current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
+    -- Recipes can change between checks (e.g. recyclers cycling through mixed items),
+    -- so only the products finished since the last check are priced at the current
+    -- recipe's craft time. Recomputing from the lifetime total would re-price all
+    -- past products whenever the recipe changes.
+    local products_finished = entity.products_finished
+    local previous_products = entity_info.products_finished or products_finished
+    hours_worked = ((products_finished - previous_products) * get_recipe_time(entity)) / 3600
+    entity_info.products_finished = products_finished
   end
-  local previous_hours = entity_info.manufacturing_hours or 0
-  local hours_worked = current_hours - previous_hours
+  entity_info.manufacturing_hours = (entity_info.manufacturing_hours or 0) + hours_worked
   local credits_earned = hours_worked / hours_needed
 
   storage.accumulated_credits = storage.accumulated_credits + credits_earned
 
   return {
-    credits_earned = credits_earned,
-    current_hours = current_hours
+    credits_earned = credits_earned
   }
 end
 
@@ -341,8 +354,7 @@ function core.process_secondary_entity()
   storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
 
   return {
-    credits_earned = credits_earned,
-    current_hours = nil
+    credits_earned = credits_earned
   }
 end
 
@@ -416,7 +428,6 @@ function core.batch_process_entities()
     local result
     if entity_info.is_primary then
       result = core.process_primary_entity(entity_info, entity)
-      entity_info.manufacturing_hours = result.current_hours
     else
       result = core.process_secondary_entity()
     end
