@@ -1,5 +1,11 @@
 #!/bin/bash
 set -euo pipefail
+exit 1
+
+### DO NOT RUN!!!
+### Very expensive to update locales this way. This script is intentionally set to not be executable.
+### It's kept here for reference, until we find a better method.
+exit 1
 
 # Update locale translations using Claude Code
 # This script prompts Claude Code to update locale translations for each language
