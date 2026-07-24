@@ -2,7 +2,10 @@
 set -euo pipefail
 
 # Update locale translations using Claude Code
-# This script prompts Claude Code to update locale translations for each language
+# This script prompts Claude Code to update locale translations for each language.
+# Languages whose English reference is unchanged since their last commit are
+# skipped; the diff sent to Claude includes uncommitted changes to the English
+# file. Naming a language or passing --context forces processing.
 # Usage: ./update-locales.sh [options] [language_code]
 #
 # Options:
@@ -16,6 +19,9 @@ set -euo pipefail
 #   ./update-locales.sh --parallel 5       # Process all with 5 parallel jobs
 #   ./update-locales.sh --start-at ko      # Start from Korean and continue
 #   ./update-locales.sh --context "Added new setting 'quality-orbit-preserve'"
+
+# Ensure claude uses subscription auth, not API-key billing
+unset ANTHROPIC_API_KEY
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -178,7 +184,7 @@ User-provided context: $CONTEXT_MSG"
         fi
 
         echo -e "${BLUE}Prompting Claude Code to fix validation errors...${NC}"
-        claude_with_retry claude --permission-mode default --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file) Write($locale_file) MultiEdit($locale_file)" -p "$fix_prompt"
+        claude_with_retry claude --model sonnet --permission-mode default --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file)" -p "$fix_prompt"
 
         return 1  # Indicate validation failed
     else
@@ -311,7 +317,38 @@ process_language() {
     # Check if locale file exists to determine prompt intro
     local intro
     if [ -f "$locale_file" ]; then
-        intro="We made some recent changes to locale/en/locale.cfg. Please evaluate the $lang_name translation in $locale_file and apply updates if needed. Use locale/en/locale.cfg as the reference."
+        # The last commit that touched this translation is treated as its last
+        # sync point with the English reference.
+        local last_sync
+        last_sync=$(git log -1 --format=%H -- "$locale_file" 2>/dev/null || true)
+
+        # Diff from the sync point to the working tree, so uncommitted English
+        # changes are included.
+        local en_diff=""
+        if [ -n "$last_sync" ]; then
+            en_diff=$(git diff "$last_sync" -- "$REFERENCE_FILE" || true)
+
+            # Nothing changed in English since this translation was last
+            # touched: skip it. Naming a language explicitly or passing
+            # --context forces processing anyway.
+            if [ -z "$en_diff" ] && [ -z "$CONTEXT_MSG" ] && [ -z "$SINGLE_LANGUAGE" ]; then
+                echo -e "${GREEN}✓ $lang_name [$lang_code] is up to date, skipping${NC}"
+                echo "success:$lang_code:$lang_name" > "$result_file"
+                return 0
+            fi
+        fi
+
+        if [ -n "$en_diff" ]; then
+            intro="The English reference for this Factorio mod changed. Here is the diff of $REFERENCE_FILE since the $lang_name translation was last updated:
+
+$en_diff
+
+Update ONLY the keys affected by this diff in the $lang_name translation at $locale_file. Do not re-review or reword other keys. The full English file is included below so you have surrounding context for terminology and tone:
+
+$(cat "$REFERENCE_FILE")"
+        else
+            intro="We made some recent changes to locale/en/locale.cfg. Please evaluate the $lang_name translation in $locale_file and apply updates if needed. Use locale/en/locale.cfg as the reference."
+        fi
     else
         intro="We're introducing $lang_name language support for my factorio mod. We need to add a translation file to $locale_file. Please use locale/en/locale.cfg as the reference."
     fi
@@ -337,7 +374,7 @@ Additional context from the user: $CONTEXT_MSG"
     echo -e "${BLUE}Prompting Claude Code for $lang_name translation...${NC}"
 
     # Execute claude command with retry wrapper
-    claude_with_retry claude --permission-mode default --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file) Write($locale_file) MultiEdit($locale_file)" -p "$prompt"
+    claude_with_retry claude --model sonnet --permission-mode default --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file)" -p "$prompt"
 
     # Validation step with retry logic
     local attempt=1
@@ -420,7 +457,7 @@ done
 
 # Export functions and variables for subshells
 export -f process_language validate_locale claude_with_retry
-export GREEN BLUE YELLOW RED NC TEMP_DIR REFERENCE_FILE CONTEXT_MSG MAX_VALIDATION_ATTEMPTS
+export GREEN BLUE YELLOW RED NC TEMP_DIR REFERENCE_FILE CONTEXT_MSG MAX_VALIDATION_ATTEMPTS SINGLE_LANGUAGE
 
 # Launch all jobs with semaphore control
 for lang_pair in "${LANGS_TO_PROCESS[@]}"; do
