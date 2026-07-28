@@ -96,243 +96,90 @@ data:extend({
         default_value = true,
         order = "c-11"
     },
-    -- Entity types (alphabetized)
-    -- Quality level caps are runtime-global so they can be tuned mid-game.
-    -- A cap of 1 disables quality upgrades for that entity type.
+    -- Custom max levels referenced by the "custom a/b/c" quality level cap values below
     {
         type = "int-setting",
-        name = "quality-level-cap-accumulators",
+        name = "custom-max-level-a",
         setting_type = "runtime-global",
-        default_value = 255,
+        default_value = 10,
         min_value = 1,
         max_value = 255,
-        order = "d-00"
+        order = "cz-0"
     },
     {
         type = "int-setting",
-        name = "quality-level-cap-agricultural-towers",
+        name = "custom-max-level-b",
         setting_type = "runtime-global",
-        default_value = 255,
+        default_value = 10,
         min_value = 1,
         max_value = 255,
-        order = "d-01"
+        order = "cz-1"
     },
     {
         type = "int-setting",
-        name = "quality-level-cap-assembly-machines",
+        name = "custom-max-level-c",
         setting_type = "runtime-global",
-        default_value = 255,
+        default_value = 10,
         min_value = 1,
         max_value = 255,
-        order = "d-02"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-asteroid-collectors",
-        setting_type = "runtime-global",
-        default_value = 5,
-        min_value = 1,
-        max_value = 255,
-        order = "d-03"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-beacons",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-04"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-boilers",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-05"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-combinators-and-speakers",
-        setting_type = "runtime-global",
-        default_value = 1,
-        min_value = 1,
-        max_value = 255,
-        order = "d-06"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-defense-walls-and-gates",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-07"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-furnaces",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-08"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-generators",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-09"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-heat-pipes",
-        setting_type = "runtime-global",
-        default_value = 1,
-        min_value = 1,
-        max_value = 255,
-        order = "d-10"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-inserters",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-11"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-labs",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-12"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-lamps",
-        setting_type = "runtime-global",
-        default_value = 1,
-        min_value = 1,
-        max_value = 255,
-        order = "d-13"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-lightning-rods",
-        setting_type = "runtime-global",
-        default_value = 5,
-        min_value = 1,
-        max_value = 255,
-        order = "d-14"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-mining-drills",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-15"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-poles",
-        setting_type = "runtime-global",
-        default_value = 1,
-        min_value = 1,
-        max_value = 255,
-        order = "d-16"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-power-switches",
-        setting_type = "runtime-global",
-        default_value = 1,
-        min_value = 1,
-        max_value = 255,
-        order = "d-17"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-pumps",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-18"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-radar",
-        setting_type = "runtime-global",
-        default_value = 5,
-        min_value = 1,
-        max_value = 255,
-        order = "d-19"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-reactors",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-20"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-rocket-silos",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-20a"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-roboports",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-21"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-solar-panels",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-22"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-thrusters",
-        setting_type = "runtime-global",
-        default_value = 5,
-        min_value = 1,
-        max_value = 255,
-        order = "d-23"
-    },
-    {
-        type = "int-setting",
-        name = "quality-level-cap-turrets",
-        setting_type = "runtime-global",
-        default_value = 255,
-        min_value = 1,
-        max_value = 255,
-        order = "d-24"
-    },
+        order = "cz-2"
+    }
+})
+
+-- Quality level caps (runtime-global so they can be tuned mid-game).
+-- Each cap is a dropdown of quality tier names; control.lua maps the chosen
+-- value to a numeric quality level. "disabled" turns off upgrades for that
+-- entity type, "unlimited" applies no cap, and the "custom a/b/c" values use
+-- the Custom Max Level A/B/C settings above.
+local quality_cap_dropdown_values = {
+    "disabled", "uncommon", "rare", "epic", "legendary", "unlimited",
+    "custom-a", "custom-b", "custom-c"
+}
+
+-- Entity types (alphabetized)
+local quality_cap_settings = {
+    {name = "quality-level-cap-accumulators", default = "unlimited", order = "d-00"},
+    {name = "quality-level-cap-agricultural-towers", default = "unlimited", order = "d-01"},
+    {name = "quality-level-cap-assembly-machines", default = "unlimited", order = "d-02"},
+    {name = "quality-level-cap-asteroid-collectors", default = "legendary", order = "d-03"},
+    {name = "quality-level-cap-beacons", default = "unlimited", order = "d-04"},
+    {name = "quality-level-cap-boilers", default = "unlimited", order = "d-05"},
+    {name = "quality-level-cap-combinators-and-speakers", default = "disabled", order = "d-06"},
+    {name = "quality-level-cap-defense-walls-and-gates", default = "unlimited", order = "d-07"},
+    {name = "quality-level-cap-furnaces", default = "unlimited", order = "d-08"},
+    {name = "quality-level-cap-generators", default = "unlimited", order = "d-09"},
+    {name = "quality-level-cap-heat-pipes", default = "disabled", order = "d-10"},
+    {name = "quality-level-cap-inserters", default = "unlimited", order = "d-11"},
+    {name = "quality-level-cap-labs", default = "unlimited", order = "d-12"},
+    {name = "quality-level-cap-lamps", default = "disabled", order = "d-13"},
+    {name = "quality-level-cap-lightning-rods", default = "legendary", order = "d-14"},
+    {name = "quality-level-cap-mining-drills", default = "unlimited", order = "d-15"},
+    {name = "quality-level-cap-poles", default = "disabled", order = "d-16"},
+    {name = "quality-level-cap-power-switches", default = "disabled", order = "d-17"},
+    {name = "quality-level-cap-pumps", default = "unlimited", order = "d-18"},
+    {name = "quality-level-cap-radar", default = "legendary", order = "d-19"},
+    {name = "quality-level-cap-reactors", default = "unlimited", order = "d-20"},
+    {name = "quality-level-cap-rocket-silos", default = "unlimited", order = "d-20a"},
+    {name = "quality-level-cap-roboports", default = "unlimited", order = "d-21"},
+    {name = "quality-level-cap-solar-panels", default = "unlimited", order = "d-22"},
+    {name = "quality-level-cap-thrusters", default = "legendary", order = "d-23"},
+    {name = "quality-level-cap-turrets", default = "unlimited", order = "d-24"}
+}
+
+for _, cap in ipairs(quality_cap_settings) do
+    data:extend({
+        {
+            type = "string-setting",
+            name = cap.name,
+            setting_type = "runtime-global",
+            default_value = cap.default,
+            allowed_values = quality_cap_dropdown_values,
+            order = cap.order
+        }
+    })
+end
+
+data:extend({
 
     -- Deprecated startup settings (hidden; kept for one release so existing saves can be migrated)
     {

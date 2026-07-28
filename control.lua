@@ -10,7 +10,8 @@ local notifications = require("scripts.notifications")
 local exclusions = require("scripts.exclusions")
 
 -- Entity type to quality level cap setting name mappings.
--- The cap is a runtime-global int (1-255); a cap of 1 disables upgrades for that type.
+-- Each cap is a runtime-global dropdown of quality tier names, resolved to a
+-- numeric quality level by get_quality_level_cap below.
 local entity_to_setting_map = {
   -- Production entities (includes primary entities)
   ["assembling-machine"] = "quality-level-cap-assembly-machines",
@@ -60,6 +61,40 @@ local entity_to_setting_map = {
   ["inserter"] = "quality-level-cap-inserters"
 }
 
+-- Numeric quality level for each cap dropdown value. Levels are 1-based tier
+-- counts (normal = 1 ... legendary = 5); 255 is the engine maximum and acts
+-- as "unlimited". A cap of 1 disables upgrades for that entity type.
+local cap_value_to_level = {
+  ["disabled"] = 1,
+  ["uncommon"] = 2,
+  ["rare"] = 3,
+  ["epic"] = 4,
+  ["legendary"] = 5,
+  ["unlimited"] = 255
+}
+
+-- The "custom a/b/c" dropdown values read their level from these settings.
+local custom_level_setting_for_value = {
+  ["custom-a"] = "custom-max-level-a",
+  ["custom-b"] = "custom-max-level-b",
+  ["custom-c"] = "custom-max-level-c"
+}
+
+local custom_max_level_settings = {}
+for _, setting_name in pairs(custom_level_setting_for_value) do
+  custom_max_level_settings[setting_name] = true
+end
+
+--- Resolves a quality level cap setting to its numeric quality level.
+local function get_quality_level_cap(cap_setting_name)
+  local value = settings.global[cap_setting_name].value
+  local custom_setting = custom_level_setting_for_value[value]
+  if custom_setting then
+    return settings.global[custom_setting].value
+  end
+  return cap_value_to_level[value]
+end
+
 -- Lookup from setting name to entity group for the deprecated startup settings.
 -- Used only for the one-time migration of old saves to the new runtime-global caps.
 local cap_setting_migration_map = {
@@ -100,15 +135,31 @@ local function migrate_level_caps_to_runtime_settings()
   end
   storage.level_caps_migrated = true
 
+  local level_to_cap_value = {"disabled", "uncommon", "rare", "epic", "legendary"}
+  -- Old numeric limits above legendary have no named tier, so they are
+  -- preserved by assigning them to the custom a/b/c slots. There are four old
+  -- limit settings and three slots; any value that doesn't fit falls back to
+  -- unlimited.
+  local free_custom_values = {"custom-a", "custom-b", "custom-c"}
+  local custom_value_for_level = {}
+
   for cap_setting, old in pairs(cap_setting_migration_map) do
     local value
     if not settings.startup[old.old_bool].value then
-      -- Old bool off means the entity type was disabled, equivalent to a cap of 1
-      value = 1
+      -- Old bool off means the entity type was disabled
+      value = "disabled"
     elseif old.old_limit then
-      value = settings.startup[old.old_limit].value
+      local level = settings.startup[old.old_limit].value
+      value = level_to_cap_value[level] or custom_value_for_level[level]
+      if not value then
+        value = table.remove(free_custom_values, 1) or "unlimited"
+        if value ~= "unlimited" then
+          custom_value_for_level[level] = value
+          settings.global[custom_level_setting_for_value[value]] = {value = level}
+        end
+      end
     else
-      value = 255
+      value = "unlimited"
     end
     settings.global[cap_setting] = {value = value}
   end
@@ -127,7 +178,7 @@ local function build_entity_type_lists()
 
   -- Build lists by checking individual entity type settings
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    if settings.global[setting_name].value > 1 then
+    if get_quality_level_cap(setting_name) > 1 then
       if entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo"
         or entity_type == "turret" or entity_type == "ammo-turret" or entity_type == "electric-turret"
         or entity_type == "fluid-turret" or entity_type == "artillery-turret" then
@@ -161,14 +212,14 @@ local function build_and_store_config()
   -- Store which entity types should be allowed to have quality changes attempted
   local can_attempt_quality_change = {}
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    can_attempt_quality_change[entity_type] = settings.global[setting_name].value > 1
+    can_attempt_quality_change[entity_type] = get_quality_level_cap(setting_name) > 1
   end
   storage.config.can_attempt_quality_change = can_attempt_quality_change
 
   -- Max quality level each entity type will be raised to (cap of 1 = disabled)
   local quality_level_caps = {}
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    quality_level_caps[entity_type] = settings.global[setting_name].value
+    quality_level_caps[entity_type] = get_quality_level_cap(setting_name)
   end
   storage.config.quality_level_caps = quality_level_caps
 
@@ -350,8 +401,9 @@ local function register_event_handlers()
     if event.setting == "batch-ticks-between-processing" then
       storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
       register_main_loop()
-    elseif cap_setting_migration_map[event.setting] then
-      -- A quality level cap changed; rebuild tracked entities and config
+    elseif cap_setting_migration_map[event.setting] or custom_max_level_settings[event.setting] then
+      -- A quality level cap (or a custom max level it may reference) changed;
+      -- rebuild tracked entities and config
       reinitialize_quality_control_storage()
     end
   end)
