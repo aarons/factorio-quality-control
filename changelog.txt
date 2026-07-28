@@ -1,4 +1,16 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.2.0
+Date: 13. 07. 2026
+  Changes:
+    - Entity type quality settings moved from the Startup tab to the Map tab. Each entity type
+      now has a single "level cap" setting (1-255) instead of a separate enable toggle and
+      level limit. A cap of 1 disables quality upgrades for that entity type.
+    - Level caps are now tunable mid-game; no restart required.
+    - These settings are per-save: the main-menu default only seeds new saves. Existing saves
+      are migrated automatically and keep their previous configuration, but customizations will
+      not auto-apply to future new games.
+    - Multiplayer: only admins can change these settings (standard map setting behavior).
+---------------------------------------------------------------------------------------------------
 Version: 2.1.5
 Date: 12. 07. 2026
   Bugfixes:

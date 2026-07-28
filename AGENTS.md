@@ -8,26 +8,19 @@ Keep code clear to understand for other engineers. Clarity is more important tha
 
 ## Repository Structure
 
-### Configuration & Metadata
 - `info.json` - metadata including name, version, dependencies, and version requirements
 - `settings.lua` - configurable options available to the end user
 - `data.lua` - custom input prototypes (keyboard shortcuts bound to mod functions)
-
-### Main Entry Point
 - `control.lua` - main entry point, event handlers, initialization, and configuration setup
-
-### Core Modules
 - `scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
 - `scripts/notifications.lua` - manages notifications and alerts
-
-### Development & Testing
 - `validate.sh` - runs all validations and tests
 - `package.sh` - packages the mod for distribution
 - `migrations/` - database migration scripts for version updates
 - `tests/test_*.py` - various pytests
 
-**IMPORTANT**: Always use `./validate.sh` for testing and validation. This is the single command that runs all required checks including luacheck and pytest validations. Do NOT run `luacheck` or `pytest` directly use `validate.sh`
-
+Always use `./validate.sh` for testing and validation. This is the single command that runs all required checks including luacheck and pytest validations. Do not run `luacheck` or `pytest`.
+`
 ### Localizations
 
 Only update the English localization at `locale/en/locale.cfg` unless specifically asked. Generally we have others manage the non-english localizations. When adding new locale keys (e.g. for a new setting), locale test failures for non-English files are expected and can be ignored — translations are handled by another developer.

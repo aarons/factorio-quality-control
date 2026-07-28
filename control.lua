@@ -9,55 +9,110 @@ local core = require("scripts.core")
 local notifications = require("scripts.notifications")
 local exclusions = require("scripts.exclusions")
 
--- Entity type to setting name mappings
+-- Entity type to quality level cap setting name mappings.
+-- The cap is a runtime-global int (1-255); a cap of 1 disables upgrades for that type.
 local entity_to_setting_map = {
   -- Production entities (includes primary entities)
-  ["assembling-machine"] = "enable-assembly-machines",
-  ["furnace"] = "enable-furnaces",
-  ["rocket-silo"] = "enable-rocket-silos",
-  ["agricultural-tower"] = "enable-agricultural-towers",
-  ["mining-drill"] = "enable-mining-drills",
+  ["assembling-machine"] = "quality-level-cap-assembly-machines",
+  ["furnace"] = "quality-level-cap-furnaces",
+  ["rocket-silo"] = "quality-level-cap-rocket-silos",
+  ["agricultural-tower"] = "quality-level-cap-agricultural-towers",
+  ["mining-drill"] = "quality-level-cap-mining-drills",
 
   -- Electrical infrastructure
-  ["electric-pole"] = "enable-poles",
-  ["solar-panel"] = "enable-solar-panels",
-  ["accumulator"] = "enable-accumulators",
-  ["generator"] = "enable-generators",
-  ["reactor"] = "enable-reactors",
-  ["fusion-reactor"] = "enable-reactors",
-  ["fusion-generator"] = "enable-generators",
-  ["boiler"] = "enable-boilers",
-  ["heat-pipe"] = "enable-heat-pipes",
-  ["power-switch"] = "enable-power-switches",
-  ["lightning-attractor"] = "enable-lightning-rods",
+  ["electric-pole"] = "quality-level-cap-poles",
+  ["solar-panel"] = "quality-level-cap-solar-panels",
+  ["accumulator"] = "quality-level-cap-accumulators",
+  ["generator"] = "quality-level-cap-generators",
+  ["reactor"] = "quality-level-cap-reactors",
+  ["fusion-reactor"] = "quality-level-cap-reactors",
+  ["fusion-generator"] = "quality-level-cap-generators",
+  ["boiler"] = "quality-level-cap-boilers",
+  ["heat-pipe"] = "quality-level-cap-heat-pipes",
+  ["power-switch"] = "quality-level-cap-power-switches",
+  ["lightning-attractor"] = "quality-level-cap-lightning-rods",
 
   -- Defense entities
-  ["turret"] = "enable-turrets",
-  ["ammo-turret"] = "enable-turrets",
-  ["electric-turret"] = "enable-turrets",
-  ["fluid-turret"] = "enable-turrets",
-  ["artillery-turret"] = "enable-turrets",
-  ["wall"] = "enable-defense-walls-and-gates",
-  ["gate"] = "enable-defense-walls-and-gates",
+  ["turret"] = "quality-level-cap-turrets",
+  ["ammo-turret"] = "quality-level-cap-turrets",
+  ["electric-turret"] = "quality-level-cap-turrets",
+  ["fluid-turret"] = "quality-level-cap-turrets",
+  ["artillery-turret"] = "quality-level-cap-turrets",
+  ["wall"] = "quality-level-cap-defense-walls-and-gates",
+  ["gate"] = "quality-level-cap-defense-walls-and-gates",
 
   -- Space platform entities
-  ["asteroid-collector"] = "enable-asteroid-collectors",
-  ["thruster"] = "enable-thrusters",
+  ["asteroid-collector"] = "quality-level-cap-asteroid-collectors",
+  ["thruster"] = "quality-level-cap-thrusters",
 
   -- Other entities
-  ["lamp"] = "enable-lamps",
-  ["arithmetic-combinator"] = "enable-combinators-and-speakers",
-  ["decider-combinator"] = "enable-combinators-and-speakers",
-  ["constant-combinator"] = "enable-combinators-and-speakers",
-  ["programmable-speaker"] = "enable-combinators-and-speakers",
-  ["lab"] = "enable-labs",
-  ["roboport"] = "enable-roboports",
-  ["beacon"] = "enable-beacons",
-  ["pump"] = "enable-pumps",
-  ["offshore-pump"] = "enable-pumps",
-  ["radar"] = "enable-radar",
-  ["inserter"] = "enable-inserters"
+  ["lamp"] = "quality-level-cap-lamps",
+  ["arithmetic-combinator"] = "quality-level-cap-combinators-and-speakers",
+  ["decider-combinator"] = "quality-level-cap-combinators-and-speakers",
+  ["constant-combinator"] = "quality-level-cap-combinators-and-speakers",
+  ["programmable-speaker"] = "quality-level-cap-combinators-and-speakers",
+  ["lab"] = "quality-level-cap-labs",
+  ["roboport"] = "quality-level-cap-roboports",
+  ["beacon"] = "quality-level-cap-beacons",
+  ["pump"] = "quality-level-cap-pumps",
+  ["offshore-pump"] = "quality-level-cap-pumps",
+  ["radar"] = "quality-level-cap-radar",
+  ["inserter"] = "quality-level-cap-inserters"
 }
+
+-- Lookup from setting name to entity group for the deprecated startup settings.
+-- Used only for the one-time migration of old saves to the new runtime-global caps.
+local cap_setting_migration_map = {
+  ["quality-level-cap-accumulators"] = {old_bool = "enable-accumulators"},
+  ["quality-level-cap-agricultural-towers"] = {old_bool = "enable-agricultural-towers"},
+  ["quality-level-cap-assembly-machines"] = {old_bool = "enable-assembly-machines"},
+  ["quality-level-cap-asteroid-collectors"] = {old_bool = "enable-asteroid-collectors", old_limit = "asteroid-collector-growth-level-limit"},
+  ["quality-level-cap-beacons"] = {old_bool = "enable-beacons"},
+  ["quality-level-cap-boilers"] = {old_bool = "enable-boilers"},
+  ["quality-level-cap-combinators-and-speakers"] = {old_bool = "enable-combinators-and-speakers"},
+  ["quality-level-cap-defense-walls-and-gates"] = {old_bool = "enable-defense-walls-and-gates"},
+  ["quality-level-cap-furnaces"] = {old_bool = "enable-furnaces"},
+  ["quality-level-cap-generators"] = {old_bool = "enable-generators"},
+  ["quality-level-cap-heat-pipes"] = {old_bool = "enable-heat-pipes"},
+  ["quality-level-cap-inserters"] = {old_bool = "enable-inserters"},
+  ["quality-level-cap-labs"] = {old_bool = "enable-labs"},
+  ["quality-level-cap-lamps"] = {old_bool = "enable-lamps"},
+  ["quality-level-cap-lightning-rods"] = {old_bool = "enable-lightning-rods", old_limit = "lightning-attractor-growth-level-limit"},
+  ["quality-level-cap-mining-drills"] = {old_bool = "enable-mining-drills"},
+  ["quality-level-cap-poles"] = {old_bool = "enable-poles"},
+  ["quality-level-cap-power-switches"] = {old_bool = "enable-power-switches"},
+  ["quality-level-cap-pumps"] = {old_bool = "enable-pumps"},
+  ["quality-level-cap-radar"] = {old_bool = "enable-radar", old_limit = "radar-growth-level-limit"},
+  ["quality-level-cap-reactors"] = {old_bool = "enable-reactors"},
+  ["quality-level-cap-rocket-silos"] = {old_bool = "enable-rocket-silos"},
+  ["quality-level-cap-roboports"] = {old_bool = "enable-roboports"},
+  ["quality-level-cap-solar-panels"] = {old_bool = "enable-solar-panels"},
+  ["quality-level-cap-thrusters"] = {old_bool = "enable-thrusters", old_limit = "thruster-growth-level-limit"},
+  ["quality-level-cap-turrets"] = {old_bool = "enable-turrets"}
+}
+
+--- One-time migration from the old startup bool/limit settings to the new
+--- runtime-global quality level caps. Guarded by a storage flag so it runs
+--- exactly once and can't overwrite later changes on subsequent updates.
+local function migrate_level_caps_to_runtime_settings()
+  if storage.level_caps_migrated then
+    return
+  end
+  storage.level_caps_migrated = true
+
+  for cap_setting, old in pairs(cap_setting_migration_map) do
+    local value
+    if not settings.startup[old.old_bool].value then
+      -- Old bool off means the entity type was disabled, equivalent to a cap of 1
+      value = 1
+    elseif old.old_limit then
+      value = settings.startup[old.old_limit].value
+    else
+      value = 255
+    end
+    settings.global[cap_setting] = {value = value}
+  end
+end
 
 -- Primary entity types for determining manufacturing hours logic
 local primary_entity_types = {
@@ -72,7 +127,7 @@ local function build_entity_type_lists()
 
   -- Build lists by checking individual entity type settings
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    if settings.startup[setting_name].value then
+    if settings.global[setting_name].value > 1 then
       if entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo"
         or entity_type == "turret" or entity_type == "ammo-turret" or entity_type == "electric-turret"
         or entity_type == "fluid-turret" or entity_type == "artillery-turret" then
@@ -106,19 +161,22 @@ local function build_and_store_config()
   -- Store which entity types should be allowed to have quality changes attempted
   local can_attempt_quality_change = {}
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    can_attempt_quality_change[entity_type] = settings.startup[setting_name].value
+    can_attempt_quality_change[entity_type] = settings.global[setting_name].value > 1
   end
   storage.config.can_attempt_quality_change = can_attempt_quality_change
+
+  -- Max quality level each entity type will be raised to (cap of 1 = disabled)
+  local quality_level_caps = {}
+  for entity_type, setting_name in pairs(entity_to_setting_map) do
+    quality_level_caps[entity_type] = settings.global[setting_name].value
+  end
+  storage.config.quality_level_caps = quality_level_caps
 
   local settings_data = {}
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
-  settings_data.radar_growth_level_limit = settings.startup["radar-growth-level-limit"].value
-  settings_data.lightning_attractor_growth_level_limit = settings.startup["lightning-attractor-growth-level-limit"].value
-  settings_data.thruster_growth_level_limit = settings.startup["thruster-growth-level-limit"].value
-  settings_data.asteroid_collector_growth_level_limit = settings.startup["asteroid-collector-growth-level-limit"].value
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
   settings_data.turret_damage_per_manufacturing_hour = settings.startup["turret-damage-per-manufacturing-hour"].value
   settings_data.skip_hidden_qualities = settings.startup["quality_control_skip_hidden_qualities"].value
@@ -292,6 +350,9 @@ local function register_event_handlers()
     if event.setting == "batch-ticks-between-processing" then
       storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
       register_main_loop()
+    elseif cap_setting_migration_map[event.setting] then
+      -- A quality level cap changed; rebuild tracked entities and config
+      reinitialize_quality_control_storage()
     end
   end)
 end
@@ -315,6 +376,8 @@ end)
 
 -- Ran when settings change or mod version updates
 script.on_configuration_changed(function(_)
+  setup_data_structures()
+  migrate_level_caps_to_runtime_settings()
   reinitialize_quality_control_storage()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()

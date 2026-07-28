@@ -97,32 +97,274 @@ data:extend({
         order = "c-11"
     },
     -- Entity types (alphabetized)
+    -- Quality level caps are runtime-global so they can be tuned mid-game.
+    -- A cap of 1 disables quality upgrades for that entity type.
+    {
+        type = "int-setting",
+        name = "quality-level-cap-accumulators",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-00"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-agricultural-towers",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-01"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-assembly-machines",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-02"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-asteroid-collectors",
+        setting_type = "runtime-global",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-03"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-beacons",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-04"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-boilers",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-05"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-combinators-and-speakers",
+        setting_type = "runtime-global",
+        default_value = 1,
+        min_value = 1,
+        max_value = 255,
+        order = "d-06"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-defense-walls-and-gates",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-07"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-furnaces",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-08"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-generators",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-09"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-heat-pipes",
+        setting_type = "runtime-global",
+        default_value = 1,
+        min_value = 1,
+        max_value = 255,
+        order = "d-10"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-inserters",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-11"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-labs",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-12"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-lamps",
+        setting_type = "runtime-global",
+        default_value = 1,
+        min_value = 1,
+        max_value = 255,
+        order = "d-13"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-lightning-rods",
+        setting_type = "runtime-global",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-14"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-mining-drills",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-15"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-poles",
+        setting_type = "runtime-global",
+        default_value = 1,
+        min_value = 1,
+        max_value = 255,
+        order = "d-16"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-power-switches",
+        setting_type = "runtime-global",
+        default_value = 1,
+        min_value = 1,
+        max_value = 255,
+        order = "d-17"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-pumps",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-18"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-radar",
+        setting_type = "runtime-global",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-19"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-reactors",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-20"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-rocket-silos",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-20a"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-roboports",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-21"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-solar-panels",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-22"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-thrusters",
+        setting_type = "runtime-global",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        order = "d-23"
+    },
+    {
+        type = "int-setting",
+        name = "quality-level-cap-turrets",
+        setting_type = "runtime-global",
+        default_value = 255,
+        min_value = 1,
+        max_value = 255,
+        order = "d-24"
+    },
+
+    -- Deprecated startup settings (hidden; kept for one release so existing saves can be migrated)
     {
         type = "bool-setting",
         name = "enable-accumulators",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-00"
     },
     {
         type = "bool-setting",
         name = "enable-agricultural-towers",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-01"
     },
     {
         type = "bool-setting",
         name = "enable-assembly-machines",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-02"
     },
     {
         type = "bool-setting",
         name = "enable-asteroid-collectors",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-03"
     },
     {
@@ -132,20 +374,23 @@ data:extend({
         default_value = 5,
         min_value = 1,
         max_value = 255,
-        order = "d-03a"
+        hidden = true,
+        order = "d-03"
     },
     {
         type = "bool-setting",
         name = "enable-beacons",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-04"
     },
     {
         type = "bool-setting",
         name = "enable-boilers",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-05"
     },
     {
@@ -153,27 +398,31 @@ data:extend({
         name = "enable-combinators-and-speakers",
         setting_type = "startup",
         default_value = false,
+        hidden = true,
         order = "d-06"
     },
     {
         type = "bool-setting",
         name = "enable-defense-walls-and-gates",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-07"
     },
     {
         type = "bool-setting",
         name = "enable-furnaces",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-08"
     },
     {
         type = "bool-setting",
         name = "enable-generators",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-09"
     },
     {
@@ -181,20 +430,23 @@ data:extend({
         name = "enable-heat-pipes",
         setting_type = "startup",
         default_value = false,
+        hidden = true,
         order = "d-10"
     },
     {
         type = "bool-setting",
         name = "enable-inserters",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-11"
     },
     {
         type = "bool-setting",
         name = "enable-labs",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-12"
     },
     {
@@ -202,20 +454,33 @@ data:extend({
         name = "enable-lamps",
         setting_type = "startup",
         default_value = false,
+        hidden = true,
         order = "d-13"
     },
     {
         type = "bool-setting",
         name = "enable-lightning-rods",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
+        order = "d-14"
+    },
+    {
+        type = "int-setting",
+        name = "lightning-attractor-growth-level-limit",
+        setting_type = "startup",
+        default_value = 5,
+        min_value = 1,
+        max_value = 255,
+        hidden = true,
         order = "d-14"
     },
     {
         type = "bool-setting",
         name = "enable-mining-drills",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-15"
     },
     {
@@ -223,6 +488,7 @@ data:extend({
         name = "enable-poles",
         setting_type = "startup",
         default_value = false,
+        hidden = true,
         order = "d-16"
     },
     {
@@ -230,20 +496,23 @@ data:extend({
         name = "enable-power-switches",
         setting_type = "startup",
         default_value = false,
+        hidden = true,
         order = "d-17"
     },
     {
         type = "bool-setting",
         name = "enable-pumps",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-18"
     },
     {
         type = "bool-setting",
         name = "enable-radar",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-19"
     },
     {
@@ -253,43 +522,39 @@ data:extend({
         default_value = 5,
         min_value = 1,
         max_value = 255,
-        order = "d-19a"
-    },
-    {
-        type = "int-setting",
-        name = "lightning-attractor-growth-level-limit",
-        setting_type = "startup",
-        default_value = 5,
-        min_value = 1,
-        max_value = 255,
-        order = "d-14a"
+        hidden = true,
+        order = "d-19"
     },
     {
         type = "bool-setting",
         name = "enable-reactors",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-20"
     },
     {
         type = "bool-setting",
         name = "enable-rocket-silos",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-20a"
     },
     {
         type = "bool-setting",
         name = "enable-roboports",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-21"
     },
     {
         type = "bool-setting",
         name = "enable-solar-panels",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-22"
     },
     {
@@ -297,6 +562,7 @@ data:extend({
         name = "enable-thrusters",
         setting_type = "startup",
         default_value = false,
+        hidden = true,
         order = "d-23"
     },
     {
@@ -306,13 +572,15 @@ data:extend({
         default_value = 5,
         min_value = 1,
         max_value = 255,
-        order = "d-23a"
+        hidden = true,
+        order = "d-23"
     },
     {
         type = "bool-setting",
         name = "enable-turrets",
         setting_type = "startup",
-        default_value = true,
+        default_value = false,
+        hidden = true,
         order = "d-24"
     },
     {
