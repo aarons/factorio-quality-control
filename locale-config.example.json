@@ -1,0 +1,24 @@
+// Copy this file to locale-config.json (gitignored) and adjust as needed.
+// Lines starting with // are ignored. All fields are optional.
+//
+// By default translation runs through the Claude Code CLI (`claude -p`), so
+// it is covered by a Claude subscription rather than per-token API billing.
+// Setting base_url switches to a direct API endpoint instead.
+{
+  "model": "sonnet",
+
+  // Direct API endpoints (wire format inferred from the URL; the API key env
+  // var too: anthropic -> ANTHROPIC_API_KEY, openrouter -> OPENROUTER_API_KEY,
+  // openai -> OPENAI_API_KEY, local servers -> no key):
+  // "base_url": "https://api.anthropic.com", "model": "claude-sonnet-5"
+  // "base_url": "https://openrouter.ai/api/v1", "model": "moonshotai/kimi-k3"
+  // "base_url": "http://127.0.0.1:1234/v1", "model": "google/gemma-4-31b-qat"
+  //
+  // Override the inference when needed:
+  // "api_format": "claude-code",  // or "openai" / "anthropic"
+  // "api_key_env": "ANTHROPIC_API_KEY",
+
+  "parallel": 4,
+  "chunk_size": 20,
+  "timeout_seconds": 600
+}

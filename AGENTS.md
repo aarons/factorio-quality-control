@@ -15,6 +15,7 @@ Keep code clear to understand for other engineers. Clarity is more important tha
 - `scripts/core.lua` - consolidated entity tracking, quality upgrade management, and batch processing
 - `scripts/notifications.lua` - manages notifications and alerts
 - `validate.sh` - runs all validations and tests
+- `update_locales.py` - updates non-English locale files via a direct LLM API call (LM Studio by default; see `locale-config.example.json`)
 - `package.sh` - packages the mod for distribution
 - `migrations/` - database migration scripts for version updates
 - `tests/test_*.py` - various pytests

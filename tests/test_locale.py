@@ -214,7 +214,7 @@ def test_locale_cfg_valid_sections():
     # Common Factorio locale sections
     valid_sections = {
         'mod-name', 'mod-description', 'mod-setting-name', 'mod-setting-description',
-        'setting-value', 'alert-message', 'controls', 'item-name', 'item-description',
+        'string-mod-setting', 'string-mod-setting-description', 'alert-message', 'controls', 'item-name', 'item-description',
         'entity-name', 'entity-description', 'recipe-name', 'recipe-description',
         'technology-name', 'technology-description', 'fluid-name', 'equipment-name',
         'tile-name', 'gui', 'quality-control'  # custom sections are also valid
