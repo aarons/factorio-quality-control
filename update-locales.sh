@@ -201,7 +201,9 @@ Please fix the error problem in $locale_file.
 Additional Context:
 This is a locale file for a factorio mod called Quality Control. AGENTS.md and mod-description.md have more context if helpful, and source code is located mostly in .lua files.
 
-The English translation file is at locale/en/locale.cfg and is the source reference. Focus on fixing the failure for the $lang_name translation in $locale_file."
+The English translation file is at locale/en/locale.cfg and is the source reference. Focus on fixing the failure for the $lang_name translation in $locale_file.
+
+Do NOT run ./validate.sh or any test suite. The project AGENTS.md instructs running ./validate.sh, but that does not apply to this task: validation of your changes is handled externally by the calling script, scoped to only this translation file."
 
         if [ -n "$CONTEXT_MSG" ]; then
             fix_prompt="$fix_prompt
@@ -412,7 +414,8 @@ $(cat "$REFERENCE_FILE")"
   - Only translate the values after the = sign
   - Keep technical terms consistent (always translate 'belt' the same way)
   - Preserve formatting codes and placeholders (__1__, __ITEM__, etc.)
-  - For context on the mod's functionality, refer to AGENTS.md and mod-description.md"
+  - For context on the mod's functionality, refer to AGENTS.md and mod-description.md
+  - Do NOT run ./validate.sh or any test suite. AGENTS.md instructs running ./validate.sh, but that does not apply here: validation is handled externally by the calling script, scoped to only this translation file and the English reference."
 
     local prompt="$intro
 
