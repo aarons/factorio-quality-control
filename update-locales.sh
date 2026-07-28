@@ -1,17 +1,19 @@
 #!/bin/bash
 set -euo pipefail
 
-# Update locale translations using Claude Code
-# This script prompts Claude Code to update locale translations for each language.
+# Update locale translations using an AI coding agent (pi by default)
+# This script prompts an agent to update locale translations for each language.
 # Languages whose English reference is unchanged since their last commit are
-# skipped; the diff sent to Claude includes uncommitted changes to the English
-# file. Naming a language or passing --context forces processing.
+# skipped; the diff sent to the agent includes uncommitted changes to the
+# English file. Naming a language or passing --context forces processing.
 # Usage: ./update-locales.sh [options] [language_code]
 #
 # Options:
-#   --parallel N       Run N translations in parallel (default: 10)
-#   --start-at CODE    Start from a specific language code and continue
-#   --context "MSG"    Additional context to include in translation prompts
+#   --parallel N        Run N translations in parallel (default: 10)
+#   --start-at CODE     Start from a specific language code and continue
+#   --context "MSG"     Additional context to include in translation prompts
+#   --model MODEL       Model to use with pi (default: moonshotai/kimi-k3)
+#   --use-claude-code   Use Claude Code instead of pi
 #
 # Examples:
 #   ./update-locales.sh                    # Process all languages (10 parallel)
@@ -19,9 +21,16 @@ set -euo pipefail
 #   ./update-locales.sh --parallel 5       # Process all with 5 parallel jobs
 #   ./update-locales.sh --start-at ko      # Start from Korean and continue
 #   ./update-locales.sh --context "Added new setting 'quality-orbit-preserve'"
+#   ./update-locales.sh --model openrouter/anthropic/claude-sonnet-4
+#   ./update-locales.sh --use-claude-code  # Use Claude Code instead of pi
+#
+# Auth:
+#   pi mode uses the OPENROUTER_API_KEY environment variable.
+#   Claude Code mode uses subscription auth (ANTHROPIC_API_KEY is unset).
 
-# Ensure claude uses subscription auth, not API-key billing
-unset ANTHROPIC_API_KEY
+# Agent mode: "pi" (default) or "claude"
+AGENT="pi"
+PI_MODEL="moonshotai/kimi-k3"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -47,8 +56,25 @@ cleanup() {
 }
 trap cleanup INT TERM
 
+# Run the configured agent non-interactively with the given prompt.
+# Restricts edit access to the target locale file.
+run_agent() {
+    local prompt="$1"
+    local locale_file="$2"
+
+    if [ "$AGENT" = "claude" ]; then
+        claude --model sonnet --permission-mode default \
+            --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file)" \
+            -p "$prompt"
+    else
+        pi --provider openrouter --model "$PI_MODEL" \
+            --no-session \
+            -p "$prompt"
+    fi
+}
+
 # Wrapper function to handle rate limiting with retry-after and exponential backoff
-claude_with_retry() {
+agent_with_retry() {
     local max_retries=5
     local attempt=1
     local output
@@ -183,8 +209,8 @@ The English translation file is at locale/en/locale.cfg and is the source refere
 User-provided context: $CONTEXT_MSG"
         fi
 
-        echo -e "${BLUE}Prompting Claude Code to fix validation errors...${NC}"
-        claude_with_retry claude --model sonnet --permission-mode default --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file)" -p "$fix_prompt"
+        echo -e "${BLUE}Prompting $AGENT to fix validation errors...${NC}"
+        agent_with_retry run_agent "$fix_prompt" "$locale_file"
 
         return 1  # Indicate validation failed
     else
@@ -238,6 +264,23 @@ while [ $# -gt 0 ]; do
             CONTEXT_MSG="${1#--context=}"
             shift
             ;;
+        --model)
+            if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+                PI_MODEL="$2"
+                shift 2
+            else
+                echo -e "${RED}Error: --model requires a model name${NC}"
+                exit 1
+            fi
+            ;;
+        --model=*)
+            PI_MODEL="${1#--model=}"
+            shift
+            ;;
+        --use-claude-code)
+            AGENT="claude"
+            shift
+            ;;
         -*)
             echo -e "${RED}Error: Unknown option $1${NC}"
             exit 1
@@ -283,7 +326,17 @@ fi
 echo -e "${BLUE}Quality Control Locale Update Script${NC}"
 echo -e "${BLUE}=====================================${NC}"
 echo ""
-echo -e "This script will prompt Claude Code to update locale translations."
+if [ "$AGENT" = "claude" ]; then
+    # Ensure claude uses subscription auth, not API-key billing
+    unset ANTHROPIC_API_KEY
+    echo -e "This script will prompt Claude Code to update locale translations."
+else
+    if [ -z "${OPENROUTER_API_KEY:-}" ]; then
+        echo -e "${RED}Error: OPENROUTER_API_KEY is not set (required for pi mode)${NC}"
+        exit 1
+    fi
+    echo -e "This script will prompt pi (OpenRouter, model: $PI_MODEL) to update locale translations."
+fi
 echo -e "Reference file: ${GREEN}$REFERENCE_FILE${NC}"
 if [ -n "$SINGLE_LANGUAGE" ]; then
     echo -e "Target language: ${GREEN}$SINGLE_LANGUAGE${NC}"
@@ -371,10 +424,10 @@ $guidelines"
 Additional context from the user: $CONTEXT_MSG"
     fi
 
-    echo -e "${BLUE}Prompting Claude Code for $lang_name translation...${NC}"
+    echo -e "${BLUE}Prompting $AGENT for $lang_name translation...${NC}"
 
-    # Execute claude command with retry wrapper
-    claude_with_retry claude --model sonnet --permission-mode default --allowedTools "Bash(git log:*) Bash(git show:*) Glob Grep Read Edit($locale_file)" -p "$prompt"
+    # Execute agent command with retry wrapper
+    agent_with_retry run_agent "$prompt" "$locale_file"
 
     # Validation step with retry logic
     local attempt=1
@@ -456,8 +509,8 @@ for ((i=0; i<MAX_PARALLEL; i++)); do
 done
 
 # Export functions and variables for subshells
-export -f process_language validate_locale claude_with_retry
-export GREEN BLUE YELLOW RED NC TEMP_DIR REFERENCE_FILE CONTEXT_MSG MAX_VALIDATION_ATTEMPTS SINGLE_LANGUAGE
+export -f process_language validate_locale agent_with_retry run_agent
+export GREEN BLUE YELLOW RED NC TEMP_DIR REFERENCE_FILE CONTEXT_MSG MAX_VALIDATION_ATTEMPTS SINGLE_LANGUAGE AGENT PI_MODEL
 
 # Launch all jobs with semaphore control
 for lang_pair in "${LANGS_TO_PROCESS[@]}"; do
