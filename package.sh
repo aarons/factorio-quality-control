@@ -79,19 +79,28 @@ if [ -f .gitignore ]; then
     done < .gitignore
 fi
 
-# Add package-specific exclusions not in .gitignore
+# Add package-specific exclusions not in .gitignore.
+# Anything for managing the repo and codebase — scripts, tests, linter
+# configs, planning docs — stays out of the shipped mod.
 PACKAGE_EXCLUSIONS=(
     '.git'
     'assets*'
     'mod-description.md'
     'AGENTS.md'
     'CLAUDE.md'
+    'README.md'
     '.gitignore'
+    '*.exe'
+    '*.bat'
+    '*.ps1'
     '*.sh'
+    '*.py'
     '.claude*'
     'tests*'
     'validate*'
     'tests/'
+    'plans/'
+    'locale-config*.json'
     '.luacheckrc'
     '.luarc.json'
 )
