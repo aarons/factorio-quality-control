@@ -15,7 +15,7 @@ local tracked_entities = {}
 local settings_data = {}
 local is_tracked_type = {}
 local can_attempt_quality_change = {}
-local quality_level_caps = {}
+local upgrade_limit_levels = {}
 local quality_multipliers = {}
 local accumulate_at_max_quality = nil
 local base_percentage_chance = nil
@@ -44,7 +44,7 @@ function core.initialize()
   settings_data = storage.config.settings_data
   is_tracked_type = storage.config.is_tracked_type
   can_attempt_quality_change = storage.config.can_attempt_quality_change
-  quality_level_caps = storage.config.quality_level_caps
+  upgrade_limit_levels = storage.config.upgrade_limit_levels
   quality_multipliers = storage.quality_multipliers
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
@@ -374,9 +374,9 @@ function core.batch_process_entities()
 
     local can_still_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
 
-    -- check if the entity has reached its configured quality level cap
-    local level_cap = quality_level_caps[entity.type]
-    if can_still_upgrade and level_cap and entity.quality.level >= (level_cap - 1) then
+    -- check if the entity has reached its configured upgrade limit
+    local upgrade_limit = upgrade_limit_levels[entity.type]
+    if can_still_upgrade and upgrade_limit and entity.quality.level >= (upgrade_limit - 1) then
       can_still_upgrade = false
     end
 
@@ -401,7 +401,7 @@ function core.batch_process_entities()
       result = core.process_secondary_entity()
     end
 
-    -- Primary types disabled via their quality level cap stay tracked so they keep
+    -- Primary types disabled via their upgrade limit stay tracked so they keep
     -- generating credits, but they never attempt upgrades themselves
     if can_still_upgrade and can_attempt_quality_change[entity.type] and result.credits_earned > 0 then
       local entity_name = entity.name

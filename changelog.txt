@@ -2,18 +2,20 @@
 Version: 2.2.1
 Date: 28. 07. 2026
   Ease of use:
-    - Quality level caps are now dropdowns of quality names (Disabled, Uncommon, Rare, Epic,
-      Legendary, Unlimited) instead of number fields - no more typing 255 to mean "no cap".
-    - Added three "Custom Max Level" settings for capping at modded quality tiers beyond
-      legendary. Set a level in Custom Max Level A, B, or C, then select Custom A, B, or C in
-      any entity's level cap dropdown to apply it.
+    - Upgrade limits are now dropdowns of quality names (Common, Uncommon, Rare, Epic,
+      Legendary, Unlimited) instead of number fields - no more typing 255 to mean "no limit".
+    - Added three "Custom Upgrade Limit" settings for stopping at modded quality tiers beyond
+      legendary. Set a level in Custom Upgrade Limit A, B, or C, then select Custom A, B, or C
+      in any entity's upgrade limit dropdown to apply it.
 ---------------------------------------------------------------------------------------------------
 Version: 2.2.0
 Date: 13. 07. 2026
   Changes:
     - Entity type quality settings moved from the Startup tab to the Map tab. Each entity type
-      now has a single "level cap" setting instead of a separate enable toggle and level limit.
-    - Level caps are now tunable mid-game; no restart required.
+      now has a single "upgrade limit" setting instead of a separate enable toggle and level
+      limit. The upgrade limit is the highest quality Quality Control will upgrade that entity
+      type to; it does not restrict quality anywhere else in the game.
+    - Upgrade limits are now tunable mid-game; no restart required.
     - These settings are per-save: the main-menu default only seeds new saves. Existing saves
       are migrated automatically and keep their previous configuration, but customizations will
       not auto-apply to future new games.

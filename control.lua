@@ -9,63 +9,64 @@ local core = require("scripts.core")
 local notifications = require("scripts.notifications")
 local exclusions = require("scripts.exclusions")
 
--- Entity type to quality level cap setting name mappings.
--- Each cap is a runtime-global dropdown of quality tier names, resolved to a
--- numeric quality level by get_quality_level_cap below.
+-- Entity type to upgrade limit setting name mappings.
+-- Each limit is a runtime-global dropdown of quality tier names, resolved to a
+-- numeric quality level by get_upgrade_limit_level below.
 local entity_to_setting_map = {
   -- Production entities (includes primary entities)
-  ["assembling-machine"] = "quality-level-cap-assembly-machines",
-  ["furnace"] = "quality-level-cap-furnaces",
-  ["rocket-silo"] = "quality-level-cap-rocket-silos",
-  ["agricultural-tower"] = "quality-level-cap-agricultural-towers",
-  ["mining-drill"] = "quality-level-cap-mining-drills",
+  ["assembling-machine"] = "upgrade-limit-assembly-machines",
+  ["furnace"] = "upgrade-limit-furnaces",
+  ["rocket-silo"] = "upgrade-limit-rocket-silos",
+  ["agricultural-tower"] = "upgrade-limit-agricultural-towers",
+  ["mining-drill"] = "upgrade-limit-mining-drills",
 
   -- Electrical infrastructure
-  ["electric-pole"] = "quality-level-cap-poles",
-  ["solar-panel"] = "quality-level-cap-solar-panels",
-  ["accumulator"] = "quality-level-cap-accumulators",
-  ["generator"] = "quality-level-cap-generators",
-  ["reactor"] = "quality-level-cap-reactors",
-  ["fusion-reactor"] = "quality-level-cap-reactors",
-  ["fusion-generator"] = "quality-level-cap-generators",
-  ["boiler"] = "quality-level-cap-boilers",
-  ["heat-pipe"] = "quality-level-cap-heat-pipes",
-  ["power-switch"] = "quality-level-cap-power-switches",
-  ["lightning-attractor"] = "quality-level-cap-lightning-rods",
+  ["electric-pole"] = "upgrade-limit-poles",
+  ["solar-panel"] = "upgrade-limit-solar-panels",
+  ["accumulator"] = "upgrade-limit-accumulators",
+  ["generator"] = "upgrade-limit-generators",
+  ["reactor"] = "upgrade-limit-reactors",
+  ["fusion-reactor"] = "upgrade-limit-reactors",
+  ["fusion-generator"] = "upgrade-limit-generators",
+  ["boiler"] = "upgrade-limit-boilers",
+  ["heat-pipe"] = "upgrade-limit-heat-pipes",
+  ["power-switch"] = "upgrade-limit-power-switches",
+  ["lightning-attractor"] = "upgrade-limit-lightning-rods",
 
   -- Defense entities
-  ["turret"] = "quality-level-cap-turrets",
-  ["ammo-turret"] = "quality-level-cap-turrets",
-  ["electric-turret"] = "quality-level-cap-turrets",
-  ["fluid-turret"] = "quality-level-cap-turrets",
-  ["artillery-turret"] = "quality-level-cap-turrets",
-  ["wall"] = "quality-level-cap-defense-walls-and-gates",
-  ["gate"] = "quality-level-cap-defense-walls-and-gates",
+  ["turret"] = "upgrade-limit-turrets",
+  ["ammo-turret"] = "upgrade-limit-turrets",
+  ["electric-turret"] = "upgrade-limit-turrets",
+  ["fluid-turret"] = "upgrade-limit-turrets",
+  ["artillery-turret"] = "upgrade-limit-turrets",
+  ["wall"] = "upgrade-limit-defense-walls-and-gates",
+  ["gate"] = "upgrade-limit-defense-walls-and-gates",
 
   -- Space platform entities
-  ["asteroid-collector"] = "quality-level-cap-asteroid-collectors",
-  ["thruster"] = "quality-level-cap-thrusters",
+  ["asteroid-collector"] = "upgrade-limit-asteroid-collectors",
+  ["thruster"] = "upgrade-limit-thrusters",
 
   -- Other entities
-  ["lamp"] = "quality-level-cap-lamps",
-  ["arithmetic-combinator"] = "quality-level-cap-combinators-and-speakers",
-  ["decider-combinator"] = "quality-level-cap-combinators-and-speakers",
-  ["constant-combinator"] = "quality-level-cap-combinators-and-speakers",
-  ["programmable-speaker"] = "quality-level-cap-combinators-and-speakers",
-  ["lab"] = "quality-level-cap-labs",
-  ["roboport"] = "quality-level-cap-roboports",
-  ["beacon"] = "quality-level-cap-beacons",
-  ["pump"] = "quality-level-cap-pumps",
-  ["offshore-pump"] = "quality-level-cap-pumps",
-  ["radar"] = "quality-level-cap-radar",
-  ["inserter"] = "quality-level-cap-inserters"
+  ["lamp"] = "upgrade-limit-lamps",
+  ["arithmetic-combinator"] = "upgrade-limit-combinators-and-speakers",
+  ["decider-combinator"] = "upgrade-limit-combinators-and-speakers",
+  ["constant-combinator"] = "upgrade-limit-combinators-and-speakers",
+  ["programmable-speaker"] = "upgrade-limit-combinators-and-speakers",
+  ["lab"] = "upgrade-limit-labs",
+  ["roboport"] = "upgrade-limit-roboports",
+  ["beacon"] = "upgrade-limit-beacons",
+  ["pump"] = "upgrade-limit-pumps",
+  ["offshore-pump"] = "upgrade-limit-pumps",
+  ["radar"] = "upgrade-limit-radar",
+  ["inserter"] = "upgrade-limit-inserters"
 }
 
--- Numeric quality level for each cap dropdown value. Levels are 1-based tier
+-- Numeric quality level for each limit dropdown value. Levels are 1-based tier
 -- counts (normal = 1 ... legendary = 5); 255 is the engine maximum and acts
--- as "unlimited". A cap of 1 disables upgrades for that entity type.
-local cap_value_to_level = {
-  ["disabled"] = 1,
+-- as "unlimited". A limit of 1 ("common") disables upgrades for that entity
+-- type, since entities cannot upgrade past the first tier.
+local limit_value_to_level = {
+  ["common"] = 1,
   ["uncommon"] = 2,
   ["rare"] = 3,
   ["epic"] = 4,
@@ -75,67 +76,67 @@ local cap_value_to_level = {
 
 -- The "custom a/b/c" dropdown values read their level from these settings.
 local custom_level_setting_for_value = {
-  ["custom-a"] = "custom-max-level-a",
-  ["custom-b"] = "custom-max-level-b",
-  ["custom-c"] = "custom-max-level-c"
+  ["custom-a"] = "custom-upgrade-limit-a",
+  ["custom-b"] = "custom-upgrade-limit-b",
+  ["custom-c"] = "custom-upgrade-limit-c"
 }
 
-local custom_max_level_settings = {}
+local custom_upgrade_limit_settings = {}
 for _, setting_name in pairs(custom_level_setting_for_value) do
-  custom_max_level_settings[setting_name] = true
+  custom_upgrade_limit_settings[setting_name] = true
 end
 
---- Resolves a quality level cap setting to its numeric quality level.
-local function get_quality_level_cap(cap_setting_name)
-  local value = settings.global[cap_setting_name].value
+--- Resolves an upgrade limit setting to its numeric quality level.
+local function get_upgrade_limit_level(limit_setting_name)
+  local value = settings.global[limit_setting_name].value
   local custom_setting = custom_level_setting_for_value[value]
   if custom_setting then
     return settings.global[custom_setting].value
   end
-  return cap_value_to_level[value]
+  return limit_value_to_level[value]
 end
 
 -- Lookup from setting name to entity group for the deprecated startup settings.
--- Used only for the one-time migration of old saves to the new runtime-global caps.
-local cap_setting_migration_map = {
-  ["quality-level-cap-accumulators"] = {old_bool = "enable-accumulators"},
-  ["quality-level-cap-agricultural-towers"] = {old_bool = "enable-agricultural-towers"},
-  ["quality-level-cap-assembly-machines"] = {old_bool = "enable-assembly-machines"},
-  ["quality-level-cap-asteroid-collectors"] = {old_bool = "enable-asteroid-collectors", old_limit = "asteroid-collector-growth-level-limit"},
-  ["quality-level-cap-beacons"] = {old_bool = "enable-beacons"},
-  ["quality-level-cap-boilers"] = {old_bool = "enable-boilers"},
-  ["quality-level-cap-combinators-and-speakers"] = {old_bool = "enable-combinators-and-speakers"},
-  ["quality-level-cap-defense-walls-and-gates"] = {old_bool = "enable-defense-walls-and-gates"},
-  ["quality-level-cap-furnaces"] = {old_bool = "enable-furnaces"},
-  ["quality-level-cap-generators"] = {old_bool = "enable-generators"},
-  ["quality-level-cap-heat-pipes"] = {old_bool = "enable-heat-pipes"},
-  ["quality-level-cap-inserters"] = {old_bool = "enable-inserters"},
-  ["quality-level-cap-labs"] = {old_bool = "enable-labs"},
-  ["quality-level-cap-lamps"] = {old_bool = "enable-lamps"},
-  ["quality-level-cap-lightning-rods"] = {old_bool = "enable-lightning-rods", old_limit = "lightning-attractor-growth-level-limit"},
-  ["quality-level-cap-mining-drills"] = {old_bool = "enable-mining-drills"},
-  ["quality-level-cap-poles"] = {old_bool = "enable-poles"},
-  ["quality-level-cap-power-switches"] = {old_bool = "enable-power-switches"},
-  ["quality-level-cap-pumps"] = {old_bool = "enable-pumps"},
-  ["quality-level-cap-radar"] = {old_bool = "enable-radar", old_limit = "radar-growth-level-limit"},
-  ["quality-level-cap-reactors"] = {old_bool = "enable-reactors"},
-  ["quality-level-cap-rocket-silos"] = {old_bool = "enable-rocket-silos"},
-  ["quality-level-cap-roboports"] = {old_bool = "enable-roboports"},
-  ["quality-level-cap-solar-panels"] = {old_bool = "enable-solar-panels"},
-  ["quality-level-cap-thrusters"] = {old_bool = "enable-thrusters", old_limit = "thruster-growth-level-limit"},
-  ["quality-level-cap-turrets"] = {old_bool = "enable-turrets"}
+-- Used only for the one-time migration of old saves to the new runtime-global upgrade limits.
+local limit_setting_migration_map = {
+  ["upgrade-limit-accumulators"] = {old_bool = "enable-accumulators"},
+  ["upgrade-limit-agricultural-towers"] = {old_bool = "enable-agricultural-towers"},
+  ["upgrade-limit-assembly-machines"] = {old_bool = "enable-assembly-machines"},
+  ["upgrade-limit-asteroid-collectors"] = {old_bool = "enable-asteroid-collectors", old_limit = "asteroid-collector-growth-level-limit"},
+  ["upgrade-limit-beacons"] = {old_bool = "enable-beacons"},
+  ["upgrade-limit-boilers"] = {old_bool = "enable-boilers"},
+  ["upgrade-limit-combinators-and-speakers"] = {old_bool = "enable-combinators-and-speakers"},
+  ["upgrade-limit-defense-walls-and-gates"] = {old_bool = "enable-defense-walls-and-gates"},
+  ["upgrade-limit-furnaces"] = {old_bool = "enable-furnaces"},
+  ["upgrade-limit-generators"] = {old_bool = "enable-generators"},
+  ["upgrade-limit-heat-pipes"] = {old_bool = "enable-heat-pipes"},
+  ["upgrade-limit-inserters"] = {old_bool = "enable-inserters"},
+  ["upgrade-limit-labs"] = {old_bool = "enable-labs"},
+  ["upgrade-limit-lamps"] = {old_bool = "enable-lamps"},
+  ["upgrade-limit-lightning-rods"] = {old_bool = "enable-lightning-rods", old_limit = "lightning-attractor-growth-level-limit"},
+  ["upgrade-limit-mining-drills"] = {old_bool = "enable-mining-drills"},
+  ["upgrade-limit-poles"] = {old_bool = "enable-poles"},
+  ["upgrade-limit-power-switches"] = {old_bool = "enable-power-switches"},
+  ["upgrade-limit-pumps"] = {old_bool = "enable-pumps"},
+  ["upgrade-limit-radar"] = {old_bool = "enable-radar", old_limit = "radar-growth-level-limit"},
+  ["upgrade-limit-reactors"] = {old_bool = "enable-reactors"},
+  ["upgrade-limit-rocket-silos"] = {old_bool = "enable-rocket-silos"},
+  ["upgrade-limit-roboports"] = {old_bool = "enable-roboports"},
+  ["upgrade-limit-solar-panels"] = {old_bool = "enable-solar-panels"},
+  ["upgrade-limit-thrusters"] = {old_bool = "enable-thrusters", old_limit = "thruster-growth-level-limit"},
+  ["upgrade-limit-turrets"] = {old_bool = "enable-turrets"}
 }
 
 --- One-time migration from the old startup bool/limit settings to the new
---- runtime-global quality level caps. Guarded by a storage flag so it runs
+--- runtime-global upgrade limits. Guarded by a storage flag so it runs
 --- exactly once and can't overwrite later changes on subsequent updates.
-local function migrate_level_caps_to_runtime_settings()
-  if storage.level_caps_migrated then
+local function migrate_upgrade_limits_to_runtime_settings()
+  if storage.upgrade_limits_migrated then
     return
   end
-  storage.level_caps_migrated = true
+  storage.upgrade_limits_migrated = true
 
-  local level_to_cap_value = {"disabled", "uncommon", "rare", "epic", "legendary"}
+  local level_to_limit_value = {"common", "uncommon", "rare", "epic", "legendary"}
   -- Old numeric limits above legendary have no named tier, so they are
   -- preserved by assigning them to the custom a/b/c slots. There are four old
   -- limit settings and three slots; any value that doesn't fit falls back to
@@ -143,14 +144,15 @@ local function migrate_level_caps_to_runtime_settings()
   local free_custom_values = {"custom-a", "custom-b", "custom-c"}
   local custom_value_for_level = {}
 
-  for cap_setting, old in pairs(cap_setting_migration_map) do
+  for limit_setting, old in pairs(limit_setting_migration_map) do
     local value
     if not settings.startup[old.old_bool].value then
-      -- Old bool off means the entity type was disabled
-      value = "disabled"
+      -- Old bool off means the entity type was disabled; a "common" limit
+      -- preserves that by blocking upgrades past the first tier
+      value = "common"
     elseif old.old_limit then
       local level = settings.startup[old.old_limit].value
-      value = level_to_cap_value[level] or custom_value_for_level[level]
+      value = level_to_limit_value[level] or custom_value_for_level[level]
       if not value then
         value = table.remove(free_custom_values, 1) or "unlimited"
         if value ~= "unlimited" then
@@ -161,7 +163,7 @@ local function migrate_level_caps_to_runtime_settings()
     else
       value = "unlimited"
     end
-    settings.global[cap_setting] = {value = value}
+    settings.global[limit_setting] = {value = value}
   end
 end
 
@@ -178,7 +180,7 @@ local function build_entity_type_lists()
 
   -- Build lists by checking individual entity type settings
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    if get_quality_level_cap(setting_name) > 1 then
+    if get_upgrade_limit_level(setting_name) > 1 then
       if entity_type == "assembling-machine" or entity_type == "furnace" or entity_type == "rocket-silo"
         or entity_type == "turret" or entity_type == "ammo-turret" or entity_type == "electric-turret"
         or entity_type == "fluid-turret" or entity_type == "artillery-turret" then
@@ -212,16 +214,16 @@ local function build_and_store_config()
   -- Store which entity types should be allowed to have quality changes attempted
   local can_attempt_quality_change = {}
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    can_attempt_quality_change[entity_type] = get_quality_level_cap(setting_name) > 1
+    can_attempt_quality_change[entity_type] = get_upgrade_limit_level(setting_name) > 1
   end
   storage.config.can_attempt_quality_change = can_attempt_quality_change
 
-  -- Max quality level each entity type will be raised to (cap of 1 = disabled)
-  local quality_level_caps = {}
+  -- Max quality level each entity type will be raised to (limit of 1 = no upgrades)
+  local upgrade_limit_levels = {}
   for entity_type, setting_name in pairs(entity_to_setting_map) do
-    quality_level_caps[entity_type] = get_quality_level_cap(setting_name)
+    upgrade_limit_levels[entity_type] = get_upgrade_limit_level(setting_name)
   end
-  storage.config.quality_level_caps = quality_level_caps
+  storage.config.upgrade_limit_levels = upgrade_limit_levels
 
   local settings_data = {}
   settings_data.manufacturing_hours_for_change = settings.startup["manufacturing-hours-for-change"].value
@@ -401,8 +403,8 @@ local function register_event_handlers()
     if event.setting == "batch-ticks-between-processing" then
       storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
       register_main_loop()
-    elseif cap_setting_migration_map[event.setting] or custom_max_level_settings[event.setting] then
-      -- A quality level cap (or a custom max level it may reference) changed;
+    elseif limit_setting_migration_map[event.setting] or custom_upgrade_limit_settings[event.setting] then
+      -- An upgrade limit (or a custom upgrade limit it may reference) changed;
       -- rebuild tracked entities and config
       reinitialize_quality_control_storage()
     end
@@ -429,7 +431,7 @@ end)
 -- Ran when settings change or mod version updates
 script.on_configuration_changed(function(_)
   setup_data_structures()
-  migrate_level_caps_to_runtime_settings()
+  migrate_upgrade_limits_to_runtime_settings()
   reinitialize_quality_control_storage()
   storage.ticks_between_batches = settings.global["batch-ticks-between-processing"].value
   register_event_handlers()

@@ -96,10 +96,10 @@ data:extend({
         default_value = true,
         order = "c-11"
     },
-    -- Custom max levels referenced by the "custom a/b/c" quality level cap values below
+    -- Custom upgrade limits referenced by the "custom a/b/c" upgrade limit values below
     {
         type = "int-setting",
-        name = "custom-max-level-a",
+        name = "custom-upgrade-limit-a",
         setting_type = "runtime-global",
         default_value = 10,
         min_value = 1,
@@ -108,7 +108,7 @@ data:extend({
     },
     {
         type = "int-setting",
-        name = "custom-max-level-b",
+        name = "custom-upgrade-limit-b",
         setting_type = "runtime-global",
         default_value = 10,
         min_value = 1,
@@ -117,7 +117,7 @@ data:extend({
     },
     {
         type = "int-setting",
-        name = "custom-max-level-c",
+        name = "custom-upgrade-limit-c",
         setting_type = "runtime-global",
         default_value = 10,
         min_value = 1,
@@ -126,55 +126,55 @@ data:extend({
     }
 })
 
--- Quality level caps (runtime-global so they can be tuned mid-game).
--- Each cap is a dropdown of quality tier names; control.lua maps the chosen
--- value to a numeric quality level. "disabled" turns off upgrades for that
--- entity type, "unlimited" applies no cap, and the "custom a/b/c" values use
--- the Custom Max Level A/B/C settings above.
-local quality_cap_dropdown_values = {
-    "disabled", "uncommon", "rare", "epic", "legendary", "unlimited",
+-- Upgrade limits (runtime-global so they can be tuned mid-game).
+-- Each limit is a dropdown of quality tier names; control.lua maps the chosen
+-- value to a numeric quality level. "common" limits upgrades to the first tier, which
+-- turns off upgrades for that entity type; "unlimited" applies no limit, and
+-- the "custom a/b/c" values use the Custom Upgrade Limit A/B/C settings above.
+local upgrade_limit_dropdown_values = {
+    "common", "uncommon", "rare", "epic", "legendary", "unlimited",
     "custom-a", "custom-b", "custom-c"
 }
 
 -- Entity types (alphabetized)
-local quality_cap_settings = {
-    {name = "quality-level-cap-accumulators", default = "unlimited", order = "d-00"},
-    {name = "quality-level-cap-agricultural-towers", default = "unlimited", order = "d-01"},
-    {name = "quality-level-cap-assembly-machines", default = "unlimited", order = "d-02"},
-    {name = "quality-level-cap-asteroid-collectors", default = "legendary", order = "d-03"},
-    {name = "quality-level-cap-beacons", default = "unlimited", order = "d-04"},
-    {name = "quality-level-cap-boilers", default = "unlimited", order = "d-05"},
-    {name = "quality-level-cap-combinators-and-speakers", default = "disabled", order = "d-06"},
-    {name = "quality-level-cap-defense-walls-and-gates", default = "unlimited", order = "d-07"},
-    {name = "quality-level-cap-furnaces", default = "unlimited", order = "d-08"},
-    {name = "quality-level-cap-generators", default = "unlimited", order = "d-09"},
-    {name = "quality-level-cap-heat-pipes", default = "disabled", order = "d-10"},
-    {name = "quality-level-cap-inserters", default = "unlimited", order = "d-11"},
-    {name = "quality-level-cap-labs", default = "unlimited", order = "d-12"},
-    {name = "quality-level-cap-lamps", default = "disabled", order = "d-13"},
-    {name = "quality-level-cap-lightning-rods", default = "legendary", order = "d-14"},
-    {name = "quality-level-cap-mining-drills", default = "unlimited", order = "d-15"},
-    {name = "quality-level-cap-poles", default = "disabled", order = "d-16"},
-    {name = "quality-level-cap-power-switches", default = "disabled", order = "d-17"},
-    {name = "quality-level-cap-pumps", default = "unlimited", order = "d-18"},
-    {name = "quality-level-cap-radar", default = "legendary", order = "d-19"},
-    {name = "quality-level-cap-reactors", default = "unlimited", order = "d-20"},
-    {name = "quality-level-cap-rocket-silos", default = "unlimited", order = "d-20a"},
-    {name = "quality-level-cap-roboports", default = "unlimited", order = "d-21"},
-    {name = "quality-level-cap-solar-panels", default = "unlimited", order = "d-22"},
-    {name = "quality-level-cap-thrusters", default = "legendary", order = "d-23"},
-    {name = "quality-level-cap-turrets", default = "unlimited", order = "d-24"}
+local upgrade_limit_settings = {
+    {name = "upgrade-limit-accumulators", default = "unlimited", order = "d-00"},
+    {name = "upgrade-limit-agricultural-towers", default = "unlimited", order = "d-01"},
+    {name = "upgrade-limit-assembly-machines", default = "unlimited", order = "d-02"},
+    {name = "upgrade-limit-asteroid-collectors", default = "legendary", order = "d-03"},
+    {name = "upgrade-limit-beacons", default = "unlimited", order = "d-04"},
+    {name = "upgrade-limit-boilers", default = "unlimited", order = "d-05"},
+    {name = "upgrade-limit-combinators-and-speakers", default = "common", order = "d-06"},
+    {name = "upgrade-limit-defense-walls-and-gates", default = "unlimited", order = "d-07"},
+    {name = "upgrade-limit-furnaces", default = "unlimited", order = "d-08"},
+    {name = "upgrade-limit-generators", default = "unlimited", order = "d-09"},
+    {name = "upgrade-limit-heat-pipes", default = "common", order = "d-10"},
+    {name = "upgrade-limit-inserters", default = "unlimited", order = "d-11"},
+    {name = "upgrade-limit-labs", default = "unlimited", order = "d-12"},
+    {name = "upgrade-limit-lamps", default = "common", order = "d-13"},
+    {name = "upgrade-limit-lightning-rods", default = "legendary", order = "d-14"},
+    {name = "upgrade-limit-mining-drills", default = "unlimited", order = "d-15"},
+    {name = "upgrade-limit-poles", default = "common", order = "d-16"},
+    {name = "upgrade-limit-power-switches", default = "common", order = "d-17"},
+    {name = "upgrade-limit-pumps", default = "unlimited", order = "d-18"},
+    {name = "upgrade-limit-radar", default = "legendary", order = "d-19"},
+    {name = "upgrade-limit-reactors", default = "unlimited", order = "d-20"},
+    {name = "upgrade-limit-rocket-silos", default = "unlimited", order = "d-20a"},
+    {name = "upgrade-limit-roboports", default = "unlimited", order = "d-21"},
+    {name = "upgrade-limit-solar-panels", default = "unlimited", order = "d-22"},
+    {name = "upgrade-limit-thrusters", default = "legendary", order = "d-23"},
+    {name = "upgrade-limit-turrets", default = "unlimited", order = "d-24"}
 }
 
-for _, cap in ipairs(quality_cap_settings) do
+for _, limit in ipairs(upgrade_limit_settings) do
     data:extend({
         {
             type = "string-setting",
-            name = cap.name,
+            name = limit.name,
             setting_type = "runtime-global",
-            default_value = cap.default,
-            allowed_values = quality_cap_dropdown_values,
-            order = cap.order
+            default_value = limit.default,
+            allowed_values = upgrade_limit_dropdown_values,
+            order = limit.order
         }
     })
 end
