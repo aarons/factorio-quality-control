@@ -7,6 +7,7 @@ Combines upgrade processing, entity tracking, and batch processing functionality
 ]]
 
 local notifications = require("scripts.notifications")
+local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
 local exclusions = require("scripts.exclusions")
 local core = {}
@@ -23,21 +24,11 @@ local accumulation_percentage = nil
 local entity_list = {}
 local entity_list_index = {}
 local module_upgrade_setting = "disabled"
-local turret_damage_per_manufacturing_hour = 36000
 
 local turret_types = {
   ["turret"] = true, ["ammo-turret"] = true, ["electric-turret"] = true,
   ["fluid-turret"] = true, ["artillery-turret"] = true,
 }
-
-local function get_recipe_time(entity)
-  if entity.get_recipe() then
-    return entity.get_recipe().prototype.energy
-  elseif entity.type == "furnace" and entity.previous_recipe then
-    return entity.previous_recipe.name.energy
-  end
-  return 0
-end
 
 function core.initialize()
   tracked_entities = storage.quality_control_entities
@@ -52,7 +43,8 @@ function core.initialize()
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
   module_upgrade_setting = settings_data.change_modules_with_entity
-  turret_damage_per_manufacturing_hour = settings_data.turret_damage_per_manufacturing_hour
+
+  progression.initialize(settings_data)
 
   -- Initialize quality selector with settings
   quality_selector.initialize(
@@ -109,19 +101,15 @@ function core.get_entity_info(entity)
 
   -- Initialize manufacturing hours based on current activity
   -- This ensures we don't double-count hours for already-active entities
-  local current_hours
-  if is_turret then
-    current_hours = entity.damage_dealt / turret_damage_per_manufacturing_hour
-  else
-    current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
-  end
+  local current_hours = progression.get_manufacturing_hours(entity, is_turret)
   tracked_entities[id].manufacturing_hours = current_hours
 
   -- Calculate how many upgrade attempts would have occurred in the past
   -- and adjust the chance percentage accordingly
   if current_hours > 0 then
     local hours_needed = quality_multipliers[entity.quality.level]
-    local past_attempts = math.floor(current_hours / hours_needed)
+    local progression_hours = progression.to_progression_hours(current_hours, entity, is_turret)
+    local past_attempts = math.floor(progression_hours / hours_needed)
 
     -- Simulate the chance accumulation from missed upgrade attempts
     if past_attempts > 0 and accumulation_percentage > 0 then
@@ -316,14 +304,9 @@ end
 
 function core.process_primary_entity(entity_info, entity)
   local hours_needed = quality_multipliers[entity.quality.level]
-  local current_hours
-  if entity_info.is_turret then
-    current_hours = entity.damage_dealt / turret_damage_per_manufacturing_hour
-  else
-    current_hours = (entity.products_finished * get_recipe_time(entity)) / 3600
-  end
+  local current_hours = progression.get_manufacturing_hours(entity, entity_info.is_turret)
   local previous_hours = entity_info.manufacturing_hours or 0
-  local hours_worked = current_hours - previous_hours
+  local hours_worked = progression.to_progression_hours(current_hours - previous_hours, entity, entity_info.is_turret)
   local credits_earned = hours_worked / hours_needed
 
   storage.accumulated_credits = storage.accumulated_credits + credits_earned

@@ -9,6 +9,13 @@ data:extend({
         order = "a-0"
     },
     {
+        type = "bool-setting",
+        name = "crafting-speed-affects-progression",
+        setting_type = "startup",
+        default_value = true,
+        order = "a-0a"
+    },
+    {
         type = "double-setting",
         name = "percentage-chance-of-change",
         setting_type = "startup",

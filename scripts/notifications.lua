@@ -5,6 +5,8 @@ Handles all notification, alert, and UI display functionality.
 This includes entity-specific alerts, aggregate notifications, and quality control inspection UI.
 ]]
 
+local progression = require("scripts.progression")
+
 local notifications = {}
 
 -- Aggregate notification throttling (5 minutes = 18000 ticks)
@@ -140,7 +142,6 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     -- Normal entity_info table - show tracking data
     local is_primary_type = entity_info.is_primary
     local is_turret = turret_types[selected_entity.type] or false
-    local current_recipe = is_primary_type and not is_turret and selected_entity.get_recipe and selected_entity.get_recipe()
     local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
     local can_change_quality = selected_entity.quality ~= storage.config.quality_limit
 
@@ -148,17 +149,9 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     local credits_earned = 0
     if is_primary_type then
       local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
-      local current_hours
-      if is_turret then
-        local damage_per_hour = storage.config.settings_data.turret_damage_per_manufacturing_hour
-        current_hours = selected_entity.damage_dealt / damage_per_hour
-      elseif current_recipe then
-        local recipe_time = current_recipe.prototype.energy
-        current_hours = (selected_entity.products_finished * recipe_time) / 3600
-      end
-      if current_hours then
-        credits_earned = current_hours / hours_needed
-      end
+      local current_hours = progression.get_manufacturing_hours(selected_entity, is_turret)
+      local progression_hours = progression.to_progression_hours(current_hours, selected_entity, is_turret)
+      credits_earned = progression_hours / hours_needed
     end
 
     local credits_spent = calculate_credits_spent_on_attempts(entity_info)

@@ -1,4 +1,15 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.3.0
+Date: 04. 08. 2026
+  Features:
+    - New "Crafting Speed Affects Progression" startup setting. Disable it to make progression
+      time-based: one hour of active crafting earns one manufacturing hour, no matter how fast
+      the machine crafts. This removes the compounding effect where each quality upgrade speeds
+      up the next one. Enabled by default, so existing games keep their current progression rate.
+  Bugfixes:
+    - The quality info hotkey now reports credits earned for furnaces that are between smelts;
+      previously it showed zero until the furnace picked up its next recipe.
+---------------------------------------------------------------------------------------------------
 Version: 2.2.0
 Date: 28. 07. 2026
   Changes:
