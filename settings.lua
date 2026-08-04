@@ -445,5 +445,12 @@ data:extend({
         min_value = 1,
         max_value = 10000000,
         order = "d-24a"
+    },
+    {
+        type = "bool-setting",
+        name = "turrets-contribute-credits",
+        setting_type = "startup",
+        default_value = false,
+        order = "d-24b"
     }
 })

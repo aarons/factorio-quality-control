@@ -233,6 +233,7 @@ local function build_and_store_config()
   settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
   settings_data.turret_damage_per_manufacturing_hour = settings.startup["turret-damage-per-manufacturing-hour"].value
+  settings_data.turrets_contribute_credits = settings.startup["turrets-contribute-credits"].value
   settings_data.skip_hidden_qualities = settings.startup["quality_control_skip_hidden_qualities"].value
   settings_data.sticky_hidden_qualities = settings.startup["quality_control_hidden_qualities_sticky"].value
 

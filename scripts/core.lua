@@ -19,6 +19,7 @@ local can_attempt_quality_change = {}
 local upgrade_limit_levels = {}
 local quality_multipliers = {}
 local accumulate_at_max_quality = nil
+local turrets_contribute_credits = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
 local entity_list = {}
@@ -40,6 +41,7 @@ function core.initialize()
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
   accumulate_at_max_quality = settings_data.accumulate_at_max_quality
+  turrets_contribute_credits = settings_data.turrets_contribute_credits
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
   module_upgrade_setting = settings_data.change_modules_with_entity
@@ -60,9 +62,12 @@ function core.get_entity_info(entity)
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace"
     or entity.type == "rocket-silo" or is_turret)
 
-  -- Only track entities that can change quality OR are primary entities with accumulation enabled
+  -- Only track entities that can change quality OR are primary entities with accumulation enabled.
+  -- Isolated turrets don't feed the shared credit pool, so there is no reason to
+  -- keep tracking them once they can no longer upgrade themselves.
   local can_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
-  local should_track = can_upgrade or (is_primary and accumulate_at_max_quality)
+  local contributes_credits = is_primary and (not is_turret or turrets_contribute_credits)
+  local should_track = can_upgrade or (contributes_credits and accumulate_at_max_quality)
   if not should_track then
     return "at max quality"
   end
@@ -309,7 +314,11 @@ function core.process_primary_entity(entity_info, entity)
   local hours_worked = progression.to_progression_hours(current_hours - previous_hours, entity, entity_info.is_turret)
   local credits_earned = hours_worked / hours_needed
 
-  storage.accumulated_credits = storage.accumulated_credits + credits_earned
+  -- Isolated turrets keep their credits for their own upgrade attempts instead
+  -- of feeding the shared pool that secondary entities draw from
+  if not entity_info.is_turret or turrets_contribute_credits then
+    storage.accumulated_credits = storage.accumulated_credits + credits_earned
+  end
 
   return {
     credits_earned = credits_earned,
@@ -363,8 +372,10 @@ function core.batch_process_entities()
       can_still_upgrade = false
     end
 
-    -- if the entity is primary and accumulate a max quality is on, then we should keep tracking
-    local should_stay_tracked = can_still_upgrade or (entity_info.is_primary and accumulate_at_max_quality)
+    -- if the entity is primary and accumulate at max quality is on, then we should keep tracking;
+    -- isolated turrets are the exception since their credits go nowhere once they can't upgrade
+    local contributes_credits = entity_info.is_primary and (not entity_info.is_turret or turrets_contribute_credits)
+    local should_stay_tracked = can_still_upgrade or (contributes_credits and accumulate_at_max_quality)
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue

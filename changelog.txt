@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.4.0
+Date: 04. 08. 2026
+  Features:
+    - New "Turrets Contribute Credits" startup setting controls whether upgrade credits earned
+      from turret combat feed the shared pool that upgrades secondary entities (inserters, power
+      poles, and so on). Disabled by default: turret damage only helps turrets upgrade themselves.
+      Enable it if you want combat to advance the rest of the factory too.
+---------------------------------------------------------------------------------------------------
 Version: 2.3.0
 Date: 04. 08. 2026
   Features:
