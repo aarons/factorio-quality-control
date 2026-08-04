@@ -275,6 +275,7 @@ local function setup_data_structures(force_reset)
     storage.secondary_entity_count = 0
     storage.accumulated_credits = 0
     storage.excluded_surfaces = {}
+    storage.effect_state = nil
   end
 
   if not storage.quality_control_entities then
@@ -324,6 +325,16 @@ local function setup_data_structures(force_reset)
 
   if not storage.excluded_surfaces then
     storage.excluded_surfaces = {}
+  end
+
+  -- Throttling state for the upgrade visual effect (see scripts/effects.lua)
+  if not storage.effect_state then
+    storage.effect_state = {
+      last_tick = 0,
+      count_this_tick = 0,
+      position_cooldowns = {},
+      last_prune_tick = 0
+    }
   end
 end
 

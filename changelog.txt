@@ -1,4 +1,12 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.4.0
+Date: 04. 08. 2026
+  Features:
+    - New sparkle visual effect when an entity's quality is upgraded. Shows the new quality's icon
+      and a glow tinted with the quality's color, scaled to the entity's footprint. Works with any
+      modded entity size and quality tier. Can be turned off per player with the "Upgrade Visual
+      Effects" setting.
+---------------------------------------------------------------------------------------------------
 Version: 2.3.0
 Date: 04. 08. 2026
   Features:

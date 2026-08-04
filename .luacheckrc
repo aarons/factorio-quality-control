@@ -30,6 +30,7 @@ globals = {
 
     -- Factorio 2.0 prototypes access
     "prototypes",
+    "helpers",
 
     -- Data stage only
     "data",

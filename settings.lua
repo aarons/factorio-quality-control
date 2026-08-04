@@ -88,6 +88,13 @@ data:extend({
         default_value = true,
         order = "c-1"
     },
+    {
+        type = "bool-setting",
+        name = "quality-change-visual-effects-enabled",
+        setting_type = "runtime-per-user",
+        default_value = true,
+        order = "c-2"
+    },
     -- Hidden quality handling (for mods like Quality++ Shiny)
     {
         type = "bool-setting",

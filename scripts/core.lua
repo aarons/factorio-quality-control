@@ -7,6 +7,7 @@ Combines upgrade processing, entity tracking, and batch processing functionality
 ]]
 
 local notifications = require("scripts.notifications")
+local effects = require("scripts.effects")
 local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
 local exclusions = require("scripts.exclusions")
@@ -295,6 +296,7 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
       new_entity_1.send_to_orbit_automatically = old_send_to_orbit_automatically
     end
     update_module_quality(new_entity_1)
+    effects.show_upgrade_effect(new_entity_1)
     notifications.show_entity_quality_alert(new_entity_1, target_quality)
   end
 
