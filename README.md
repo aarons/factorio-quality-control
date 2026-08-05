@@ -30,7 +30,7 @@ The mod tracks two categories of entities with different quality management appr
 - Logic: combinators, beacons, speakers
 - Space Age: lightning rods, asteroid collectors, thrusters
 
-Secondary entities use a credit-based system - when primary entities reach upgrade thresholds, they generate credits proportional to the ratio of secondary to primary entities. Secondary entities consume these credits for upgrade attempts. This ensures infrastructure upgrades at a similar pace to production machines without requiring complex tracking for non-crafting entities.
+Secondary entities advance via a per-surface progression meter: each surface keeps a running total of the upgrade credits the average primary entity there has earned, and every secondary entity earns whatever the meter added since its last visit. This keeps infrastructure upgrading at the same pace as the production machines around it, no matter how many secondary entities exist. See the Technical Details section below for how the meter works.
 
 ### Manufacturing Hours
 
@@ -158,6 +158,7 @@ All settings are configurable at game startup:
 - **Percentage Chance**: Likelihood of quality change when hours are met (0.0001% - 100%)
 - **Cost Increases per Quality Level**: Compounds the hour requirement at higher quality levels
 - **Chance Accumulation Rate**: How much the chance increases after failed attempts (None/Low/Medium/High)
+- **Secondary Progression Rate**: Percentage of the average primary entity's pace that secondary entities receive; changeable mid-game (0% - 100,000%)
 - **Check Frequency**: How often to scan machines (1 - 3600 seconds)
 - **Alert Settings**: Toggle console messages and/or map pings for quality changes
 
@@ -182,16 +183,20 @@ Some test results on an m2 mac:
 
 This may be interesting to only a few, but here is how the upgrade system works.
 
-The mod tracks two types of entities: primary entities (assemblers, furnaces, rocket silos) that have a way to measure their manufacturing time, and secondary entities (like inserters, power poles, etc.) that don't have a way to track work. The goal is to keep secondary entities upgrading at about the same rate, so that if all assemblers work their way up to legendary then other entities will also achieve legendary at about the same time.
+The mod tracks two types of entities: primary entities (assemblers, furnaces, rocket silos, turrets) that have a way to measure their work, and secondary entities (like inserters, power poles, etc.) that don't. The goal is to keep secondary entities upgrading at about the same rate as the machines around them, so that if all assemblers work their way up to legendary then other entities will also achieve legendary at about the same time.
 
-When a primary entity reaches an upgrade threshold, it generates credits based on its current quality level: a normal quality entity would generate 1 credit and a legendary entity would generate 5 credits for example. These credits accumulate in a global pool that secondary entities pull from in a round-robin process.
+Each surface has a cumulative progression meter that records the total upgrade credits the *average* primary entity on that surface has earned, ever. When a primary entity is processed, its newly earned credits divided by the surface's primary count are added to the meter. Each secondary entity remembers the meter reading from its last visit, and it works like an electricity meter: the entity earns the difference between the current reading and its last one, then updates its bookmark. Reading the meter more or less often never changes the total earned.
 
-Example for a base with 100 secondary entities:
-- Assemblers and furnaces earn credits and add to the global pool, let's say there are 150 credits in the pool
-- Each secondary entity gets 150 credits / 100 secondary entities = 1.50 credits
-- The secondary entity get's 1.5 chances to upgrade it's quality
+Example: 4 assemblers each earn 0.05 credits over an hour, so the surface meter rises from 5.00 to 5.20. An inserter visited once that hour reads a delta of 0.20 credits; an inserter visited four times reads 0.05 credits four times. Same total either way, and it stays the same whether the surface has ten inserters or ten thousand.
 
-This credit system ensures secondary entities upgrade at a rate proportional to the activity and quality of primary entities, with higher quality primaries accelerating infrastructure upgrades.
+A few consequences of this design:
+
+- Primary entities at max quality keep earning and depositing credits, so late-game infrastructure keeps progressing.
+- Mostly-idle primary entities lower the surface average, slowing secondary progression - a busy factory advances its infrastructure faster than a stalled one.
+- A surface with no primary entities has a frozen meter, so its secondary entities never advance: nothing is manufacturing there, so nothing improves there.
+- A secondary entity placed (or first tracked) later starts its bookmark at the current meter reading, so it earns credits only from that point forward - adding the mod to a mature save doesn't trigger a burst of upgrades.
+
+The Secondary Progression Rate runtime setting scales how much of the meter delta secondary entities receive: 100% (the default) matches the average primary entity's pace, 0% halts secondary progression, and higher values accelerate infrastructure past parity.
 
 
 ## Developer Workflow
