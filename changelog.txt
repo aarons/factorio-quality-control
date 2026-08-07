@@ -1,11 +1,30 @@
 ---------------------------------------------------------------------------------------------------
 Version: 2.4.0
-Date: 04. 08. 2026
+Date: 07. 08. 2026
+  Balancing:
+    - Secondary entities (inserters, poles, beacons - anything that can't measure its own work)
+      now advance at the pace of the average production machine on their surface. Building more
+      infrastructure no longer dilutes progression; for most factories secondary upgrades will
+      feel faster.
+    - Progression is now tracked per surface: each planet or platform advances its own
+      infrastructure based on the machines working there. A surface with no working production
+      machines or turrets will not advance.
   Features:
+    - A new Secondary Progression Rate setting can be used to scale how fast those entities progress
+      relative to the primary entities. The default of 100% matches their pace; 0% halts
+      secondary progression entirely. Can be changed mid-game without a restart in map settings.
     - New "Turrets Contribute Credits" startup setting controls whether upgrade credits earned
-      from turret combat feed the shared pool that upgrades secondary entities (inserters, power
-      poles, and so on). Disabled by default: turret damage only helps turrets upgrade themselves.
-      Enable it if you want combat to advance the rest of the factory too.
+      from turret combat feed the surface's progression meter that upgrades secondary entities
+      (inserters, power poles, and so on). Disabled by default: turret damage only helps turrets
+      upgrade themselves. Enable it if you want combat to advance the rest of the factory too.
+  Changes:
+    - Removed the Continue Accumulating at Max Quality setting - this setting's purpose was to help
+      late game feel normal, but in practice didn't work well. Now, machines at max quality will
+      continue contributing, and the secondary progression rate setting can be used to slow things down
+      if it feels like they are advancing too quickly in the late game.
+  Ease of use:
+    - The quality inspection hotkey now shows how many upgrade credits a secondary entity has
+      available for its next upgrade attempt.
 ---------------------------------------------------------------------------------------------------
 Version: 2.3.0
 Date: 04. 08. 2026

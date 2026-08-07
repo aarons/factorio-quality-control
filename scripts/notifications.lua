@@ -145,7 +145,8 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
     local can_change_quality = selected_entity.quality ~= storage.config.quality_limit
 
-    -- Calculate credits earned for primary entities (based on total manufacturing hours)
+    -- Primary entities earn credits from their total manufacturing hours; secondary
+    -- entities have whatever their surface meter shows since their last reading
     local credits_earned = 0
     if is_primary_type then
       local hours_needed = storage.quality_multipliers[selected_entity.quality.level]
@@ -154,10 +155,20 @@ function notifications.show_entity_quality_info(player, get_entity_info)
       credits_earned = progression_hours / hours_needed
     end
 
+    local credits_available = 0
+    if not is_primary_type then
+      local meter = storage.surface_meters[entity_info.surface_index] or 0
+      local rate_multiplier = settings.global["secondary-progression-rate"].value / 100
+      credits_available = (meter - entity_info.last_seen_meter) * rate_multiplier
+    end
+
     local credits_spent = calculate_credits_spent_on_attempts(entity_info)
 
     if is_enabled and can_change_quality then
       table.insert(info_parts, {"quality-control.next-chance-to-change", string.format("%.2f", math.min(100, entity_info.chance_to_change))})
+      if not is_primary_type then
+        table.insert(info_parts, {"quality-control.credits-available", format_number_with_commas(credits_available, 2)})
+      end
       table.insert(info_parts, {"quality-control.credits-used", format_number_with_commas(credits_spent, 2)})
     elseif is_enabled then
       -- For entities that cannot change quality but are still generating credits

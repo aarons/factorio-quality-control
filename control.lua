@@ -230,7 +230,6 @@ local function build_and_store_config()
   settings_data.crafting_speed_affects_progression = settings.startup["crafting-speed-affects-progression"].value
   settings_data.quality_increase_cost = settings.startup["quality-increase-cost"].value / 100
   settings_data.base_percentage_chance = settings.startup["percentage-chance-of-change"].value
-  settings_data.accumulate_at_max_quality = settings.startup["accumulate-at-max-quality"].value
   settings_data.change_modules_with_entity = settings.startup["change-modules-with-entity"].value
   settings_data.turret_damage_per_manufacturing_hour = settings.startup["turret-damage-per-manufacturing-hour"].value
   settings_data.turrets_contribute_credits = settings.startup["turrets-contribute-credits"].value
@@ -274,7 +273,8 @@ local function setup_data_structures(force_reset)
     storage.batch_index = 1
     storage.primary_entity_count = 0
     storage.secondary_entity_count = 0
-    storage.accumulated_credits = 0
+    storage.surface_meters = {}
+    storage.surface_primary_counts = {}
     storage.excluded_surfaces = {}
   end
 
@@ -315,8 +315,12 @@ local function setup_data_structures(force_reset)
     storage.secondary_entity_count = 0
   end
 
-  if not storage.accumulated_credits then
-    storage.accumulated_credits = 0
+  if not storage.surface_meters then
+    storage.surface_meters = {}
+  end
+
+  if not storage.surface_primary_counts then
+    storage.surface_primary_counts = {}
   end
 
   if not storage.quality_multipliers then
@@ -396,7 +400,10 @@ local function register_event_handlers()
 
   -- Surface lifecycle events for exclusion cache
   script.on_event(defines.events.on_surface_created, exclusions.on_surface_created)
-  script.on_event(defines.events.on_surface_deleted, exclusions.on_surface_deleted)
+  script.on_event(defines.events.on_surface_deleted, function(event)
+    exclusions.on_surface_deleted(event)
+    core.on_surface_deleted(event)
+  end)
   script.on_event(defines.events.on_surface_renamed, exclusions.on_surface_renamed)
   script.on_event(defines.events.on_surface_imported, exclusions.on_surface_imported)
 

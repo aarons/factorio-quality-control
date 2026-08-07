@@ -1,5 +1,10 @@
 # Aura Credit System for Secondary Entities
 
+> **Superseded (v2.4.0):** This plan was written against the global credit pool, which
+> `plans/secondary-progression-meter.md` replaced with per-surface progression meters.
+> If spatial credit differentiation is still wanted, it needs a redesign against the
+> meter model (e.g. a local bonus on top of the broadcast).
+
 ## Context
 
 Currently, all secondary entities (inserters, beacons, poles, etc.) share a global credit pool equally, regardless of location. This means an inserter feeding a busy assembler advances at the same rate as an idle power pole across the map. The aura system directs 70% of credits from primary entities to nearby secondaries, creating natural spatial progression where support infrastructure levels up alongside the machines it serves.

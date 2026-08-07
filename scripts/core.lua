@@ -18,7 +18,6 @@ local is_tracked_type = {}
 local can_attempt_quality_change = {}
 local upgrade_limit_levels = {}
 local quality_multipliers = {}
-local accumulate_at_max_quality = nil
 local turrets_contribute_credits = nil
 local base_percentage_chance = nil
 local accumulation_percentage = nil
@@ -31,6 +30,13 @@ local turret_types = {
   ["fluid-turret"] = true, ["artillery-turret"] = true,
 }
 
+-- A primary deposits credits into its surface meter unless it is an isolated
+-- turret (Turrets Contribute Credits disabled). The meter's divisor counts only
+-- depositing primaries, so isolated turrets never dilute secondary progression.
+local function feeds_surface_meter(is_primary, is_turret)
+  return is_primary and (not is_turret or turrets_contribute_credits)
+end
+
 function core.initialize()
   tracked_entities = storage.quality_control_entities
   settings_data = storage.config.settings_data
@@ -40,7 +46,6 @@ function core.initialize()
   quality_multipliers = storage.quality_multipliers
   entity_list = storage.entity_list
   entity_list_index = storage.entity_list_index
-  accumulate_at_max_quality = settings_data.accumulate_at_max_quality
   turrets_contribute_credits = settings_data.turrets_contribute_credits
   base_percentage_chance = settings_data.base_percentage_chance
   accumulation_percentage = settings_data.accumulation_percentage
@@ -62,12 +67,12 @@ function core.get_entity_info(entity)
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace"
     or entity.type == "rocket-silo" or is_turret)
 
-  -- Only track entities that can change quality OR are primary entities with accumulation enabled.
-  -- Isolated turrets don't feed the shared credit pool, so there is no reason to
-  -- keep tracking them once they can no longer upgrade themselves.
+  -- Track entities that can change quality. Depositing primaries are always
+  -- tracked, even at max quality, so they keep feeding their surface's
+  -- progression meter. Isolated turrets don't feed the meter, so there is no
+  -- reason to keep tracking them once they can no longer upgrade themselves.
   local can_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
-  local contributes_credits = is_primary and (not is_turret or turrets_contribute_credits)
-  local should_track = can_upgrade or (contributes_credits and accumulate_at_max_quality)
+  local should_track = can_upgrade or feeds_surface_meter(is_primary, is_turret)
   if not should_track then
     return "at max quality"
   end
@@ -82,15 +87,20 @@ function core.get_entity_info(entity)
     return "entity excluded from quality control"
   end
 
+  local surface_index = entity.surface_index
   tracked_entities[id] = {
     entity = entity,
     is_primary = is_primary,
     is_turret = is_turret,
+    surface_index = surface_index,
     chance_to_change = base_percentage_chance
   }
 
   if is_primary then
     storage.primary_entity_count = storage.primary_entity_count + 1
+    if feeds_surface_meter(is_primary, is_turret) then
+      storage.surface_primary_counts[surface_index] = (storage.surface_primary_counts[surface_index] or 0) + 1
+    end
   else
     storage.secondary_entity_count = storage.secondary_entity_count + 1
   end
@@ -100,7 +110,9 @@ function core.get_entity_info(entity)
   entity_list_index[id] = #entity_list
 
   if not is_primary then
-    -- all done with secondary entity processing, ok to return
+    -- Bookmark the surface meter at its current value so the entity only earns
+    -- credits generated after tracking begins, never the meter's history
+    tracked_entities[id].last_seen_meter = storage.surface_meters[surface_index] or 0
     return tracked_entities[id]
   end
 
@@ -121,8 +133,8 @@ function core.get_entity_info(entity)
       local chance_increase = past_attempts * (base_percentage_chance * accumulation_percentage / 100)
       tracked_entities[id].chance_to_change = tracked_entities[id].chance_to_change + chance_increase
     end
-    -- Not adding credits for past upgrade attempts; it's too hard to balance with secondary entities.
-    -- Basically every time you do a quality-control-init it refills the credit pool; for easy upgrade farming
+    -- Past hours only pre-charge the failure accumulation; they never deposit into the
+    -- surface meter, so re-running quality-control-init can't be farmed for credits
   end
   return tracked_entities[id]
 end
@@ -147,6 +159,14 @@ function core.remove_entity_info(id)
 
     if entity_info.is_primary then
       storage.primary_entity_count = math.max(0, storage.primary_entity_count - 1)
+      -- The stored surface_index is used because the entity itself may already be
+      -- invalid here; the count entry may be gone if the surface was deleted
+      if feeds_surface_meter(entity_info.is_primary, entity_info.is_turret) then
+        local surface_count = storage.surface_primary_counts[entity_info.surface_index]
+        if surface_count then
+          storage.surface_primary_counts[entity_info.surface_index] = math.max(0, surface_count - 1)
+        end
+      end
     else
       storage.secondary_entity_count = math.max(0, storage.secondary_entity_count - 1)
     end
@@ -307,6 +327,21 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
 end
 
 
+-- Re-attaches an entity that a script moved to another surface (teleport or
+-- cross-surface clone). The move itself never grants credits.
+local function rehome_moved_entity(entity_info, surface_index)
+  if feeds_surface_meter(entity_info.is_primary, entity_info.is_turret) then
+    local old_count = storage.surface_primary_counts[entity_info.surface_index]
+    if old_count then
+      storage.surface_primary_counts[entity_info.surface_index] = math.max(0, old_count - 1)
+    end
+    storage.surface_primary_counts[surface_index] = (storage.surface_primary_counts[surface_index] or 0) + 1
+  elseif not entity_info.is_primary then
+    entity_info.last_seen_meter = storage.surface_meters[surface_index] or 0
+  end
+  entity_info.surface_index = surface_index
+end
+
 function core.process_primary_entity(entity_info, entity)
   local hours_needed = quality_multipliers[entity.quality.level]
   local current_hours = progression.get_manufacturing_hours(entity, entity_info.is_turret)
@@ -314,10 +349,19 @@ function core.process_primary_entity(entity_info, entity)
   local hours_worked = progression.to_progression_hours(current_hours - previous_hours, entity, entity_info.is_turret)
   local credits_earned = hours_worked / hours_needed
 
-  -- Isolated turrets keep their credits for their own upgrade attempts instead
-  -- of feeding the shared pool that secondary entities draw from
-  if not entity_info.is_turret or turrets_contribute_credits then
-    storage.accumulated_credits = storage.accumulated_credits + credits_earned
+  local surface_index = entity.surface_index
+  if surface_index ~= entity_info.surface_index then
+    rehome_moved_entity(entity_info, surface_index)
+  end
+
+  -- The surface meter tracks the total credits the average depositing primary
+  -- on the surface has earned, so each one deposits its own share of that
+  -- average. Isolated turrets keep their credits for their own upgrade attempts
+  -- instead of feeding the meter that secondary entities read.
+  if feeds_surface_meter(entity_info.is_primary, entity_info.is_turret) then
+    local primary_count = math.max(storage.surface_primary_counts[surface_index] or 1, 1)
+    storage.surface_meters[surface_index] = (storage.surface_meters[surface_index] or 0)
+      + credits_earned / primary_count
   end
 
   return {
@@ -326,18 +370,35 @@ function core.process_primary_entity(entity_info, entity)
   }
 end
 
-function core.process_secondary_entity()
-  local accumulated_credits = storage.accumulated_credits
-  local secondary_count = storage.secondary_entity_count
+function core.process_secondary_entity(entity_info, entity)
+  local surface_index = entity.surface_index
+  if surface_index ~= entity_info.surface_index then
+    rehome_moved_entity(entity_info, surface_index)
+  end
 
-  secondary_count = math.max(secondary_count, 1) -- this shouldn't be necessary but gaurantee's the division is always safe
-  local credits_earned = accumulated_credits / secondary_count
-  storage.accumulated_credits = math.max(0, accumulated_credits - credits_earned)
+  -- Read the surface meter like an electricity meter: credits earned are whatever
+  -- the average primary earned since this entity's last reading. Visiting more or
+  -- less often changes when credits arrive, never how many.
+  local meter = storage.surface_meters[surface_index] or 0
+  local rate_multiplier = settings.global["secondary-progression-rate"].value / 100
+  local credits_earned = (meter - entity_info.last_seen_meter) * rate_multiplier
+  entity_info.last_seen_meter = meter
 
   return {
     credits_earned = credits_earned,
     current_hours = nil
   }
+end
+
+-- Surface deletion drops the meter and count entries; entities on the deleted
+-- surface become invalid and are cleaned up lazily by the batch loop
+function core.on_surface_deleted(event)
+  if storage.surface_meters then
+    storage.surface_meters[event.surface_index] = nil
+  end
+  if storage.surface_primary_counts then
+    storage.surface_primary_counts[event.surface_index] = nil
+  end
 end
 
 -- Main batch processing loop
@@ -372,10 +433,10 @@ function core.batch_process_entities()
       can_still_upgrade = false
     end
 
-    -- if the entity is primary and accumulate at max quality is on, then we should keep tracking;
-    -- isolated turrets are the exception since their credits go nowhere once they can't upgrade
-    local contributes_credits = entity_info.is_primary and (not entity_info.is_turret or turrets_contribute_credits)
-    local should_stay_tracked = can_still_upgrade or (contributes_credits and accumulate_at_max_quality)
+    -- Depositing primaries always stay tracked so they keep the surface meter
+    -- moving; isolated turrets drop out once they can no longer upgrade
+    local should_stay_tracked = can_still_upgrade
+      or feeds_surface_meter(entity_info.is_primary, entity_info.is_turret)
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
@@ -392,7 +453,7 @@ function core.batch_process_entities()
       result = core.process_primary_entity(entity_info, entity)
       entity_info.manufacturing_hours = result.current_hours
     else
-      result = core.process_secondary_entity()
+      result = core.process_secondary_entity(entity_info, entity)
     end
 
     -- Primary types disabled via their upgrade limit stay tracked so they keep

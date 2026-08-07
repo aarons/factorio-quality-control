@@ -42,19 +42,21 @@ data:extend({
         order = "a-3"
     },
     {
-        type = "bool-setting",
-        name = "accumulate-at-max-quality",
-        setting_type = "startup",
-        default_value = true,
-        order = "a-3a"
-    },
-    {
         type = "string-setting",
         name = "change-modules-with-entity",
         setting_type = "startup",
         default_value = "disabled",
         allowed_values = {"disabled", "enabled", "extra-enabled"},
         order = "a-4"
+    },
+    {
+        type = "int-setting",
+        name = "secondary-progression-rate",
+        setting_type = "runtime-global",
+        default_value = 100,
+        min_value = 0,
+        max_value = 100000,
+        order = "a-0"
     },
     {
         type = "int-setting",
