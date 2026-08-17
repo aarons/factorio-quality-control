@@ -378,10 +378,13 @@ function core.process_secondary_entity(entity_info, entity)
 
   -- Read the surface meter like an electricity meter: credits earned are whatever
   -- the average primary earned since this entity's last reading. Visiting more or
-  -- less often changes when credits arrive, never how many.
+  -- less often changes when credits arrive, never how many. Mining drills and
+  -- labs scale this by their speed and earn nothing while idle; the bookmark
+  -- still advances so idle time is forgone rather than banked.
   local meter = storage.surface_meters[surface_index] or 0
   local rate_multiplier = settings.global["secondary-progression-rate"].value / 100
-  local credits_earned = (meter - entity_info.last_seen_meter) * rate_multiplier
+  local rate_factor = progression.get_secondary_rate_factor(entity)
+  local credits_earned = (meter - entity_info.last_seen_meter) * rate_multiplier * rate_factor
   entity_info.last_seen_meter = meter
 
   return {

@@ -159,7 +159,8 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     if not is_primary_type then
       local meter = storage.surface_meters[entity_info.surface_index] or 0
       local rate_multiplier = settings.global["secondary-progression-rate"].value / 100
-      credits_available = (meter - entity_info.last_seen_meter) * rate_multiplier
+      local rate_factor = progression.get_secondary_rate_factor(selected_entity)
+      credits_available = (meter - entity_info.last_seen_meter) * rate_multiplier * rate_factor
     end
 
     local credits_spent = calculate_credits_spent_on_attempts(entity_info)

@@ -34,4 +34,4 @@ When entities reach manufacturing hour thresholds, they attempt quality upgrades
 - Random roll compared against configured percentage chance (default 1%)
 - Failed attempts don't reset progress - entities continue accumulating hours
 
-This mod makes a distinction between primary entities (those whose hours of work can be tracked) and secondary entities (those that have no way to track work done). Primary entities generate credits that all other entities utilize for upgrade attempts.
+This mod makes a distinction between primary entities (those whose hours of work can be tracked) and secondary entities (those that have no way to track work done). Primary entities generate credits that all other entities utilize for upgrade attempts. Mining drills and labs are secondary entities whose credits are scaled by their speed and productivity and only earned while working (see `progression.get_secondary_rate_factor`).

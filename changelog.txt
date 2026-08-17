@@ -1,4 +1,19 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.5.0
+Date: 17. 08. 2026
+  Balancing:
+    - Mining drills and labs now progress in proportion to how fast they work. A big mining drill
+      full of speed modules earns upgrades faster than a plain electric drill.
+    - Mining drills and labs only progress while actively working. A drill sitting on a depleted
+      patch, blocked by a full belt, or unpowered no longer keeps earning upgrade credits, and
+      neither does a lab with no research or science packs. Time spent idle is not banked.
+    - The Crafting Speed Affects Progression setting now also governs mining drills and labs.
+      With it disabled, working drills and labs advance at the pace of any other secondary
+      entity regardless of their speed, modules, or productivity.
+  Ease of use:
+    - The quality inspection hotkey shows the speed-adjusted credits available for mining drills
+      and labs, so the number matches what the entity will actually receive.
+---------------------------------------------------------------------------------------------------
 Version: 2.4.0
 Date: 07. 08. 2026
   Balancing:

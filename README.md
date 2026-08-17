@@ -32,6 +32,8 @@ The mod tracks two categories of entities with different quality management appr
 
 Secondary entities advance via a per-surface progression meter: each surface keeps a running total of the upgrade credits the average primary entity there has earned, and every secondary entity earns whatever the meter added since its last visit. This keeps infrastructure upgrading at the same pace as the production machines around it, no matter how many secondary entities exist. See the Technical Details section below for how the meter works.
 
+Mining drills and labs are the exception: they only earn credits while actively working, and (when Crafting Speed Affects Progression is enabled) their credits are scaled by mining or research speed, modules, and productivity bonuses. A big mining drill full of speed modules progresses much faster than an inserter; a drill on a depleted patch does not progress at all.
+
 ### Manufacturing Hours
 
 The core metric for quality progression:
@@ -197,6 +199,8 @@ A few consequences of this design:
 - A secondary entity placed (or first tracked) later starts its bookmark at the current meter reading, so it earns credits only from that point forward - adding the mod to a mature save doesn't trigger a burst of upgrades.
 
 The Secondary Progression Rate runtime setting scales how much of the meter delta secondary entities receive: 100% (the default) matches the average primary entity's pace, 0% halts secondary progression, and higher values accelerate infrastructure past parity.
+
+Mining drills and labs read the same meter but multiply their delta by a rate factor: 0 while not working (so idle time is forgone, not banked - the bookmark still advances), otherwise base speed relative to the vanilla electric mining drill (0.5) or lab (1.0) times `(1 + speed bonus) × (1 + productivity bonus)`, which already include modules, beacons, and force research. When Crafting Speed Affects Progression is disabled the factor is 1 while working.
 
 
 ## Developer Workflow

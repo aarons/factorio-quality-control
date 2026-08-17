@@ -2,8 +2,9 @@
 progression.lua
 
 Computes manufacturing hours for primary entities and converts them into
-progression hours based on the crafting-speed setting. Kept as a leaf module
-(no requires) so both core.lua and notifications.lua can share it.
+progression hours based on the crafting-speed setting. Also provides the rate
+factor that scales mining drill and lab credits. Kept as a leaf module (no
+requires) so both core.lua and notifications.lua can share it.
 ]]
 
 local progression = {}
@@ -49,6 +50,44 @@ function progression.to_progression_hours(hours, entity, is_turret)
     return hours / crafting_speed
   end
   return hours
+end
+
+-- Mining drills and labs are secondary entities (nothing in the API counts what
+-- they produce), but players still expect a moduled big drill to out-progress an
+-- inserter. Their surface-meter credits are scaled by base speed relative to the
+-- vanilla electric mining drill / lab, plus module, beacon, and force bonuses.
+local electric_mining_drill_speed = 0.5
+local vanilla_lab_researching_speed = 1.0
+
+-- Multiplier applied to a secondary entity's meter credits. Mining drills and
+-- labs earn nothing while idle (output blocked, no resources, no packs, no
+-- power) and, when crafting speed affects progression, earn in proportion to
+-- their speed and productivity. Every other secondary type earns 1x.
+function progression.get_secondary_rate_factor(entity)
+  local entity_type = entity.type
+  if entity_type ~= "mining-drill" and entity_type ~= "lab" then
+    return 1
+  end
+  if entity.status ~= defines.entity_status.working then
+    return 0
+  end
+  if not crafting_speed_affects_progression then
+    return 1
+  end
+
+  local base_speed_ratio = 1
+  if entity_type == "mining-drill" then
+    local mining_speed = entity.prototype.mining_speed
+    if mining_speed then
+      base_speed_ratio = mining_speed / electric_mining_drill_speed
+    end
+  else
+    local researching_speed = entity.prototype.get_researching_speed(entity.quality)
+    if researching_speed then
+      base_speed_ratio = researching_speed / vanilla_lab_researching_speed
+    end
+  end
+  return base_speed_ratio * (1 + entity.speed_bonus) * (1 + entity.productivity_bonus)
 end
 
 return progression
