@@ -1,4 +1,27 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.5.0
+Date: 31. 10. 2026
+  Features:
+    - Added seven independent, opt-in alert styles using existing game assets: colorful chat,
+      GPS pings, floating upgrade text, a quality halo, rainbow rings, a spinning quality badge,
+      and a built-in upgrade sound. Enable any combination in per-player settings. New styles
+      are off by default and apply immediately to machine and independent module upgrades.
+      Thanks to Lady_Lucina for the excellent idea and request!
+    - Added an Independent option to the Module upgrades startup setting. Installed modules earn
+      separate upgrade chances from their surface's secondary progression, even when their host
+      machine has reached its quality limit. Thanks to factorioburak for suggesting this option!
+    - Each module slot retains its own failure bonus, including while empty. Empty slots earn no
+      progress. A Common machine limit disables module upgrades; other machine limits do not cap
+      module quality.
+  Ease of use:
+    - Upgrade alerts now respect each connected player's preferences and the upgraded entity's force.
+    - Independent module upgrades now appear in upgrade alerts and summaries. The quality inspection
+      hotkey shows each module slot's quality, failure bonus, and chance per credit.
+  Changes:
+    - Independent mode counts all module slots toward the processing budget, including empty and
+      maximum-quality slots. Processing finishes the current machine and all its slots together,
+      even if this exceeds the configured per-tick limit.
+---------------------------------------------------------------------------------------------------
 Version: 2.4.0
 Date: 07. 08. 2026
   Balancing:
@@ -10,11 +33,6 @@ Date: 07. 08. 2026
       infrastructure based on the machines working there. A surface with no working production
       machines or turrets will not advance.
   Features:
-    - Added an Independent option to Module upgrades. Installed modules earn separate
-      upgrade chances from their surface's secondary progression, even in capped machines.
-      Each slot retains its own failure bonus; Common machine limits disable module upgrades.
-    - Independent mode counts current module slots toward the processing budget and completes
-      each machine's full inventory together. Module alerts and inspection show slot progress.
     - A new Secondary Progression Rate setting can be used to scale how fast those entities progress
       relative to the primary entities. The default of 100% matches their pace; 0% halts
       secondary progression entirely. Can be changed mid-game without a restart in map settings.

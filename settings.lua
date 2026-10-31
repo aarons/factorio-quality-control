@@ -90,6 +90,56 @@ data:extend({
         default_value = true,
         order = "c-1"
     },
+    -- Each celebration is opt-in and independent of all other alert styles.
+    {
+        type = "bool-setting",
+        name = "quality-change-chat-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-2"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-gps-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-3"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-floating-text-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-4"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-halo-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-5"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-rainbow-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-6"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-badge-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-7"
+    },
+    {
+        type = "bool-setting",
+        name = "quality-change-sound-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-8"
+    },
     -- Hidden quality handling (for mods like Quality++ Shiny)
     {
         type = "bool-setting",

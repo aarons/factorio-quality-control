@@ -86,6 +86,16 @@ The `test_*.py` files check metadata, changelogs, localization, whitespace,
 Lua syntax, require placement, global usage, and restricted `on_load` access.
 `test_independent_modules.py` runs the production Lua modules against the small API
 doubles in `tests/lua/independent_modules.lua`.
+`test_celebrations.py` checks each alert toggle alone, combined machine/module
+delivery, recipient and surface selection, modded qualities, bursts, and drawing
+cleanup after expiry, setting changes, disconnects, force changes, and invalid
+render objects. Reload coverage retains storage while reloading the Lua module;
+it does not substitute for engine serialization or client-side visual/audio review.
+The headless engine suite has no connected players and does not exercise alert
+presentation. For a client playtest, enable each new setting separately and then
+together, upgrade machines and independent modules, and check remote view and
+different surfaces. Verify a second same-force player sees only their chosen
+effects, and save/load while rings or badges are active.
 `test_factorio_runner.py` checks discovery overrides, workspace isolation,
 required markers, assertion failures, process exits, timeouts, and cleanup
 using small subprocesses without requiring Factorio.

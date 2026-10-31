@@ -4,6 +4,27 @@ Add optional cosmetic effects for successful quality upgrades, one effect at a t
 Players choose individual effects and mix them freely. Stronger bundled presets are
 deferred. Unchecked items are planned work, not implemented features.
 
+## First pass (2026-10-31)
+
+The current implementation adds seven independent opt-in styles using game assets
+and rendering primitives: colorful chat, GPS pings, floating text, quality halos,
+rainbow rings, spinning quality badges, and the built-in research-completed sound.
+Both machine and independent module upgrades use them. Existing custom alerts and
+five-minute summaries retain their own toggles and defaults. Delivery now respects
+connected recipients and force membership.
+
+Per the revised scope, announcement queues, batching, debounce, frequency limits,
+concurrency caps, combos, and choreography are deferred. Each enabled style fires
+immediately for every upgrade. Drawings have explicit 90-tick lifetimes and cleanup;
+their positions are captured so entity replacement does not invalidate them.
+Cosmetics do not consume gameplay randomness. Modded quality names, colors, and
+icons come from their prototypes.
+
+The implementation and automated checks are separate from visual/audio review.
+Appearance, timing, and sound levels still need a client-side playtest before the
+effects below can be marked fully reviewed. Custom artwork, voices, HUDs, and the
+other unimplemented effects remain future work.
+
 ## Agreed design
 
 - Every new effect has an independent per-player toggle. Keep existing map alerts and
@@ -13,7 +34,8 @@ deferred. Unchecked items are planned work, not implemented features.
   stages naturally; no effect should require enabling another effect.
 - Apply the actual upgrade immediately. Any reveal presents an already determined result.
 - Keep cosmetics separate from progression, including random number generation.
-- Use bounded queues, explicit effect lifetimes, and concurrency limits.
+- Use explicit effect lifetimes. Queues and concurrency limits are deferred for
+  the first pass; revisit them if upgrade bursts warrant it.
 - Implement and review one effect at a time before moving to the next.
 
 ## Shared foundation

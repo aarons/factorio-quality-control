@@ -7,6 +7,7 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 
 local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
+local celebrations = require("scripts.celebrations")
 
 local notifications = {}
 
@@ -65,15 +66,19 @@ function notifications.try_show_accumulated_notifications()
 
   local module_changes = storage.aggregate_notifications.accumulated_module_changes or {}
   if time_since_last >= cooldown_ticks and (next(storage.aggregate_notifications.accumulated_changes) or next(module_changes)) then
-    local player = game.players[1]
-    if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
-      player.print({"quality-control.aggregate-notification-header"})
+    -- Progression currently tracks only the player force, so its accumulated
+    -- totals must not be disclosed to players on other forces.
+    for _, player in pairs(game.connected_players) do
+      if player.force == game.forces.player
+        and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
+        player.print({"quality-control.aggregate-notification-header"})
 
-      for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
-        player.print(entity_name .. ": " .. count)
-      end
-      for module_name, count in pairs(module_changes) do
-        player.print({"quality-control.module-summary", {"item-name." .. module_name}, count})
+        for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
+          player.print(entity_name .. ": " .. count)
+        end
+        for module_name, count in pairs(module_changes) do
+          player.print({"quality-control.module-summary", {"item-name." .. module_name}, count})
+        end
       end
     end
 
@@ -84,21 +89,59 @@ function notifications.try_show_accumulated_notifications()
   end
 end
 
-function notifications.show_entity_quality_alert(entity, target_quality_name)
-  local player = game.players[1] -- In single player, this is the player
-  if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
-    local message = "upgraded quality to " .. target_quality_name
+local function deliver_upgrade(player, entity, target_quality_name, module_name)
+  if not entity or not entity.valid then return end
+  local quality = prototypes.quality[target_quality_name]
+  local kind = module_name and "item" or "entity"
+  local name = module_name or entity.name
+  local localised_name = module_name and prototypes.item[module_name].localised_name or entity.localised_name
+  local message_key = module_name and "quality-control.module-upgraded" or "quality-control.entity-upgraded"
+  local message = {message_key, localised_name, quality.localised_name}
+  local icon = {type = kind, name = name, quality = target_quality_name}
 
-    player.add_custom_alert(entity, {type = "entity", name = entity.prototype.name, quality = target_quality_name}, message, true)
+  local preferences = settings.get_player_settings(player)
+  if preferences["quality-change-entity-alerts-enabled"].value then
+    player.add_custom_alert(entity, icon, message, true)
+  end
+  if preferences["quality-change-chat-enabled"].value then
+    local color = quality.color
+    local quality_text = {"", string.format("[color=%f,%f,%f]", color.r, color.g, color.b),
+      "[quality=" .. target_quality_name .. "] ", quality.localised_name, "[/color]"}
+    local subject = {"", "[" .. kind .. "=" .. name .. ",quality=" .. target_quality_name .. "] ",
+      "[color=0.4,0.8,1]", localised_name, "[/color]"}
+    player.print({message_key, subject, quality_text}, {sound = defines.print_sound.never, skip = defines.print_skip.never})
+  end
+  if preferences["quality-change-gps-enabled"].value then
+    player.print({"", message, " ", entity.gps_tag}, {sound = defines.print_sound.never, skip = defines.print_skip.never})
+  end
+  if preferences["quality-change-floating-text-enabled"].value then
+    player.create_local_flying_text{
+      text = {"quality-control.upgrade-floating", localised_name, quality.localised_name},
+      position = entity.position, surface = entity.surface, color = quality.color,
+      time_to_live = 90, speed = 1,
+    }
+  end
+  if preferences["quality-change-sound-enabled"].value then
+    player.play_sound{path = "utility/research_completed", volume_modifier = 0.6}
+  end
+  celebrations.show(player, entity, quality, preferences)
+end
+
+local function show_upgrade(entity, target_quality_name, module_name)
+  if not entity or not entity.valid then return end
+  for _, player in pairs(game.connected_players) do
+    if player.force == entity.force then
+      deliver_upgrade(player, entity, target_quality_name, module_name)
+    end
   end
 end
 
+function notifications.show_entity_quality_alert(entity, target_quality_name)
+  show_upgrade(entity, target_quality_name)
+end
+
 function notifications.show_module_quality_alert(entity, module_name, target_quality_name)
-  local player = game.players[1]
-  if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
-    local message = {"quality-control.module-upgraded", {"item-name." .. module_name}, prototypes.quality[target_quality_name].localised_name}
-    player.add_custom_alert(entity, {type = "item", name = module_name, quality = target_quality_name}, message, true)
-  end
+  show_upgrade(entity, target_quality_name, module_name)
 end
 
 function notifications.show_quality_notifications(quality_changes, module_changes)

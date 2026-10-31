@@ -18,7 +18,7 @@ end
 local function reset(mode)
   next_id, random_calls, roll = 0, 0, 0.99
   alerts, printed = {}, {}
-  prototypes = {quality = {}, get_history = function() return nil end}
+  prototypes = {quality = {}, item = {["speed-module"] = {localised_name = "Speed module"}}, get_history = function() return nil end}
   local previous
   for level, name in ipairs({"normal", "uncommon", "rare", "epic", "legendary"}) do
     local quality = {name = name, level = level - 1, localised_name = name, chain_probability = 0.1}
@@ -48,13 +48,19 @@ local function reset(mode)
   settings = {
     global = {["secondary-progression-rate"] = {value = 100}, ["batch-entities-per-tick"] = {value = 10}},
     get_player_settings = function()
-      return {["quality-change-entity-alerts-enabled"] = {value = true}, ["quality-change-aggregate-alerts-enabled"] = {value = true}}
+      local preferences = {["quality-change-entity-alerts-enabled"] = {value = true}, ["quality-change-aggregate-alerts-enabled"] = {value = true}}
+      for _, style in ipairs({"chat", "gps", "floating-text", "halo", "rainbow", "badge", "sound"}) do
+        preferences["quality-change-" .. style .. "-enabled"] = {value = false}
+      end
+      return preferences
     end,
   }
   game = {forces = {player = {}}, players = {{
     print = function(message) printed[#printed + 1] = message end,
     add_custom_alert = function(entity, icon, message) alerts[#alerts + 1] = {entity = entity, icon = icon, message = message} end,
   }}, tick = 0}
+  game.players[1].force = game.forces.player
+  game.connected_players = game.players
   math.random = function(low)
     if low then return 1 end
     random_calls = random_calls + 1

@@ -122,20 +122,33 @@ The `change-modules-with-entity` setting has four options:
 
 ### In-Game Notifications
 
-Two notification systems keep you informed:
+Every alert style has an independent per-player runtime setting. Enable any
+combination, or turn them all off. Machine and independent module upgrades use
+the same styles; module effects appear at the host machine.
 
-**Entity-Specific Alerts**:
-- Map pings at the machine's location when quality upgrades
-- Shows entity icon with new quality level
-- Customizable per-player setting
+| Style | Effect | Default |
+| --- | --- | --- |
+| Map Alert Icons | Map alert with the upgraded machine or module icon | On |
+| Aggregate Console Alerts | Accumulated upgrade counts, reported at most every five minutes | Off |
+| Colorful Upgrade Chat | An immediate message with localized names, icons, and quality colors | Off |
+| GPS Pings and Chat | A GPS map ping and location-tagged chat message | Off |
+| Floating Upgrade Text | Rising machine/module name and resulting quality | Off |
+| Quality Halo | An expanding ring in the resulting quality's color | Off |
+| Rainbow Rings | Three expanding rings cycling through rainbow colors | Off |
+| Spinning Quality Badge | The game's quality icon spinning and rising | Off |
+| Upgrade Sound | The game's research-completed sound | Off |
 
-**Aggregate Console Messages**:
-- Summarizes all quality upgrades with a 5-minute cooldown to prevent spam
-- Accumulates upgrades across multiple processing cycles until cooldown expires
-- Example: "3 assembling-machines upgraded, 2 inserters upgraded"
-- Prevents console flooding while maintaining useful feedback
+New styles use existing game assets and drawing primitives. They fire immediately
+for every upgrade, without grouping or rate limiting. Enabling both chat and GPS
+produces two messages. Sound plays even for upgrades on other surfaces.
 
-Both can be independently enabled/disabled in runtime settings.
+Alerts go to connected players on the upgraded machine's force. World effects
+are private to each recipient and appear on the upgrade's surface in world view
+(including remote view), lasting 1.5 seconds; they are not deferred until seen.
+Animated drawings stop when their setting is disabled or the recipient disconnects
+or changes force. Flying text expires naturally and disappears on save/load.
+The five-minute summary retains its existing cadence and is checked when upgrades
+occur; tracking and summary totals currently cover the player force only.
 
 ### Inspection Tools
 
