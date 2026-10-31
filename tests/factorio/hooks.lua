@@ -1,12 +1,29 @@
 -- Loaded ONLY into the runner's temporary Quality Control copy. Reads existing
 -- tracking state without registering entities or calling production processing.
+-- luacheck: globals helpers
 local notifications = require("scripts.notifications")
+local upgrade_sounds = require("scripts.upgrade_sounds")
 
 local function info(entity)
   return assert(storage.quality_control_entities[entity.unit_number], "QC_TEST FAIL: host not tracked")
 end
 
 remote.add_interface("qc-test", {
+  validate_upgrade_sounds = function()
+    local paths = {}
+    local count = 0
+    for _, value in ipairs(upgrade_sounds.values) do
+      for note = 1, 48 do
+        local path = upgrade_sounds.path(value, note)
+        assert(helpers.is_valid_sound_path(path), "QC_TEST FAIL: invalid upgrade sound " .. tostring(path))
+        if not paths[path] then
+          paths[path] = true
+          count = count + 1
+        end
+      end
+    end
+    return count
+  end,
   snapshot = function(entity)
     local state = info(entity)
     local lines = {}

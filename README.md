@@ -131,16 +131,31 @@ the same styles; module effects appear at the host machine.
 | Map Alert Icons | Map alert with the upgraded machine or module icon | On |
 | Aggregate Console Alerts | Accumulated upgrade counts, reported at most every five minutes | Off |
 | Colorful Upgrade Chat | An immediate message with localized names, icons, and quality colors | Off |
-| GPS Pings and Chat | A GPS map ping and location-tagged chat message | Off |
+| GPS Location Links | A clickable location link in chat that triggers a GPS map ping | Off |
 | Floating Upgrade Text | Rising machine/module name and resulting quality | Off |
 | Quality Halo | An expanding ring in the resulting quality's color | Off |
 | Rainbow Rings | Three expanding rings cycling through rainbow colors | Off |
 | Spinning Quality Badge | The game's quality icon spinning and rising | Off |
-| Upgrade Sound | The game's research-completed sound | Off |
+| Upgrade Sound | A chosen built-in sound for upgrades on the surface currently being viewed | Off |
 
 New styles use existing game assets and drawing primitives. They fire immediately
-for every upgrade, without grouping or rate limiting. Enabling both chat and GPS
-produces two messages. Sound plays even for upgrades on other surfaces.
+for every upgrade, without grouping or rate limiting. GPS alone prints only the
+location link; enabling both chat and GPS adds the link to one colorful upgrade
+message. Click the link to revisit the upgrade location. Factorio's native GPS
+ping requires printing the link in chat.
+
+Upgrade Sound Choice offers 58 choices: notification effects,
+every vanilla speaker alarm and drum sound, and nine musical
+instruments: piano, bass, lead, sawtooth, square, celesta, vibraphone, plucked
+strings, and steel drum. Upgrade Instrument Note selects a note by number,
+matching the programmable speaker: 1–48 for piano, 1–36 for other instruments.
+Higher numbers use the instrument's highest note. The default is Piano, note 23
+(D#5); the note setting does not affect alarms, drums, or other effects. All 384 vanilla speaker samples
+are available, plus the confirmation sound. Existing game files are reused.
+
+Sound must be enabled separately and only plays for upgrades on the surface you
+are currently viewing, including remote view. Upgrades on the character's physical
+surface are silent while you view a different surface.
 
 Alerts go to connected players on the upgraded machine's force. World effects
 are private to each recipient and appear on the upgrade's surface in world view

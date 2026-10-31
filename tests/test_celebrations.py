@@ -6,7 +6,9 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.parametrize("scenario", ["independent", "recipients", "lifecycle", "burst"])
+@pytest.mark.parametrize("scenario", [
+    "independent", "chat_and_gps", "sound_surface", "speaker_sounds", "recipients", "lifecycle", "burst",
+])
 def test_celebrations(scenario):
     lua = shutil.which("lua")
     assert lua, "Lua is required for behavioral validation"

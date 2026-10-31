@@ -55,6 +55,7 @@ markers, and timeouts fail; the runner terminates its own processes on exit.
 | `capacity` | Quality Control upgrades a fixture assembler through four → two → four slots. Per-slot bonuses, dormant history, inspection output, actual inventory capacity, and batch-budget accounting are checked. |
 | `late_insert` | An empty capped host keeps receiving visits while its surface progresses. Later insertion keeps the slot bonus, earns nothing from already-observed empty intervals, and begins earning from new work without rebuilding tracking. |
 | `earned_reload` | A checkpoint contains an observed failed-roll bonus and consumed meter bookmarks. Reloading preserves them, pays no historical credits while idle, and resumes progression after production restarts. |
+| `upgrade_sounds` | Registers the vanilla speaker samples and validates all 385 selectable sound paths through the real engine, without requiring connected players. |
 
 The capacity fixture uses `quality_affects_module_slots` and
 `module_slots_quality_bonus = {normal = 2, uncommon = 0, rare = 2, ...}` on a

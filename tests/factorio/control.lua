@@ -269,6 +269,10 @@ end
 
 script.on_event(defines.events.on_tick, function()
   if storage.phase == "done" then return end
+  if not storage.passed.upgrade_sounds then
+    check(remote.call("qc-test", "validate_upgrade_sounds") == 385, "upgrade_sounds: incomplete sound catalog")
+    pass("upgrade_sounds")
+  end
   if storage.phase == "checkpoint" then
     if loaded_checkpoint then earned_reload() end
     return

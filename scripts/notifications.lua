@@ -8,6 +8,7 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
 local celebrations = require("scripts.celebrations")
+local upgrade_sounds = require("scripts.upgrade_sounds")
 
 local notifications = {}
 
@@ -103,16 +104,21 @@ local function deliver_upgrade(player, entity, target_quality_name, module_name)
   if preferences["quality-change-entity-alerts-enabled"].value then
     player.add_custom_alert(entity, icon, message, true)
   end
+  local chat_message
   if preferences["quality-change-chat-enabled"].value then
     local color = quality.color
     local quality_text = {"", string.format("[color=%f,%f,%f]", color.r, color.g, color.b),
       "[quality=" .. target_quality_name .. "] ", quality.localised_name, "[/color]"}
     local subject = {"", "[" .. kind .. "=" .. name .. ",quality=" .. target_quality_name .. "] ",
       "[color=0.4,0.8,1]", localised_name, "[/color]"}
-    player.print({message_key, subject, quality_text}, {sound = defines.print_sound.never, skip = defines.print_skip.never})
+    chat_message = {message_key, subject, quality_text}
   end
   if preferences["quality-change-gps-enabled"].value then
-    player.print({"", message, " ", entity.gps_tag}, {sound = defines.print_sound.never, skip = defines.print_skip.never})
+    -- Factorio creates the native GPS ping by printing its location link.
+    chat_message = chat_message and {"", chat_message, " ", entity.gps_tag} or entity.gps_tag
+  end
+  if chat_message then
+    player.print(chat_message, {sound = defines.print_sound.never, skip = defines.print_skip.never})
   end
   if preferences["quality-change-floating-text-enabled"].value then
     player.create_local_flying_text{
@@ -121,8 +127,12 @@ local function deliver_upgrade(player, entity, target_quality_name, module_name)
       time_to_live = 90, speed = 1,
     }
   end
-  if preferences["quality-change-sound-enabled"].value then
-    player.play_sound{path = "utility/research_completed", volume_modifier = 0.6}
+  -- surface follows the player's current view, including remote view.
+  if preferences["quality-change-sound-enabled"].value and player.surface == entity.surface then
+    player.play_sound{
+      path = upgrade_sounds.path(preferences["quality-change-sound"].value, preferences["quality-change-sound-note"].value),
+      volume_modifier = 0.6,
+    }
   end
   celebrations.show(player, entity, quality, preferences)
 end

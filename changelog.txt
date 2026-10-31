@@ -15,6 +15,11 @@ Date: 31. 10. 2026
       module quality.
   Ease of use:
     - Upgrade alerts now respect each connected player's preferences and the upgraded entity's force.
+    - GPS alone prints a clickable location link; enabling colorful chat adds it to one upgrade
+      message. Factorio's native GPS ping requires the chat link.
+    - Upgrade sounds include all vanilla speaker alarms, effects, drums, and musical notes,
+      with a separate instrument note selector. Sounds only play on the currently viewed
+      surface, including remote view.
     - Independent module upgrades now appear in upgrade alerts and summaries. The quality inspection
       hotkey shows each module slot's quality, failure bonus, and chance per credit.
   Changes:

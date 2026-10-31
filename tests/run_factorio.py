@@ -20,7 +20,7 @@ import zipfile
 REPO = Path(__file__).resolve().parents[1]
 FIXTURES = REPO / "tests/factorio"
 PREFIX = "QC_TEST "
-CASES = ("capped_host", "capacity", "late_insert", "earned_reload")
+CASES = ("capped_host", "capacity", "late_insert", "earned_reload", "upgrade_sounds")
 FAILURES = ("QC_TEST FAIL:", "Error while running", "Error ", "Factorio crashed")
 
 
