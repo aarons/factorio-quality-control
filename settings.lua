@@ -46,7 +46,7 @@ data:extend({
         name = "change-modules-with-entity",
         setting_type = "startup",
         default_value = "disabled",
-        allowed_values = {"disabled", "enabled", "extra-enabled"},
+        allowed_values = {"disabled", "enabled", "extra-enabled", "independent"},
         order = "a-4"
     },
     {

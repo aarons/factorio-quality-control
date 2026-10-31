@@ -10,6 +10,7 @@ local notifications = require("scripts.notifications")
 local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
 local exclusions = require("scripts.exclusions")
+local module_upgrades = require("scripts.module_upgrades")
 local core = {}
 
 local tracked_entities = {}
@@ -61,8 +62,28 @@ function core.initialize()
 end
 
 
-function core.get_entity_info(entity)
+-- A retained array also keeps dormant slots alive through our own replacements
+-- with a prototype that currently has no module inventory.
+local function independent_module_inventory(entity)
+  if module_upgrade_setting == "independent" and can_attempt_quality_change[entity.type] then
+    return entity.get_module_inventory()
+  end
+  return nil
+end
+
+local function can_upgrade_entity(entity)
+  local limit = upgrade_limit_levels[entity.type]
+  return can_attempt_quality_change[entity.type]
+    and quality_selector.has_upgrade_path(entity.quality.name)
+    and (not limit or entity.quality.level < limit - 1)
+end
+
+function core.get_entity_info(entity, previous_info)
   local id = entity.unit_number
+  if tracked_entities[id] then
+    if previous_info then module_upgrades.transfer(previous_info, tracked_entities[id]) end
+    return tracked_entities[id]
+  end
   local is_turret = turret_types[entity.type] or false
   local is_primary = (entity.type == "assembling-machine" or entity.type == "furnace"
     or entity.type == "rocket-silo" or is_turret)
@@ -71,14 +92,12 @@ function core.get_entity_info(entity)
   -- tracked, even at max quality, so they keep feeding their surface's
   -- progression meter. Isolated turrets don't feed the meter, so there is no
   -- reason to keep tracking them once they can no longer upgrade themselves.
-  local can_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
-  local should_track = can_upgrade or feeds_surface_meter(is_primary, is_turret)
+  local can_upgrade = can_upgrade_entity(entity)
+  local module_inventory = independent_module_inventory(entity)
+  local inherited_module_state = previous_info and previous_info.module_failure_bonuses
+  local should_track = can_upgrade or feeds_surface_meter(is_primary, is_turret) or module_inventory or inherited_module_state
   if not should_track then
     return "at max quality"
-  end
-
-  if tracked_entities[id] then
-    return tracked_entities[id]
   end
 
   -- entity is not tracked; so we're adding a new entity
@@ -108,6 +127,11 @@ function core.get_entity_info(entity)
   -- Use ordered list for O(1) lookup in batch processing
   table.insert(entity_list, id)
   entity_list_index[id] = #entity_list
+
+  if module_inventory then
+    module_upgrades.initialize_state(tracked_entities[id])
+  end
+  if previous_info then module_upgrades.transfer(previous_info, tracked_entities[id]) end
 
   if not is_primary then
     -- Bookmark the surface meter at its current value so the entity only earns
@@ -220,7 +244,7 @@ end
 
 
 local function update_module_quality(entity)
-  if module_upgrade_setting == "disabled" then
+  if module_upgrade_setting == "disabled" or module_upgrade_setting == "independent" then
     return
   end
 
@@ -262,6 +286,7 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
   local entity_name = entity.name
   local entity_quality = entity.quality.name
   local entity_info = tracked_entities[unit_number]
+  local queue_index = entity_list_index[unit_number]
 
   -- Select target quality using probability-weighted bucket system
   local target_quality = quality_selector.get_next_quality(entity_quality)
@@ -288,6 +313,11 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     target = {name = entity_name, quality = target_quality},
     force = entity.force
   })
+
+  -- A failed host upgrade must not stop discovery of its independent modules.
+  if not marked_for_upgrade and entity_info.module_failure_bonuses then
+    return false
+  end
 
   -- whether mark for upgrade succeeds or fails, we should remove the old entity from tracking
   -- if it failed: then we shouldn't try to upgrade it again as something went wrong
@@ -319,16 +349,30 @@ local function attempt_upgrade_normal(entity, upgrade_credit)
     if old_send_to_orbit_automatically ~= nil then
       new_entity_1.send_to_orbit_automatically = old_send_to_orbit_automatically
     end
+    core.get_entity_info(new_entity_1, entity_info)
+    -- Build callbacks append the replacement. Put it back in the old host's
+    -- position so frequent upgrades cannot keep revisiting the queue's tail
+    -- while starving the hosts in between.
+    local replacement_index = entity_list_index[new_entity_1.unit_number]
+    if replacement_index and queue_index <= #entity_list then
+      local displaced_id = entity_list[queue_index]
+      entity_list[queue_index] = new_entity_1.unit_number
+      entity_list[replacement_index] = displaced_id
+      entity_list_index[new_entity_1.unit_number] = queue_index
+      entity_list_index[displaced_id] = replacement_index
+    end
     update_module_quality(new_entity_1)
     notifications.show_entity_quality_alert(new_entity_1, target_quality)
+  elseif entity.valid and entity_info.module_failure_bonuses then
+    core.get_entity_info(entity, entity_info)
   end
 
-  return true
+  return new_entity_1 ~= nil, new_entity_1
 end
 
 
--- Re-attaches an entity that a script moved to another surface (teleport or
--- cross-surface clone). The move itself never grants credits.
+-- Re-attaches an entity that a script moved to another surface. True clones
+-- register separately with fresh state; moves rebase the existing bookmarks.
 local function rehome_moved_entity(entity_info, surface_index)
   if feeds_surface_meter(entity_info.is_primary, entity_info.is_turret) then
     local old_count = storage.surface_primary_counts[entity_info.surface_index]
@@ -340,6 +384,7 @@ local function rehome_moved_entity(entity_info, surface_index)
     entity_info.last_seen_meter = storage.surface_meters[surface_index] or 0
   end
   entity_info.surface_index = surface_index
+  module_upgrades.rebase(entity_info)
 end
 
 function core.process_primary_entity(entity_info, entity)
@@ -406,17 +451,26 @@ end
 function core.batch_process_entities()
   local batch_size = settings.global["batch-entities-per-tick"].value
   local batch_index = storage.batch_index
-  local entities_processed = 0
+  local checked = 0
   local entities_upgraded = {}
+  local modules_upgraded = {}
+  local visited = {}
 
-  while entities_processed < batch_size do
-    entities_processed = entities_processed + 1
+  while checked < batch_size do
     if batch_index > #entity_list then
       batch_index = 1
       break
     end
 
     local unit_number = entity_list[batch_index]
+    -- A replacement may be appended during an event callback. It has already
+    -- received this visit's module processing and must wait for the next pass.
+    if visited[unit_number] then
+      batch_index = batch_index + 1
+      goto continue
+    end
+    visited[unit_number] = true
+    checked = checked + 1
     local entity_info = tracked_entities[unit_number]
     local entity = entity_info.entity
 
@@ -425,55 +479,62 @@ function core.batch_process_entities()
       goto continue
     end
 
-    local can_still_upgrade = quality_selector.has_upgrade_path(entity.quality.name)
-
-    -- check if the entity has reached its configured upgrade limit
-    local upgrade_limit = upgrade_limit_levels[entity.type]
-    if can_still_upgrade and upgrade_limit and entity.quality.level >= (upgrade_limit - 1) then
-      can_still_upgrade = false
+    if entity.force ~= game.forces.player or storage.excluded_surfaces[entity.surface_index] then
+      core.remove_entity_info(unit_number)
+      goto continue
     end
 
-    -- Depositing primaries always stay tracked so they keep the surface meter
-    -- moving; isolated turrets drop out once they can no longer upgrade
+    if entity.surface_index ~= entity_info.surface_index then
+      rehome_moved_entity(entity_info, entity.surface_index)
+    end
+
+    local can_still_upgrade = can_upgrade_entity(entity)
+
+    local inventory = independent_module_inventory(entity)
+    local has_module_state = module_upgrade_setting == "independent"
+      and can_attempt_quality_change[entity.type] and entity_info.module_failure_bonuses ~= nil
     local should_stay_tracked = can_still_upgrade
       or feeds_surface_meter(entity_info.is_primary, entity_info.is_turret)
+      or inventory or has_module_state
     if not should_stay_tracked then
       core.remove_entity_info(unit_number)
       goto continue
     end
 
-    batch_index = batch_index + 1
-
-    if entity.to_be_deconstructed() or entity.to_be_upgraded() then
-      goto continue
-    end
-
+    local suspended = entity.to_be_deconstructed() or entity.to_be_upgraded()
     local result
-    if entity_info.is_primary then
-      result = core.process_primary_entity(entity_info, entity)
-      entity_info.manufacturing_hours = result.current_hours
-    else
-      result = core.process_secondary_entity(entity_info, entity)
-    end
-
-    -- Primary types disabled via their upgrade limit stay tracked so they keep
-    -- generating credits, but they never attempt upgrades themselves
-    if can_still_upgrade and can_attempt_quality_change[entity.type] and result.credits_earned > 0 then
-      local entity_name = entity.name
-      local entity_upgraded = attempt_upgrade_normal(entity, result.credits_earned)
-      if entity_upgraded then
-        entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + 1
+    if not suspended then
+      if entity_info.is_primary then
+        result = core.process_primary_entity(entity_info, entity)
+        entity_info.manufacturing_hours = result.current_hours
+      else
+        result = core.process_secondary_entity(entity_info, entity)
       end
     end
 
+    if inventory or has_module_state then
+      checked = checked + module_upgrades.process(entity_info, inventory, suspended, modules_upgraded)
+    end
+
+    if not suspended and can_still_upgrade and result.credits_earned > 0 then
+      local entity_name = entity.name
+      local entity_upgraded, replacement = attempt_upgrade_normal(entity, result.credits_earned)
+      if entity_upgraded then
+        entities_upgraded[entity_name] = (entities_upgraded[entity_name] or 0) + 1
+        visited[replacement.unit_number] = true
+      end
+    end
+
+    -- Removal swaps the last entry into this position. Visit that entry next;
+    -- otherwise advance normally. This also handles synchronous upgrade events.
+    if entity_list[batch_index] == unit_number or visited[entity_list[batch_index]] then
+      batch_index = batch_index + 1
+    end
     ::continue::
   end
 
   storage.batch_index = batch_index
-
-  if next(entities_upgraded) then
-    notifications.show_quality_notifications(entities_upgraded)
-  end
+  notifications.show_quality_notifications(entities_upgraded, modules_upgraded)
 end
 
 return core

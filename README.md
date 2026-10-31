@@ -96,9 +96,9 @@ This creates a natural progression curve where reaching legendary quality requir
 
 ### Module Upgrading (Optional)
 
-By default, only the entity itself upgrades - modules inside remain at their original quality level. However, there's an optional setting to automatically upgrade modules when their host entity's quality upgrades (scripts/core.lua).
+By default, only the entity itself upgrades; modules inside retain their quality. The **Module upgrades** startup setting can upgrade modules along with their host or independently.
 
-The `change-modules-with-entity` setting has three options:
+The `change-modules-with-entity` setting has four options:
 
 **Disabled** (Default):
 - Modules keep their original quality when entities change
@@ -111,6 +111,14 @@ The `change-modules-with-entity` setting has three options:
 - Modules are upgraded to match their host when their host's quality upgrades
 - Ensures modules stay at the same quality as their host machine after upgrades
 
+**Independent**:
+- Each occupied module slot gets its own roll using the surface's secondary progression, including in production machines. Host quality and host success do not determine module chances.
+- Each slot retains its own failure bonus when emptied or refilled. Empty slots earn no new progress. Modules moved between machines inherit the destination slot's bonus.
+- Capped machines remain tracked so modules inserted later can upgrade. A Common machine limit disables both machine and module upgrades; other machine limits apply only to the machine.
+- Secondary Progression Rate controls module progression too; zero pauses it.
+- The batch budget counts the machine and every current module slot, including empty or capped slots. Each machine and all its slots finish together, so the final group can exceed the budget.
+- When Quality Control upgrades a machine, bonuses survive by slot index. Only current inventory slots are processed or shown by inspection; bonuses for lost slots remain dormant and resume if those slots return. Newly gained indices start at zero.
+- Ordinary machine replacements (including upgrade planners), configuration rebuilds, and the reset command may reset bonuses. Save/load preserves them. Suspended machines retain bonuses but discard surface credits observed while marked for upgrade or deconstruction.
 
 ### In-Game Notifications
 

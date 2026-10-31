@@ -100,16 +100,35 @@ show_usage() {
     echo ""
     echo "Options:"
     echo "  -h, --help         Show this help message"
+    echo "  --in-game          Also run isolated Factorio integration tests"
+    echo "  --factorio PATH    Factorio executable (or QC_FACTORIO)"
+    echo "  --data PATH        Factorio data directory (or QC_FACTORIO_DATA)"
+    echo "  --timeout SECONDS  Maximum time per Factorio launch (default: 120)"
     echo ""
     echo "Examples:"
     echo "  $0                 # Run all validations"
+    echo "  $0 --in-game       # Include real engine tests; Factorio is required"
 }
 
 # Main function
 main() {
+    local in_game=false
+    local engine_args=()
     # Parse command line arguments
     while [[ $# -gt 0 ]]; do
         case $1 in
+            --in-game)
+                in_game=true
+                shift
+                ;;
+            --factorio|--data|--timeout)
+                if [[ $# -lt 2 || "$2" == --* ]]; then
+                    print_status $RED "Missing value for $1"
+                    exit 1
+                fi
+                engine_args+=("$1" "$2")
+                shift 2
+                ;;
             -h|--help)
                 show_usage
                 exit 0
@@ -121,6 +140,13 @@ main() {
                 ;;
         esac
     done
+
+    if [[ "$in_game" == false && ${#engine_args[@]} -gt 0 ]]; then
+        print_status $RED "Factorio options require --in-game"
+        exit 1
+    fi
+
+    cd "$SCRIPT_DIR"
 
     local exit_code=0
 
@@ -137,6 +163,17 @@ main() {
     # Run comprehensive validation tests
     if ! run_comprehensive_validation; then
         exit_code=1
+    fi
+
+    # Run even if a fast check failed, so untranslated locale keys do not hide
+    # engine results. Both suites still contribute to the final exit status.
+    if [[ "$in_game" == true ]]; then
+        if python3 "${SCRIPT_DIR}/tests/run_factorio.py" "${engine_args[@]}"; then
+            print_status $GREEN "✅ In-game tests passed"
+        else
+            print_status $RED "❌ In-game tests failed"
+            exit_code=1
+        fi
     fi
 
     if [ $exit_code -eq 0 ]; then

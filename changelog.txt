@@ -10,6 +10,11 @@ Date: 07. 08. 2026
       infrastructure based on the machines working there. A surface with no working production
       machines or turrets will not advance.
   Features:
+    - Added an Independent option to Module upgrades. Installed modules earn separate
+      upgrade chances from their surface's secondary progression, even in capped machines.
+      Each slot retains its own failure bonus; Common machine limits disable module upgrades.
+    - Independent mode counts current module slots toward the processing budget and completes
+      each machine's full inventory together. Module alerts and inspection show slot progress.
     - A new Secondary Progression Rate setting can be used to scale how fast those entities progress
       relative to the primary entities. The default of 100% matches their pace; 0% halts
       secondary progression entirely. Can be changed mid-game without a restart in map settings.

@@ -6,6 +6,7 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 ]]
 
 local progression = require("scripts.progression")
+local quality_selector = require("scripts.quality_selector")
 
 local notifications = {}
 
@@ -62,7 +63,8 @@ function notifications.try_show_accumulated_notifications()
   local current_tick = game.tick
   local time_since_last = current_tick - storage.aggregate_notifications.last_notification_tick
 
-  if time_since_last >= cooldown_ticks and next(storage.aggregate_notifications.accumulated_changes) then
+  local module_changes = storage.aggregate_notifications.accumulated_module_changes or {}
+  if time_since_last >= cooldown_ticks and (next(storage.aggregate_notifications.accumulated_changes) or next(module_changes)) then
     local player = game.players[1]
     if player and settings.get_player_settings(player)["quality-change-aggregate-alerts-enabled"].value then
       player.print({"quality-control.aggregate-notification-header"})
@@ -70,10 +72,14 @@ function notifications.try_show_accumulated_notifications()
       for entity_name, count in pairs(storage.aggregate_notifications.accumulated_changes) do
         player.print(entity_name .. ": " .. count)
       end
+      for module_name, count in pairs(module_changes) do
+        player.print({"quality-control.module-summary", {"item-name." .. module_name}, count})
+      end
     end
 
     -- Reset after showing
     storage.aggregate_notifications.accumulated_changes = {}
+    storage.aggregate_notifications.accumulated_module_changes = {}
     storage.aggregate_notifications.last_notification_tick = current_tick
   end
 end
@@ -87,10 +93,49 @@ function notifications.show_entity_quality_alert(entity, target_quality_name)
   end
 end
 
-function notifications.show_quality_notifications(quality_changes)
-  if next(quality_changes) then
+function notifications.show_module_quality_alert(entity, module_name, target_quality_name)
+  local player = game.players[1]
+  if player and settings.get_player_settings(player)["quality-change-entity-alerts-enabled"].value then
+    local message = {"quality-control.module-upgraded", {"item-name." .. module_name}, prototypes.quality[target_quality_name].localised_name}
+    player.add_custom_alert(entity, {type = "item", name = module_name, quality = target_quality_name}, message, true)
+  end
+end
+
+function notifications.show_quality_notifications(quality_changes, module_changes)
+  if module_changes and next(module_changes) then
+    local accumulated = storage.aggregate_notifications.accumulated_module_changes or {}
+    storage.aggregate_notifications.accumulated_module_changes = accumulated
+    for name, count in pairs(module_changes) do
+      accumulated[name] = (accumulated[name] or 0) + count
+    end
+  end
+  if next(quality_changes) or (module_changes and next(module_changes)) then
     notifications.accumulate_quality_changes(quality_changes)
     notifications.try_show_accumulated_notifications()
+  end
+end
+
+-- Only current inventory slots are displayed. Stored trailing bonuses are
+-- dormant history, never a claim about the host's present module capacity.
+local function append_module_info(info_parts, entity, entity_info)
+  if storage.config.settings_data.change_modules_with_entity ~= "independent"
+    or not storage.config.can_attempt_quality_change[entity.type] then return end
+  local inventory = entity.get_module_inventory()
+  if not inventory then return end
+  local bonuses = entity_info.module_failure_bonuses or {}
+  for slot = 1, #inventory do
+    local stack = inventory[slot]
+    local bonus = bonuses[slot] or 0
+    if stack.valid_for_read and stack.is_module then
+      local chance = storage.config.settings_data.base_percentage_chance + bonus
+      local status = quality_selector.has_upgrade_path(stack.quality.name)
+        and {"quality-control.module-next-chance", string.format("%.2f", math.min(100, chance))}
+        or {"quality-control.module-no-upgrade-path"}
+      table.insert(info_parts, {"quality-control.module-slot", slot, stack.prototype.localised_name, stack.quality.localised_name,
+        string.format("%.2f", bonus), status})
+    else
+      table.insert(info_parts, {"quality-control.module-slot-empty", slot, string.format("%.2f", bonus)})
+    end
   end
 end
 
@@ -143,7 +188,9 @@ function notifications.show_entity_quality_info(player, get_entity_info)
     local is_primary_type = entity_info.is_primary
     local is_turret = turret_types[selected_entity.type] or false
     local is_enabled = storage.config.can_attempt_quality_change[selected_entity.type]
-    local can_change_quality = selected_entity.quality ~= storage.config.quality_limit
+    local limit = storage.config.upgrade_limit_levels[selected_entity.type]
+    local can_change_quality = quality_selector.has_upgrade_path(selected_entity.quality.name)
+      and (not limit or selected_entity.quality.level < limit - 1)
 
     -- Primary entities earn credits from their total manufacturing hours; secondary
     -- entities have whatever their surface meter shows since their last reading
@@ -178,6 +225,10 @@ function notifications.show_entity_quality_info(player, get_entity_info)
       -- entity is not enabled for quality control tracking
       table.insert(info_parts, {"quality-control.entity-type-disabled"})
     end
+  end
+
+  if type(entity_info) == "table" then
+    append_module_info(info_parts, selected_entity, entity_info)
   end
 
   -- Print all info

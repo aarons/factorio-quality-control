@@ -5,9 +5,10 @@ upgrade rolls using secondary progression. A max-quality host can continue impro
 modules, including lower-quality modules inserted later. Hosts remain the queue entries;
 each module slot owns its failure bonus.
 
-Status: agreed behavior and engineering handoff. This feature is not implemented. The
-implementation outline below proposes mechanics for delivering the agreed behavior;
-remaining lifecycle questions are listed explicitly.
+Status: implementation added, with behavioral coverage through `./validate.sh`.
+Real-engine verification and large-save profiling remain outstanding. The replacement
+policy below incorporates the implementation discussion: ordinary upgrade-planner
+replacements may start fresh; only Quality Control replacements transfer slot bonuses.
 
 ## Agreed behavior
 
@@ -200,10 +201,11 @@ attach it to the replacement record. Event callbacks may register the replacemen
 this operation; avoid duplicate queue entries and duplicate module attempts. Independent
 mode must bypass the legacy `update_module_quality` behavior.
 
-Upgrade planners can replace a host with a different prototype and fewer slots. Preserve
-the state by index for identified replacements and apply the resizing rules above. Verify
-the actual Factorio event sequence before choosing the transfer mechanism; the current
-generic mine/build handlers alone do not establish a replacement relationship.
+Ordinary replacements, including upgrade planners, start with fresh module bonuses.
+No robot mine/build pairing is required. Quality Control replacements transfer state
+using the returned replacement entity, including when quality changes module capacity.
+The saved array length is historical state, never the current number of available slots;
+processing, batch costs, and inspection use the current module inventory exclusively.
 
 When an existing tracked host moves to another surface, retain bonuses but rebase its
 module bookmark to the destination meter. Never subtract readings from different surfaces.
@@ -212,8 +214,8 @@ Arbitrary mining followed by rebuilding has no guaranteed identity relationship 
 not required to preserve bonuses. Destruction and surface deletion clean up host state.
 
 Retain the existing guard against processing hosts marked for deconstruction or upgrade.
-The implementation must settle how that suspended interval affects the module bookmark;
-see the outstanding decisions below.
+Suspended visits advance the module bookmark without rolls or bonus increases. Like
+occupancy, suspension is sampled at visits; exact transition-time tracking is not required.
 
 ### Initialization and configuration changes
 
@@ -271,20 +273,25 @@ Only update English localization. Non-English additions are handled separately. 
 alerts should identify the module and use the host as a location; they must not claim the
 host changed quality. Avoid adding a new notification subsystem for this feature.
 
-## Outstanding engineering decisions
+## Implementation decisions and remaining checks
 
-These details need resolution during implementation; they do not change the agreed
-progression and budget rules:
+These decisions preserve the agreed progression and budget rules:
 
-1. Verify how upgrade-planner replacements can be paired reliably, including fewer slots
-   and any intermediate host with no module inventory. Preserve dormant state for a
-   recognized continuing host; do not guess identity solely from nearby entities.
-2. Define bookmark handling while marked for upgrade or deconstruction. Recommended
-   default: retain bonuses but consume no suspended-period credits when processing resumes.
-3. Verify multi-item module slot behavior and replacement failure behavior in-game. Do not
-   silently lose items or award an upgrade that failed to apply.
+1. Ordinary upgrade-planner replacements reset bonuses; Quality Control replacements
+   preserve them using the returned entity. No inferred replacement pairing is used.
+2. Suspended visits retain bonuses and discard their observed surface-meter delta.
+3. A multi-item module slot upgrades as one unit, retaining count, health, and applicable
+   spoilage. Preflight and replacement success checks guard bonus resets and notifications.
+   Real-engine inventory restrictions, effect recalculation, and failure behavior still
+   need verification; Lua test doubles do not establish engine guarantees.
 
 ## Acceptance criteria
+
+Automated validation: 15 Lua behavioral scenarios pass, including current-inventory
+resizing, dormant bonuses, replacement queue fairness, failed replacements, and legacy
+modes. `./validate.sh` reports 166 passing tests and 30 expected missing non-English
+translation failures. Production lint and static access checks remain unchanged.
+The checklist below still requires real-engine verification and profiling.
 
 Run repository validation only through `./validate.sh`; do not invoke luacheck or pytest
 directly. The existing suite is mainly static validation, so verify runtime behavior in
@@ -310,8 +317,8 @@ Factorio and add meaningful behavioral coverage where supported.
       small queue within a callback.
 - [ ] Four-to-two-to-four slot transitions preserve overlapping and dormant bonuses.
       Brand-new slot indices begin with zero bonus.
-- [ ] Quality Control and upgrade-planner replacements preserve state where identified,
-      including host prototype changes and decreases in module slot count.
+- [ ] Quality Control replacements preserve slot bonuses across capacity changes; ordinary
+      replacements, including upgrade planners, start fresh.
 - [ ] Save/load retains state. First adoption has no historical payout. Configuration and
       explicit tracking rebuilds may reset bonuses, including dormant entries, but must
       initialize fresh meter bookmarks and cannot create disabled-period credit windfalls.
