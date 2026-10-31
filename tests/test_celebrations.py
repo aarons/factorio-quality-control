@@ -7,7 +7,7 @@ import pytest
 
 
 @pytest.mark.parametrize("scenario", [
-    "independent", "chat_and_gps", "sound_surface", "speaker_sounds", "recipients", "lifecycle", "burst",
+    "independent", "chat_and_gps", "sound_surface", "speaker_sounds", "music_surface", "recipients", "lifecycle", "burst",
 ])
 def test_celebrations(scenario):
     lua = shutil.which("lua")

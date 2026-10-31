@@ -8,7 +8,7 @@ This includes entity-specific alerts, aggregate notifications, and quality contr
 local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
 local celebrations = require("scripts.celebrations")
-local upgrade_sounds = require("scripts.upgrade_sounds")
+local upgrade_music = require("scripts.upgrade_music")
 
 local notifications = {}
 
@@ -130,7 +130,7 @@ local function deliver_upgrade(player, entity, target_quality_name, module_name)
   -- surface follows the player's current view, including remote view.
   if preferences["quality-change-sound-enabled"].value and player.surface == entity.surface then
     player.play_sound{
-      path = upgrade_sounds.path(preferences["quality-change-sound"].value, preferences["quality-change-sound-note"].value),
+      path = upgrade_music.path(player.index, preferences),
       volume_modifier = 0.6,
     }
   end

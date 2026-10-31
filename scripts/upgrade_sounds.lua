@@ -66,6 +66,11 @@ for _, instrument in ipairs({
   sounds.paths[value] = notes
 end
 
+function sounds.note_count(value)
+  local path = sounds.paths[value]
+  if type(path) == "table" then return #path end
+end
+
 function sounds.path(value, note)
   local path = sounds.paths[value]
   if type(path) == "table" then

@@ -31,6 +31,9 @@ local function reset()
     for _, style in ipairs(styles) do player.preferences[key(style)] = {value = false} end
     player.preferences["quality-change-sound"] = {value = "instrument-piano"}
     player.preferences["quality-change-sound-note"] = {value = 23}
+    player.preferences["quality-change-sound-mode"] = {value = "fixed"}
+    player.preferences["quality-change-sound-scale"] = {value = "major"}
+    player.preferences["quality-change-sound-range"] = {value = "one-octave"}
     player.print = function(message, options) table.insert(player.messages, {message = message, options = options}) end
     player.add_custom_alert = function(target, icon, message)
       table.insert(player.alerts, {entity = target, icon = icon, message = message})
@@ -176,6 +179,30 @@ function tests.speaker_sounds()
   player.surface = {index = 1}
   notifications.show_entity_quality_alert(entity, "custom")
   equal(#player.sounds, 0)
+end
+
+function tests.music_surface()
+  reset()
+  local player = players[1]
+  player.preferences["quality-change-sound-mode"].value = "staircase"
+  player.preferences["quality-change-sound-note"].value = 8
+  enable(player, "sound")
+  notifications.show_entity_quality_alert(entity, "custom")
+  equal(player.sounds[1].path, "quality-control-upgrade-instrument-piano-8")
+  player.surface = {index = 1}
+  notifications.show_module_quality_alert(entity, "module", "custom")
+  player.surface = entity.surface
+  enable(player, "sound", false)
+  notifications.show_entity_quality_alert(entity, "custom")
+  enable(player, "sound")
+  player.force = other_force
+  notifications.show_entity_quality_alert(entity, "custom")
+  player.force = force
+  equal(#player.sounds, 1)
+  notifications.show_module_quality_alert(entity, "module", "custom")
+  equal(#player.sounds, 2)
+  equal(player.sounds[2].path, "quality-control-upgrade-instrument-piano-10")
+  equal(storage.upgrade_music[2], nil)
 end
 
 function tests.recipients()

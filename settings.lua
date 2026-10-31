@@ -1,4 +1,5 @@
 local upgrade_sounds = require("scripts.upgrade_sounds")
+local upgrade_music = require("scripts.upgrade_music")
 
 data:extend({
     {
@@ -146,7 +147,7 @@ data:extend({
         type = "string-setting",
         name = "quality-change-sound",
         setting_type = "runtime-per-user",
-        default_value = "instrument-piano",
+        default_value = "instrument-plucked",
         allowed_values = upgrade_sounds.values,
         order = "c-9"
     },
@@ -154,10 +155,34 @@ data:extend({
         type = "int-setting",
         name = "quality-change-sound-note",
         setting_type = "runtime-per-user",
-        default_value = 23,
+        default_value = 20,
         min_value = 1,
         max_value = 48,
         order = "c-9-a"
+    },
+    {
+        type = "string-setting",
+        name = "quality-change-sound-mode",
+        setting_type = "runtime-per-user",
+        default_value = "wander",
+        allowed_values = upgrade_music.modes,
+        order = "c-9-b"
+    },
+    {
+        type = "string-setting",
+        name = "quality-change-sound-scale",
+        setting_type = "runtime-per-user",
+        default_value = "major",
+        allowed_values = upgrade_music.scales,
+        order = "c-9-c"
+    },
+    {
+        type = "string-setting",
+        name = "quality-change-sound-range",
+        setting_type = "runtime-per-user",
+        default_value = "full",
+        allowed_values = upgrade_music.ranges,
+        order = "c-9-d"
     },
     -- Hidden quality handling (for mods like Quality++ Shiny)
     {

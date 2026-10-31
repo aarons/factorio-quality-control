@@ -92,11 +92,18 @@ delivery, recipient and surface selection, modded qualities, bursts, and drawing
 cleanup after expiry, setting changes, disconnects, force changes, and invalid
 render objects. Reload coverage retains storage while reloading the Lua module;
 it does not substitute for engine serialization or client-side visual/audio review.
+`test_upgrade_music.py` checks all instrument/root/scale/range combinations,
+staircase turns, wandering step sizes, independent player sequences, reload
+continuity, and nonmusical sound compatibility. The notification suite also
+checks that muted, off-surface, and other-force upgrades do not advance music.
 The headless engine suite has no connected players and does not exercise alert
 presentation. For a client playtest, enable each new setting separately and then
 together, upgrade machines and independent modules, and check remote view and
 different surfaces. Verify a second same-force player sees only their chosen
 effects, and save/load while rings or badges are active.
+For music, audition each behavior on piano and a shorter instrument, including
+a root near the top of the range. Check scale and range changes, ascending and
+descending staircase turns, and continuation after quiet periods and save/load.
 `test_factorio_runner.py` checks discovery overrides, workspace isolation,
 required markers, assertion failures, process exits, timeouts, and cleanup
 using small subprocesses without requiring Factorio.
