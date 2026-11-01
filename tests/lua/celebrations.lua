@@ -1,6 +1,7 @@
 -- luacheck: globals game math defines rendering package
 local notifications = require("scripts.notifications")
 local celebrations = require("scripts.celebrations")
+local upgrade_chat = require("scripts.upgrade_chat")
 local tests = {}
 local styles = {"entity-alerts", "chat", "gps", "floating-text", "halo", "rainbow", "badge", "bubbles", "sound", "aggregate-alerts"}
 local objects = {}
@@ -8,6 +9,33 @@ local players = {}
 local force = {index = 1}
 local other_force = {index = 2}
 local entity
+local translation_requests
+
+local function localise(message)
+  if type(message) ~= "table" then return tostring(message) end
+  local translations = {
+    ["entity-name.beacon"] = "Beacon", ["item-name.module"] = "Speed module", ["quality-name.custom"] = "Custom",
+    ["quality-control.entity-upgraded"] = "__1__ upgraded to __2__",
+    ["quality-control.module-upgraded"] = "Module __1__ upgraded to __2__",
+  }
+  if message[1] == "" then
+    local parts = {}
+    for index = 2, #message do parts[#parts + 1] = localise(message[index]) end
+    return table.concat(parts)
+  end
+  return (assert(translations[message[1]], message[1]):gsub("__(%d+)__", function(index)
+    return localise(message[tonumber(index) + 1])
+  end))
+end
+
+local function flush_translations()
+  for _, event in ipairs(translation_requests) do upgrade_chat.on_string_translated(event) end
+  translation_requests = {}
+end
+
+local function without_colors(text)
+  return (text:gsub("%[color=[^%]]+%]", ""):gsub("%[/color%]", ""))
+end
 
 local function key(style) return "quality-change-" .. style .. "-enabled" end
 local function equal(actual, expected) assert(actual == expected, tostring(actual) .. " ~= " .. tostring(expected)) end
@@ -15,6 +43,7 @@ local function enable(player, style, value) player.preferences[key(style)].value
 
 local function reset()
   objects, players = {}, {}
+  translation_requests = {}
   storage = {aggregate_notifications = {accumulated_changes = {}, last_notification_tick = 0}}
   defines = {print_sound = {never = 0}, print_skip = {never = 0}}
   prototypes = {
@@ -35,6 +64,14 @@ local function reset()
     player.preferences["quality-change-sound-scale"] = {value = "major"}
     player.preferences["quality-change-sound-range"] = {value = "one-octave"}
     player.print = function(message, options) table.insert(player.messages, {message = message, options = options}) end
+    local request_id = 0
+    player.request_translation = function(message)
+      request_id = request_id + 1
+      translation_requests[#translation_requests + 1] = {
+        id = request_id, player_index = index, translated = true, result = localise(message),
+      }
+      return request_id
+    end
     player.add_custom_alert = function(target, icon, message)
       table.insert(player.alerts, {entity = target, icon = icon, message = message})
     end
@@ -62,6 +99,7 @@ function tests.independent()
       reset()
       enable(players[2], style)
       notifications.show_entity_quality_alert(entity, "custom")
+      flush_translations()
       local player = players[2]
       equal(#player.alerts, style == "entity-alerts" and 1 or 0)
       equal(#player.messages, (style == "chat" or style == "gps") and 1 or 0)
@@ -89,6 +127,7 @@ function tests.chat_and_gps()
         else
           notifications.show_entity_quality_alert(entity, "custom")
         end
+        flush_translations()
         equal(#player.messages, (chat or gps) and 1 or 0)
         if chat or gps then
           local printed = player.messages[1]
@@ -100,8 +139,9 @@ function tests.chat_and_gps()
               equal(message[4], entity.gps_tag)
               message = message[2]
             end
-            equal(message[1], module_name and "quality-control.module-upgraded" or "quality-control.entity-upgraded")
-            equal(message[2][2], "[" .. (module_name and "item=module" or "entity=beacon") .. ",quality=custom] ")
+            local subject = module_name and "[img=item/module] Speed module" or "[img=entity/beacon] Beacon"
+            equal(without_colors(message), subject .. " upgraded to [img=quality/custom] Custom")
+            assert(message:find("[color=", 1, true))
           else
             equal(printed.message, entity.gps_tag)
           end
@@ -209,6 +249,7 @@ function tests.recipients()
   reset()
   for _, player in ipairs(players) do for _, style in ipairs(styles) do enable(player, style) end end
   notifications.show_module_quality_alert(entity, "module", "custom")
+  flush_translations()
   equal(#objects, 46)
   for index = 1, 2 do
     local player = players[index]
@@ -344,6 +385,7 @@ function tests.burst()
   reset()
   for _, style in ipairs(styles) do enable(players[1], style) end
   for _ = 1, 100 do notifications.show_entity_quality_alert(entity, "custom") end
+  flush_translations()
   equal(#objects, 2300)
   equal(#players[1].sounds, 100)
   equal(#players[1].messages, 100)
@@ -360,6 +402,66 @@ function tests.burst()
   celebrations.on_tick()
   equal(storage.quality_celebrations, nil)
   for _, object in ipairs(objects) do equal(object.valid, false) end
+end
+
+function tests.rainbow_text()
+  reset()
+  local plain = "É炉 😀 upgraded! [img=quality/custom] [gps=3,7,other-surface]"
+  local colored = upgrade_chat.colorize(plain, 42)
+  equal(without_colors(colored), plain)
+  equal(upgrade_chat.colorize(plain, 42), colored)
+  assert(upgrade_chat.colorize(plain, 43) ~= colored)
+  local count, previous = 0, nil
+  for color, letter in colored:gmatch("%[color=([^%]]+)%](.-)%[/color%]") do
+    assert(color ~= previous, "adjacent letters must have different colors")
+    assert(letter ~= " " and letter ~= "", "only visible characters get colored")
+    if count == 0 then equal(letter, "É") end
+    if count == 1 then equal(letter, "炉") end
+    if count == 2 then equal(letter, "😀") end
+    previous, count = color, count + 1
+  end
+  equal(count, 12)
+  equal(without_colors(upgrade_chat.colorize("[color=red]É炉[/color]", 1)), "É炉")
+end
+
+function tests.chat_lifecycle()
+  for _, change in ipairs({"reload", "failed", "disabled", "gps_disabled", "force", "disconnect", "removed"}) do
+    reset()
+    local player = players[1]
+    enable(player, "chat")
+    enable(player, "gps")
+    notifications.show_entity_quality_alert(entity, "custom")
+    equal(#player.messages, 0) -- Translation is asynchronous.
+    entity.valid = false -- Never retain the replaced entity in pending requests.
+    if change == "reload" then
+      package.loaded["scripts.upgrade_chat"] = nil
+      upgrade_chat = require("scripts.upgrade_chat")
+    elseif change == "failed" then translation_requests[1].translated = false
+    elseif change == "disabled" then enable(player, "chat", false)
+    elseif change == "gps_disabled" then enable(player, "gps", false)
+    elseif change == "force" then player.force = other_force
+    elseif change == "disconnect" then player.connected = false
+    elseif change == "removed" then upgrade_chat.clear_player({player_index = 1}) end
+    flush_translations()
+    equal(storage.quality_upgrade_chat, nil)
+    if change == "force" or change == "disconnect" or change == "removed" then
+      equal(#player.messages, 0)
+    else
+      equal(#player.messages, 1)
+      local message = player.messages[1].message
+      if change == "disabled" then equal(message, entity.gps_tag)
+      elseif change == "gps_disabled" then assert(type(message) == "string")
+      else
+        equal(message[4], entity.gps_tag)
+        if change == "failed" then
+          equal(localise(message[2]), "[img=entity/beacon] Beacon upgraded to [img=quality/custom] Custom")
+        else assert(type(message[2]) == "string") end
+      end
+    end
+  end
+  reset()
+  upgrade_chat.on_string_translated({id = 999, player_index = 1, translated = true, result = "unrelated"})
+  equal(#players[1].messages, 0)
 end
 
 assert(tests[arg[1]], "unknown scenario")()

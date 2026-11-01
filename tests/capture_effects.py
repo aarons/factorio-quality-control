@@ -59,6 +59,7 @@ def prepare_capture(root, data, sequence):
     for name in ("scripts", "migrations", "locale"):
         shutil.copytree(REPO / name, mod / name)
     shutil.copy2(REPO / "tests/capture/hooks.lua", mod / "qc_capture_hooks.lua")
+    shutil.copy2(REPO / "tests/capture/settings-final-fixes.lua", mod / "settings-final-fixes.lua")
     with (mod / "control.lua").open("a") as output:
         output.write('\nrequire("qc_capture_hooks")\n')
     scenario = mod / "scenarios/qc-capture"

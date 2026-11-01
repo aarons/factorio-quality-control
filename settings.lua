@@ -93,7 +93,7 @@ data:extend({
         default_value = true,
         order = "c-1"
     },
-    -- Each celebration is opt-in and independent of all other alert styles.
+    -- Each celebration is independent of all other alert styles.
     {
         type = "bool-setting",
         name = "quality-change-chat-enabled",
@@ -115,11 +115,14 @@ data:extend({
         default_value = false,
         order = "c-4"
     },
+    -- Keep unfinished ring effects available to development fixtures only.
     {
         type = "bool-setting",
         name = "quality-change-halo-enabled",
         setting_type = "runtime-per-user",
         default_value = false,
+        hidden = true,
+        forced_value = false,
         order = "c-5"
     },
     {
@@ -127,6 +130,8 @@ data:extend({
         name = "quality-change-rainbow-enabled",
         setting_type = "runtime-per-user",
         default_value = false,
+        hidden = true,
+        forced_value = false,
         order = "c-6"
     },
     {
@@ -140,7 +145,7 @@ data:extend({
         type = "bool-setting",
         name = "quality-change-bubbles-enabled",
         setting_type = "runtime-per-user",
-        default_value = false,
+        default_value = true,
         order = "c-7-b"
     },
     {

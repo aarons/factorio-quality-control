@@ -9,6 +9,7 @@ local progression = require("scripts.progression")
 local quality_selector = require("scripts.quality_selector")
 local celebrations = require("scripts.celebrations")
 local upgrade_music = require("scripts.upgrade_music")
+local upgrade_chat = require("scripts.upgrade_chat")
 
 local notifications = {}
 
@@ -104,22 +105,11 @@ local function deliver_upgrade(player, entity, target_quality_name, module_name)
   if preferences["quality-change-entity-alerts-enabled"].value then
     player.add_custom_alert(entity, icon, message, true)
   end
-  local chat_message
-  if preferences["quality-change-chat-enabled"].value then
-    local color = quality.color
-    local quality_text = {"", string.format("[color=%f,%f,%f]", color.r, color.g, color.b),
-      "[quality=" .. target_quality_name .. "] ", quality.localised_name, "[/color]"}
-    local subject = {"", "[" .. kind .. "=" .. name .. ",quality=" .. target_quality_name .. "] ",
-      "[color=0.4,0.8,1]", localised_name, "[/color]"}
-    chat_message = {message_key, subject, quality_text}
-  end
-  if preferences["quality-change-gps-enabled"].value then
-    -- Factorio creates the native GPS ping by printing its location link.
-    chat_message = chat_message and {"", chat_message, " ", entity.gps_tag} or entity.gps_tag
-  end
-  if chat_message then
-    player.print(chat_message, {sound = defines.print_sound.never, skip = defines.print_skip.never})
-  end
+  -- Sprite tags display icons only, unlike entity/item/quality links, which
+  -- append bracketed labels and repeat the names already in the sentence.
+  local subject = {"", "[img=" .. kind .. "/" .. name .. "] ", localised_name}
+  local quality_text = {"", "[img=quality/" .. target_quality_name .. "] ", quality.localised_name}
+  upgrade_chat.show(player, entity, {"quality-control.entity-upgraded", subject, quality_text}, preferences)
   if preferences["quality-change-floating-text-enabled"].value then
     player.create_local_flying_text{
       text = {"quality-control.upgrade-floating", localised_name, quality.localised_name},

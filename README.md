@@ -130,16 +130,14 @@ the same styles; module effects appear at the host machine.
 | --- | --- | --- |
 | Map Alert Icons | Map alert with the upgraded machine or module icon | On |
 | Aggregate Console Alerts | Accumulated upgrade counts, reported at most every five minutes | Off |
-| Colorful Upgrade Chat | An immediate message with localized names, icons, and quality colors | Off |
+| Colorful Upgrade Chat | Localized upgrade messages with icons and randomized rainbow-colored letters | Off |
 | GPS Location Links | A clickable location link in chat that triggers a GPS map ping | Off |
 | Floating Upgrade Text | Rising machine/module name and resulting quality | Off |
-| Quality Halo | An expanding ring in the resulting quality's color | Off |
-| Rainbow Rings | Three expanding rings cycling through rainbow colors | Off |
 | Spinning Upgrade Badge | A growing quality icon that rises and continuously spins through its fade-out over 4.5 seconds | Off |
-| Upgrade Bubbles | A stream of small quality icons that float upward like bubbles | Off |
+| Upgrade Bubbles | A stream of small quality icons that float upward like bubbles | On |
 | Upgrade Sound | A chosen built-in sound for upgrades on the surface currently being viewed | Off |
 
-New styles use existing game assets and drawing primitives. They fire immediately
+New styles use existing game assets and drawing primitives. They fire
 for every upgrade, without grouping or rate limiting. GPS alone prints only the
 location link; enabling both chat and GPS adds the link to one colorful upgrade
 message. Click the link to revisit the upgrade location. Factorio's native GPS

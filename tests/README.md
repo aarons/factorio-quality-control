@@ -18,6 +18,8 @@ MP4 fast-start metadata for browser playback and linking from GitHub on the foru
 
 The script opens its own window, stages each effect separately, saves 640×640
 PNGs, and closes its own process when every expected image has been written.
+Its disposable mod copy enables the unfinished halo and rainbow rings for capture;
+these settings remain hidden and disabled in the shipped mod.
 The camera keeps the entity horizontally centered and 70% down from the top
 (30% up from the bottom), leaving room above for bubbles and beside it for rings.
 Zoom is 2.5 to keep the units prominent; expanding rings can extend past the crop.

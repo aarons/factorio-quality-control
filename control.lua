@@ -9,6 +9,7 @@ local core = require("scripts.core")
 local notifications = require("scripts.notifications")
 local celebrations = require("scripts.celebrations")
 local upgrade_music = require("scripts.upgrade_music")
+local upgrade_chat = require("scripts.upgrade_chat")
 local exclusions = require("scripts.exclusions")
 
 -- Entity type to upgrade limit setting name mappings.
@@ -375,7 +376,12 @@ end
 
 local function register_event_handlers()
   script.on_event(defines.events.on_tick, celebrations.on_tick)
-  script.on_event(defines.events.on_player_removed, upgrade_music.on_player_removed)
+  script.on_event(defines.events.on_string_translated, upgrade_chat.on_string_translated)
+  script.on_event(defines.events.on_player_left_game, upgrade_chat.clear_player)
+  script.on_event(defines.events.on_player_removed, function(event)
+    upgrade_music.on_player_removed(event)
+    upgrade_chat.clear_player(event)
+  end)
   -- Entity creation events (with player force filters for the events that support it)
   script.on_event(defines.events.on_built_entity, core.on_entity_created, {{filter = "force", force = "player"}})
   script.on_event(defines.events.on_robot_built_entity, core.on_robot_built_entity, {{filter = "force", force = "player"}})
