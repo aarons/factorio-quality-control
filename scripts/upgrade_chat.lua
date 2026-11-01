@@ -2,7 +2,7 @@
 local chat = {}
 
 local colors = {{1, 0.45, 0.45}, {1, 0.7, 0.3}, {1, 0.95, 0.4}, {0.45, 1, 0.55}, {0.4, 0.8, 1}, {0.8, 0.55, 1}}
-local letters_per_transition = 8
+local letters_per_transition = 7
 
 local function gradient_color(position)
   local index = math.floor(position / letters_per_transition) % #colors + 1
@@ -14,11 +14,11 @@ local function gradient_color(position)
     start_color[3] + (end_color[3] - start_color[3]) * blend)
 end
 
-function chat.colorize(text, seed)
+function chat.colorize(text, start_position)
   local parts, color_depth = {}, 0
-  -- Vary the starting hue without consuming gameplay randomness, then move
-  -- smoothly through the palette, including the violet-to-coral transition.
-  local position_in_gradient = seed % (#colors * letters_per_transition)
+  -- Move smoothly from the chosen starting hue through the whole palette,
+  -- including the violet-to-coral transition.
+  local position_in_gradient = start_position % (#colors * letters_per_transition)
   local function append_letters(plain)
     -- Explicit colors (such as the quality name) retain their meaning, wherever
     -- the translated sentence places them.
@@ -91,7 +91,13 @@ function chat.on_string_translated(event)
   local message
   if preferences["quality-change-chat-enabled"].value then
     -- Failed translations still get the ordinary localized message.
-    message = event.translated and chat.colorize(event.result, event.id + event.player_index) or entry.message
+    message = entry.message
+    if event.translated then
+      -- Seed a separate cosmetic generator so chat never affects upgrade rolls.
+      local seed = ((event.id + event.player_index) * 104729) % 4294967296
+      local random = game.create_random_generator(seed)
+      message = chat.colorize(event.result, random() * #colors * letters_per_transition)
+    end
   end
   if entry.gps and preferences["quality-change-gps-enabled"].value then
     message = message and {"", message, " ", entry.gps} or entry.gps

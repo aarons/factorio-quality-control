@@ -2,37 +2,17 @@
 Version: 2.5.0
 Date: 31. 10. 2026
   Features:
-    - Added musical wandering, wind chimes, staircase, random-in-scale, and fully random
-      instrument notifications, with scale and range settings for each player.
-    - Added six independent alert styles using existing game assets: colorful chat, GPS pings,
-      floating upgrade text, a spinning upgrade badge, bubbles, and a built-in upgrade sound.
-      Enable any combination in per-player settings. Bubbles are on by default; the other new
-      styles are off by default. Styles apply to machine and independent module upgrades.
+    - Added an option for modules to upgrade on their own, independent of the entity they are
+      inside. This lets them continue to upgrade even if placed in a maxed quality entity.
+      This is available in startup settings under the module upgrades drop down.
+      Thank you to factorioburak for suggesting this improvement!
+    - Added new alerts that can celebrate upgrades with bling and whimsy.
+      New alerts include: GPS pings, colorful chat messsages, a spinning upgrade badge,
+      quality bubbles like champagne, and some very cool sounds, such as wind chimes in c#,
+      or piano keys with major pentatonic musical wandering.
+      Bubbles are on by default as they are unubtrusive and fun in a surprising way if you
+      happen to see it happen. The other styles are off but can be changed in the players settings tab.
       Thanks to Lady_Lucina for the excellent idea and request!
-    - Added an Independent option to the Module upgrades startup setting. Installed modules earn
-      separate upgrade chances from their surface's secondary progression, even when their host
-      machine has reached its quality limit. Thanks to factorioburak for suggesting this option!
-    - Each module slot retains its own failure bonus, including while empty. Empty slots earn no
-      progress. A Common machine limit disables module upgrades; other machine limits do not cap
-      module quality.
-  Ease of use:
-    - Colorful chat shows each name once, with icon-only sprites and randomized rainbow letters.
-    - Quality Halo and Rainbow Rings are hidden and disabled while their visuals are refined.
-    - Spinning upgrade badges now last 4.5 seconds, grow to 250% of their previous size,
-      and keep spinning through their fade-out. Upgrade Bubbles independently enables a stream
-      of small floating quality icons.
-    - Upgrade alerts now respect each connected player's preferences and the upgraded entity's force.
-    - GPS alone prints a clickable location link; enabling colorful chat adds it to one upgrade
-      message. Factorio's native GPS ping requires the chat link.
-    - Upgrade sounds include all vanilla speaker alarms, effects, drums, and musical notes,
-      with a separate instrument note selector. Sounds only play on the currently viewed
-      surface, including remote view.
-    - Independent module upgrades now appear in upgrade alerts and summaries. The quality inspection
-      hotkey shows each module slot's quality, failure bonus, and chance per credit.
-  Changes:
-    - Independent mode counts all module slots toward the processing budget, including empty and
-      maximum-quality slots. Processing finishes the current machine and all its slots together,
-      even if this exceeds the configured per-tick limit.
 ---------------------------------------------------------------------------------------------------
 Version: 2.4.0
 Date: 07. 08. 2026

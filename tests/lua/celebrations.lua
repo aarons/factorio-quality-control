@@ -448,6 +448,27 @@ function tests.rainbow_text()
     end
     previous = channels
   end
+
+  -- Each notification chooses its own starting hue, then reaches the next
+  -- palette color seven visible characters later.
+  enable(players[1], "chat")
+  local samples, seeds = {0.5, 0}, {}
+  game.create_random_generator = function(seed)
+    seeds[#seeds + 1] = seed
+    return function() return table.remove(samples, 1) end
+  end
+  for _ = 1, 2 do notifications.show_entity_quality_alert(entity, "custom") end
+  flush_translations()
+  assert(seeds[1] ~= seeds[2], "notifications must use distinct random seeds")
+  for index, expected in ipairs({{"0.450,1.000,0.550", "0.400,0.800,1.000"},
+    {"1.000,0.450,0.450", "1.000,0.700,0.300"}}) do
+    local colors = {}
+    for color in players[1].messages[index].message:gmatch("%[color=([^%]]+)%]") do
+      colors[#colors + 1] = color
+    end
+    equal(colors[1], expected[1])
+    equal(colors[8], expected[2])
+  end
 end
 
 function tests.chat_lifecycle()
