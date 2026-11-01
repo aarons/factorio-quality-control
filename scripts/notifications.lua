@@ -108,7 +108,8 @@ local function deliver_upgrade(player, entity, target_quality_name, module_name)
   -- Sprite tags display icons only, unlike entity/item/quality links, which
   -- append bracketed labels and repeat the names already in the sentence.
   local subject = {"", "[img=" .. kind .. "/" .. name .. "] ", localised_name}
-  local quality_text = {"", "[img=quality/" .. target_quality_name .. "] ", quality.localised_name}
+  local quality_color = string.format("[color=%.3f,%.3f,%.3f]", quality.color.r, quality.color.g, quality.color.b)
+  local quality_text = {"", "[img=quality/" .. target_quality_name .. "] ", quality_color, quality.localised_name, "[/color]"}
   upgrade_chat.show(player, entity, {"quality-control.entity-upgraded", subject, quality_text}, preferences)
   if preferences["quality-change-floating-text-enabled"].value then
     player.create_local_flying_text{

@@ -298,8 +298,9 @@ Both CLI backends return schema-constrained JSON. Python checks placeholders,
 rich-text tags, escaped newlines, and URLs before atomically replacing each
 language file. Invalid translations are retried; persistent errors leave that
 language's file unchanged and make the command exit unsuccessfully. Other
-languages can still succeed. Terminology inconsistencies are review advisories
-and do not force rewrites. Direct API endpoints retain their existing JSON
+languages can still succeed. Different translations of identical English text
+produce review advisories without forcing rewrites. Different English strings
+sharing a translation are not flagged. Direct API endpoints retain their existing JSON
 prompt protocol with the same local validation.
 
 Progress tracking still uses the last commit touching each language file.

@@ -21,7 +21,7 @@ local function reset(mode)
   prototypes = {quality = {}, item = {["speed-module"] = {localised_name = "Speed module"}}, get_history = function() return nil end}
   local previous
   for level, name in ipairs({"normal", "uncommon", "rare", "epic", "legendary"}) do
-    local quality = {name = name, level = level - 1, localised_name = name, chain_probability = 0.1}
+    local quality = {name = name, level = level - 1, localised_name = name, chain_probability = 0.1, color = {r = 1, g = 1, b = 1}}
     prototypes.quality[name] = quality
     if previous then previous.next = quality end
     previous = quality

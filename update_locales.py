@@ -575,26 +575,7 @@ def terminology_advisories(final, translated, en_entries):
         ):
             ids = ", ".join(entry_id for entry_id, _ in members)
             notes.append(f"Identical English text has different translations: {ids}")
-    for entry_id in sorted(find_section_collisions(final, translated, en_entries)):
-        notes.append(f"{entry_id}: shares a translation with different English text in its section")
     return notes
-
-
-def find_section_collisions(final, translated, en_entries):
-    """Ids translated this run whose value collides within their section.
-
-    Different English texts can legitimately share a translation. Report
-    these only as review advisories for ids translated in this run.
-    """
-    by_value = {}
-    for entry_id, value in final.items():
-        if value.strip():
-            by_value.setdefault((entry_id.split("/")[0], value), []).append(entry_id)
-    collisions = set()
-    for ids in by_value.values():
-        if len({en_entries[entry_id] for entry_id in ids}) > 1:
-            collisions.update(entry_id for entry_id in ids if entry_id in translated)
-    return collisions
 
 
 def process_language(config, lang_code, args, en_text, en_entries):

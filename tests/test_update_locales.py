@@ -233,7 +233,8 @@ def test_advisories_do_not_rewrite_or_retry_translations(language_file, monkeypa
     english = "[gui]\nname=Name\nlabel=Label\nother-name=Name\n"
     result = updater.process_language(config(), "fr", arguments(), english, updater.parse_locale(english))
     assert result["status"] == "ok-with-advisories"
-    assert len(result["warnings"]) == 2
+    assert len(result["warnings"]) == 1
+    assert result["warnings"][0].startswith("Identical English text has different translations:")
     assert len(calls) == 1
     assert updater.parse_locale(language_file.read_text()) == {
         "gui/name": "Nom", "gui/label": "Nom", "gui/other-name": "Appellation"

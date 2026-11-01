@@ -31,19 +31,29 @@ local function remember(object, player, entity, setting, kind, color, phase, dur
 end
 
 local function show_bubbles(player, entity, quality, setting)
+  local bounds = entity.bounding_box
+  local width = bounds.right_bottom.x - bounds.left_top.x
+  local height = bounds.right_bottom.y - bounds.left_top.y
+  -- Explicitly seed a separate generator so cosmetics never advance gameplay randomness.
+  local seed = ((game.tick + (entity.unit_number or 0)) * 104729) % 4294967296
+  local random = game.create_random_generator(seed)
   for index = 1, bubble_count do
     local delay = 12 + (index - 1) * 6
     -- Permuted lanes give a varied stream without consuming gameplay randomness.
     local lane = ((index * 7) % 19 - 9) / 9
+    local position = {
+      x = bounds.left_top.x + random() * width,
+      y = bounds.left_top.y + random() * height,
+    }
     local object = rendering.draw_sprite{
-      sprite = "quality/" .. quality.name, target = entity.position,
+      sprite = "quality/" .. quality.name, target = position,
       surface = entity.surface, players = {player.index},
       time_to_live = delay + bubble_lifetime, color = faded(white, 0),
       x_scale = 0.25, y_scale = 0.25,
     }
     local effect = remember(object, player, entity, setting, "bubble", white, index, bubble_lifetime)
     effect.start_tick = game.tick + delay
-    effect.position.y = effect.position.y - 1 - delay / badge_lifetime
+    effect.position = position
     effect.drift = lane * 2
     effect.rise = 2.5 + (index % 4) * 0.5
   end

@@ -52,6 +52,7 @@ local function reset()
   }
   entity = {valid = true, name = "beacon", localised_name = {"entity-name.beacon"},
     force = force, surface = {index = 2, name = "other-surface"}, position = {x = 3, y = 7},
+    bounding_box = {left_top = {x = 1.5, y = 5.5}, right_bottom = {x = 4.5, y = 8.5}},
     gps_tag = "[gps=3,7,other-surface]"}
   for index = 1, 3 do
     local player = {index = index, valid = true, connected = true, force = index == 3 and other_force or force,
@@ -80,6 +81,14 @@ local function reset()
     players[index] = player
   end
   game = {tick = 0, connected_players = players, forces = {player = force}, get_player = function(index) return players[index] end}
+  game.create_random_generator = function(seed)
+    assert(type(seed) == "number" and seed >= 0 and seed < 4294967296)
+    local sample = 0
+    return function()
+      sample = sample + 1
+      return sample / 37 -- Distinct samples for the burst's 36 coordinate draws.
+    end
+  end
   settings = {get_player_settings = function(player) return player.preferences end}
   local function draw(spec)
     equal(#spec.players, 1)
@@ -141,7 +150,7 @@ function tests.chat_and_gps()
             end
             local subject = module_name and "[img=item/module] Speed module" or "[img=entity/beacon] Beacon"
             equal(without_colors(message), subject .. " upgraded to [img=quality/custom] Custom")
-            assert(message:find("[color=", 1, true))
+            assert(message:find("[img=quality/custom] [color=0.200,0.800,0.700]Custom[/color]", 1, true))
           else
             equal(printed.message, entity.gps_tag)
           end
@@ -421,7 +430,24 @@ function tests.rainbow_text()
     previous, count = color, count + 1
   end
   equal(count, 12)
-  equal(without_colors(upgrade_chat.colorize("[color=red]É炉[/color]", 1)), "É炉")
+  local quality = "[color=0.2,0.8,0.7]É炉 [color=white]★[/color][/color]"
+  equal(upgrade_chat.colorize(quality, 1), quality)
+  -- Localizations can place the quality before or within the rest of the text.
+  equal(upgrade_chat.colorize("A " .. quality .. " B", 1),
+    upgrade_chat.colorize("A", 1) .. " " .. quality .. " " .. upgrade_chat.colorize("B", 2))
+
+  -- Check smoothness through multiple complete cycles, including wraparound.
+  previous = nil
+  for color in upgrade_chat.colorize(string.rep("x", 100), 0):gmatch("%[color=([^%]]+)%]") do
+    local channels = {}
+    for channel in color:gmatch("[%d.]+") do channels[#channels + 1] = tonumber(channel) end
+    if previous then
+      for index, channel in ipairs(channels) do
+        assert(math.abs(channel - previous[index]) <= 0.08, "adjacent colors must blend gradually")
+      end
+    end
+    previous = channels
+  end
 end
 
 function tests.chat_lifecycle()
@@ -454,7 +480,7 @@ function tests.chat_lifecycle()
       else
         equal(message[4], entity.gps_tag)
         if change == "failed" then
-          equal(localise(message[2]), "[img=entity/beacon] Beacon upgraded to [img=quality/custom] Custom")
+          equal(localise(message[2]), "[img=entity/beacon] Beacon upgraded to [img=quality/custom] [color=0.200,0.800,0.700]Custom[/color]")
         else assert(type(message[2]) == "string") end
       end
     end

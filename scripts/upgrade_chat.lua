@@ -1,24 +1,38 @@
 -- Translate before coloring so rainbow letters work in each player's language.
 local chat = {}
 
-local colors = {"1,0.45,0.45", "1,0.7,0.3", "1,0.95,0.4", "0.45,1,0.55", "0.4,0.8,1", "0.8,0.55,1"}
+local colors = {{1, 0.45, 0.45}, {1, 0.7, 0.3}, {1, 0.95, 0.4}, {0.45, 1, 0.55}, {0.4, 0.8, 1}, {0.8, 0.55, 1}}
+local letters_per_transition = 8
+
+local function gradient_color(position)
+  local index = math.floor(position / letters_per_transition) % #colors + 1
+  local start_color, end_color = colors[index], colors[index % #colors + 1]
+  local blend = (position % letters_per_transition) / letters_per_transition
+  return string.format("%.3f,%.3f,%.3f",
+    start_color[1] + (end_color[1] - start_color[1]) * blend,
+    start_color[2] + (end_color[2] - start_color[2]) * blend,
+    start_color[3] + (end_color[3] - start_color[3]) * blend)
+end
 
 function chat.colorize(text, seed)
-  local parts, previous_color = {}, 0
-  -- Use a private pseudo-random sequence, never the gameplay RNG.
-  seed = seed % 2147483646 + 1
+  local parts, color_depth = {}, 0
+  -- Vary the starting hue without consuming gameplay randomness, then move
+  -- smoothly through the palette, including the violet-to-coral transition.
+  local position_in_gradient = seed % (#colors * letters_per_transition)
   local function append_letters(plain)
+    -- Explicit colors (such as the quality name) retain their meaning, wherever
+    -- the translated sentence places them.
+    if color_depth > 0 then
+      parts[#parts + 1] = plain
+      return
+    end
     -- Match whole UTF-8 codepoints rather than individual bytes (Lua 5.2).
     for letter in plain:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
       if letter:match("%s") then
         parts[#parts + 1] = letter
       else
-        seed = (seed * 48271) % 2147483647
-        -- Advance by at least one color so adjacent letters never match.
-        local step = 1 + seed % (#colors - 1)
-        local color = (previous_color - 1 + step) % #colors + 1
-        previous_color = color
-        parts[#parts + 1] = "[color=" .. colors[color] .. "]" .. letter .. "[/color]"
+        parts[#parts + 1] = "[color=" .. gradient_color(position_in_gradient) .. "]" .. letter .. "[/color]"
+        position_in_gradient = position_in_gradient + 1
       end
     end
   end
@@ -32,10 +46,13 @@ function chat.colorize(text, seed)
     end
     append_letters(text:sub(position, first - 1))
     local tag = text:sub(first, last)
-    -- Preserve sprites and other rich text; replace preexisting text colors.
-    if not tag:match("^%[color=") and tag ~= "[/color]" then
-      parts[#parts + 1] = tag
+    -- Preserve rich text and keep explicitly colored spans out of the gradient.
+    if tag:match("^%[color=") then
+      color_depth = color_depth + 1
+    elseif tag == "[/color]" then
+      color_depth = math.max(0, color_depth - 1)
     end
+    parts[#parts + 1] = tag
     position = last + 1
   end
   return table.concat(parts)
