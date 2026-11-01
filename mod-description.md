@@ -5,7 +5,7 @@ Progression is based on the time spent working instead of the number of items co
 The mod is highly configurable and comes with sensible defaults.
 
 ## Works with the whole factory
-___
+---
 Nearly all entity types are supported:
 
 - Manufacturing: assembling machines, furnaces, rocket silos
@@ -36,7 +36,8 @@ Should modules in an entity be able to upgrade? By default it's off, but there a
 You can decide if faster assemblers (those with beacons and speed modules) should change more quickly. By default this is off as it can compound upgrades in the late game. For context - factorio doesn't have a way to track work for things like inserters, so entities that earn upgrade attempts (assemblers) share those with non-assemblers. Late game, extremely fast assemblers can cause all other entities to upgrade very quickly when this setting is on.
 
 ## Copy Paste Helper
-___
+---
+
 The factory can end up with a lot of mixed quality entities scattered about. I made a companion mod that helps with copy pasting those elements.
 
 [Quality Gardner](https://mods.factorio.com/mod/quality-gardener)
@@ -44,10 +45,12 @@ The factory can end up with a lot of mixed quality entities scattered about. I m
 It will update ghosts to match items available in logistic storage. It can also automatically distribute upgraded buildings if there are higher quality ones in logistic storage just laying about.
 
 ## Turrets
+---
 
 New for version 2.1.0 - turrets generate upgrades by dealing damage. The default value is calculated as 36,000 damage, the equivalent of an hour of piercing ammo production at crafting speed 1.
 
 ## Notifications
+---
 
 These are unobtrusive by default, but you can enable more bling and whimsy courtesy of a feature suggestion from Lady_Lucina - thank you for the idea!!
 
@@ -61,26 +64,27 @@ Other notification options:
 - Spinning quality badge
 - and more
 
+![bubbles](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/bubbles.mp4?raw=true)
 
+![rainbow](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/rainbow.mp4?raw=true)
 
-## In Game Commands
+![badge](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/badge.mp4?raw=true)
 
-Inspect entity: control-shift-q will inspect the entity under the cursor and print out stats about its current progression.
-
-If you need to rebuild the cache (shouldn't be needed, but just in case), there is a console command available: `quality-control-init`. This is helpful if you suspect something should be tracked by Quality Control but it isn't.
 
 ## Optimized performance
+---
 
 Designed to run smoothly on massive bases. The mod processes a few machines each tick to avoid lag spikes, and includes settings (under the map tab) to tune the performance further.
 
 Adding the mod to an existing save game may cause an initial lag spike as it scans everything. Once all the entities are scanned it will go back to normal.
+
 
 ## Compatibility
 ---
 
 **Supported**
 
-This works well with mods that add extra quality tiers. If you find one that doesn't work please let me know as it's nice to add support.
+This works well with mods that add extra quality tiers.
 
 **Unsupported - but still fine to use alongside**
 
@@ -101,11 +105,9 @@ There are a few entity types that are not supported: belts, pipes, rails, and st
 
 ## Localization
 ---
-There are some AI generated localizations. Corrections are very welcome!
+The localizations are AI generated. Corrections are very welcome!
 
 Supported languages: Belarusian, Catalan, Chinese (Simplified), Chinese (Traditional), Czech, Dutch, Finnish, French, Georgian, German, Greek, Hungarian, Italian, Japanese, Kazakh, Korean, Latvian, Norwegian, Polish, Portuguese (Brazil), Portuguese (Portugal), Romanian, Russian, Spanish (Latin America), Spanish (Spain), Swedish, Thai, Turkish, Ukrainian, Vietnamese.
-
-Please share any corrections on the [mod discussion page](https://mods.factorio.com/mod/quality-control/discussion) or to the [github issues](https://github.com/aarons/factorio-quality-control/issues) page.
 
 ## Inspiration
 ___

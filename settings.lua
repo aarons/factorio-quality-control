@@ -15,7 +15,7 @@ data:extend({
         type = "double-setting",
         name = "percentage-chance-of-change",
         setting_type = "startup",
-        default_value = 1,
+        default_value = 3,
         min_value = 0.0001,
         max_value = 100,
         order = "a-1"
@@ -31,7 +31,7 @@ data:extend({
         type = "double-setting",
         name = "quality-increase-cost",
         setting_type = "startup",
-        default_value = 50,
+        default_value = 0,
         min_value = 0,
         max_value = 100000,
         order = "a-2"
