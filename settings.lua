@@ -138,6 +138,13 @@ data:extend({
     },
     {
         type = "bool-setting",
+        name = "quality-change-bubbles-enabled",
+        setting_type = "runtime-per-user",
+        default_value = false,
+        order = "c-7-b"
+    },
+    {
+        type = "bool-setting",
         name = "quality-change-sound-enabled",
         setting_type = "runtime-per-user",
         default_value = false,

@@ -4,8 +4,8 @@ Date: 31. 10. 2026
   Features:
     - Added musical wandering, wind chimes, staircase, random-in-scale, and fully random
       instrument notifications, with scale and range settings for each player.
-    - Added seven independent, opt-in alert styles using existing game assets: colorful chat,
-      GPS pings, floating upgrade text, a quality halo, rainbow rings, a spinning quality badge,
+    - Added eight independent, opt-in alert styles using existing game assets: colorful chat,
+      GPS pings, floating upgrade text, a quality halo, rainbow rings, a spinning upgrade badge, bubbles,
       and a built-in upgrade sound. Enable any combination in per-player settings. New styles
       are off by default and apply immediately to machine and independent module upgrades.
       Thanks to Lady_Lucina for the excellent idea and request!
@@ -16,6 +16,9 @@ Date: 31. 10. 2026
       progress. A Common machine limit disables module upgrades; other machine limits do not cap
       module quality.
   Ease of use:
+    - Spinning upgrade badges now last 4.5 seconds, grow to 250% of their previous size,
+      and keep spinning through their fade-out. Upgrade Bubbles independently enables a stream
+      of small floating quality icons.
     - Upgrade alerts now respect each connected player's preferences and the upgraded entity's force.
     - GPS alone prints a clickable location link; enabling colorful chat adds it to one upgrade
       message. Factorio's native GPS ping requires the chat link.

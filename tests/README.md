@@ -1,5 +1,70 @@
 # Validation and in-game tests
 
+## Notification clips and screenshots
+
+Capture the halo, rainbow rings, spinning badge, and bubbles with the installed
+graphical Factorio client:
+
+```sh
+python3 tests/capture_effects.py
+python3 tests/capture_effects.py --sequence
+python3 tests/capture_effects.py --stills-only
+```
+
+The default command produces one H.264 MP4 clip per effect plus selected PNG
+stills. It requires FFmpeg with the `libx264` encoder on `PATH`; `--stills-only`
+skips video and does not need FFmpeg. Clips use 15 fps, CRF 20, `yuv420p`, and
+MP4 fast-start metadata for browser playback and linking from GitHub on the forums.
+
+The script opens its own window, stages each effect separately, saves 640×640
+PNGs, and closes its own process when every expected image has been written.
+The camera keeps the entity horizontally centered and 70% down from the top
+(30% up from the bottom), leaving room above for bubbles and beside it for rings.
+Zoom is 2.5 to keep the units prominent; expanding rings can extend past the crop.
+It uses a temporary mod copy, configuration, and scenario; normal saves and mods
+are untouched. A desktop session is required: Factorio's screenshot API does
+nothing headless. This is a media capture tool, not part of validation.
+
+Media is saved to a new dated folder under `assets/notifications/captures/`.
+Use `--output /path/to/folder` to choose another parent directory.
+Each run gets a unique directory, preserving earlier captures. The output has
+`manifest.json`, `<effect>.mp4`, and `<effect>/stills/`. Each effect gets a baseline
+(`0000.png`) before the upgrade and four candidate stills; filenames indicate ticks
+since recording began. Each subject settles for three seconds before any images
+are saved, allowing placement dust to clear. Each clip then starts with one second
+of the settled previous quality, stages the upgrade, and triggers its notification
+at recording tick 60. The remaining animation keeps its original duration, making
+clips about six seconds long. The baseline PNG also shows the settled state.
+`--sequence` additionally retains `<effect>/sequence/0000.png` through `0090.png`
+at 15 fps, suitable for choosing other frames or re-encoding an animation.
+The manifest describes each subject, framing, and encoding settings.
+The printed temporary workspace retains the original images and `capture.log`
+for diagnosis, including on failure; it can be removed when finished.
+Raw capture folders, including their MP4s, are ignored by Git. Manually copy the
+best clips or images to `assets/notifications/` to include them in Git.
+
+The set shows a normal furnace becoming uncommon, a rare radar becoming epic,
+an epic assembler becoming legendary, and an uncommon speed module becoming rare
+inside a beacon that stays rare. Captures use alt-mode, with beacon module icons
+enabled in the temporary client configuration so the module's quality change is
+visible. Only the featured alert is enabled. The fixture passes
+staged upgrade results to the production notification functions and lets the
+normal celebration handler animate them; it does not wait for manufacturing
+credits or random rolls. No hooks or effects are added to the shipped mod.
+
+Floating text is intentionally excluded: the live effect did not appear in
+the scripted PNGs during capture experiments. Chat, GPS, map alerts, and sound
+are also outside this world-effect gallery.
+
+`--factorio`, `--data`, `QC_FACTORIO`, and `QC_FACTORIO_DATA` work like the engine
+runner. `--timeout` bounds the whole graphical launch (default 180 seconds).
+`--prepare-only` creates the workspace and prints a command for manual launch;
+in that mode the scenario pauses on completion and you close the window.
+Case subjects, still timings, resolution, zoom, and entity placement are in
+`tests/capture_effects.py`; lighting and stage layout are in `tests/capture/control.lua`.
+
+## Validation
+
 Run validation from the repository root:
 
 ```sh

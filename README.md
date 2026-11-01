@@ -135,7 +135,8 @@ the same styles; module effects appear at the host machine.
 | Floating Upgrade Text | Rising machine/module name and resulting quality | Off |
 | Quality Halo | An expanding ring in the resulting quality's color | Off |
 | Rainbow Rings | Three expanding rings cycling through rainbow colors | Off |
-| Spinning Quality Badge | The game's quality icon spinning and rising | Off |
+| Spinning Upgrade Badge | A growing quality icon that rises and continuously spins through its fade-out over 4.5 seconds | Off |
+| Upgrade Bubbles | A stream of small quality icons that float upward like bubbles | Off |
 | Upgrade Sound | A chosen built-in sound for upgrades on the surface currently being viewed | Off |
 
 New styles use existing game assets and drawing primitives. They fire immediately

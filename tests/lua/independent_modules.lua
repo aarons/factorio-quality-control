@@ -49,7 +49,7 @@ local function reset(mode)
     global = {["secondary-progression-rate"] = {value = 100}, ["batch-entities-per-tick"] = {value = 10}},
     get_player_settings = function()
       local preferences = {["quality-change-entity-alerts-enabled"] = {value = true}, ["quality-change-aggregate-alerts-enabled"] = {value = true}}
-      for _, style in ipairs({"chat", "gps", "floating-text", "halo", "rainbow", "badge", "sound"}) do
+      for _, style in ipairs({"chat", "gps", "floating-text", "halo", "rainbow", "badge", "bubbles", "sound"}) do
         preferences["quality-change-" .. style .. "-enabled"] = {value = false}
       end
       return preferences
