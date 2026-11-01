@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 2.5.1
+Date: 31. 10. 2026
+  Balancing:
+    - Crafting Speed Affects Progression is now disabled by default for new users to help spread
+      upgrades throughout longer games and avoid compounding speed increases in the late game.
+      This can be adjusted in the startup settings menu.
+---------------------------------------------------------------------------------------------------
 Version: 2.5.0
 Date: 31. 10. 2026
   Features:

@@ -9,7 +9,7 @@ progression hours based on the crafting-speed setting. Kept as a leaf module
 local progression = {}
 
 local turret_damage_per_manufacturing_hour = 36000
-local crafting_speed_affects_progression = true
+local crafting_speed_affects_progression = false
 
 function progression.initialize(settings_data)
   turret_damage_per_manufacturing_hour = settings_data.turret_damage_per_manufacturing_hour
@@ -36,7 +36,7 @@ function progression.get_manufacturing_hours(entity, is_turret)
 end
 
 -- Converts a span of manufacturing hours into progression hours. When crafting
--- speed affects progression (the default) they are the same. Otherwise hours
+-- speed affects progression they are the same. Otherwise (the default) hours
 -- are divided by the machine's current crafting speed, so progression tracks
 -- time spent crafting rather than work completed. Turrets have no crafting
 -- speed and are unaffected by the setting.

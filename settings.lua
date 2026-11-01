@@ -6,17 +6,10 @@ data:extend({
         type = "double-setting",
         name = "manufacturing-hours-for-change",
         setting_type = "startup",
-        default_value = 3,
+        default_value = 1,
         min_value = 0.001,
         max_value = 1000,
         order = "a-0"
-    },
-    {
-        type = "bool-setting",
-        name = "crafting-speed-affects-progression",
-        setting_type = "startup",
-        default_value = true,
-        order = "a-0a"
     },
     {
         type = "double-setting",
@@ -26,6 +19,13 @@ data:extend({
         min_value = 0.0001,
         max_value = 100,
         order = "a-1"
+    },
+    {
+        type = "bool-setting",
+        name = "crafting-speed-affects-progression",
+        setting_type = "startup",
+        default_value = false,
+        order = "a-1a"
     },
     {
         type = "double-setting",
