@@ -24,7 +24,7 @@ Almost all settings can be enabled/disabled or min/maxed to extreme levels. Here
 How many hours a machine must work for each upgrade attempt, with a broad range from as little as 3 seconds up to 1000 hours. The default is to require 1 hour of work.
 
 **Upgrade chance**
-By default, each upgrade attempt has a 1% chance of success, and grows by 0.2% with each failure.
+By default, each upgrade attempt has a 3% chance of success, and grows by 0.2% with each failure.
 
 **Difficulty scaling**
 Higher quality levels can optionally require more work, if you want to slow down progression at the top end.
@@ -32,8 +32,8 @@ Higher quality levels can optionally require more work, if you want to slow down
 **Module upgrades**
 Should modules in an entity be able to upgrade? By default it's off, but there are several options for controlling how these behave.
 
-**Crafting speed**
-You can decide if faster assemblers (those with beacons and speed modules) should change more quickly. By default this is off as it can compound upgrades in the late game. For context - factorio doesn't have a way to track work for things like inserters, so entities that earn upgrade attempts (assemblers) share those with non-assemblers. Late game, extremely fast assemblers can cause all other entities to upgrade very quickly when this setting is on.
+**Crafting speed affects progression**
+You can decide if faster assemblers (those with beacons and speed modules) should earn upgrade attempts more quickly. By default this is off because it can compound the rate of progresion in the late game and is difficult to balance.
 
 ## Copy Paste Helper
 ---
@@ -64,9 +64,9 @@ Other notification options:
 - Spinning quality badge
 - and more
 
-![bubbles](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/bubbles.mp4?raw=true)
+Examples:
 
-![rainbow](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/rainbow.mp4?raw=true)
+![bubbles](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/bubbles.mp4?raw=true)
 
 ![badge](https://github.com/aarons/factorio-quality-control/blob/main/assets/notifications/badge.mp4?raw=true)
 
