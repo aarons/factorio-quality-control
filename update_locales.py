@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Update locale translations by calling an LLM API directly.
+Update locale translations using Codex, Claude Code, or a direct LLM API.
 
 For each language this script:
   1. Finds the last commit that touched the language's locale.cfg (its "sync
@@ -14,9 +14,9 @@ For each language this script:
      section and key order, so structural validation passes by construction.
 
 Configuration comes from locale-config.json (gitignored; see
-locale-config.example.json). By default translation runs through the Claude
-Code CLI (`claude -p`), so it is covered by a Claude subscription rather than
-per-token API billing. Setting base_url switches to a direct API endpoint
+locale-config.example.json). Translation defaults to the Codex CLI using its
+saved login. --backend claude-code selects Claude Code instead. Setting
+base_url switches to a direct API endpoint
 (OpenAI-compatible or Anthropic). Uses only the Python standard library.
 
 Usage: ./update_locales.py [options] [language_code ...]
@@ -26,6 +26,7 @@ Options:
   --parallel N      Languages to process concurrently (default from config)
   --context "MSG"   Extra context passed to the model (e.g. what changed and why)
   --model MODEL     Override the configured model
+  --backend NAME    codex (default), claude-code, openai, or anthropic
   --base-url URL    Override the configured API base URL
   --dry-run         Show what would be translated without calling the API
 """
@@ -49,12 +50,14 @@ REFERENCE_FILE = PROJECT_ROOT / "locale" / "en" / "locale.cfg"
 CONFIG_FILE = PROJECT_ROOT / "locale-config.json"
 
 DEFAULT_CONFIG = {
-    "base_url": None,  # None = use the Claude Code CLI; set a URL for direct API access
-    "model": "sonnet",
-    "api_format": None,  # "claude-code", "openai", or "anthropic"; None = infer
+    "backend": None,  # None = infer from base_url, otherwise use Codex
+    "base_url": None,
+    "model": None,  # resolved per backend; CLI defaults apply when omitted
+    "models": {},  # optional model overrides keyed by backend
+    "api_format": None,  # legacy alias for backend
     "api_key_env": None,  # env var holding the API key; None = infer from base_url
     "parallel": 4,
-    "chunk_size": 20,  # keys per request for API formats; claude-code sends all at once
+    "chunk_size": 20,  # keys per request for APIs; CLI backends send all at once
     "timeout_seconds": 600,
 }
 
@@ -108,6 +111,10 @@ DISCLAIMER_URLS = (
 DISCLAIMER_ID = "__disclaimer__"
 
 PLACEHOLDER_RE = re.compile(r"__[A-Za-z0-9-]+__")
+RICH_TEXT_RE = re.compile(r"\[/?[A-Za-z][A-Za-z0-9_-]*(?:=[^\]\r\n]*)?\]")
+URL_RE = re.compile(r"https?://[^\s)]+")
+BACKENDS = ("codex", "claude-code", "openai", "anthropic")
+CLI_BACKENDS = ("codex", "claude-code")
 
 print_lock = threading.Lock()
 
@@ -212,16 +219,49 @@ def load_config():
         text = "\n".join(
             line for line in text.splitlines() if not line.strip().startswith("//")
         )
-        config.update(json.loads(text))
+        saved = json.loads(text)
+        config.update(saved)
+        # Old configs have a single model, usually "sonnet". Bind it to the
+        # old backend before applying CLI overrides so it cannot leak to Codex.
+        if saved.get("model"):
+            legacy_backend = (
+                saved.get("backend") or saved.get("api_format")
+                or (resolve_backend(config) if saved.get("base_url") else "claude-code")
+            )
+            config["models"] = {legacy_backend: saved["model"], **config["models"]}
+        config["model"] = None
     return config
 
 
-def resolve_api_format(config):
-    if config["api_format"]:
-        return config["api_format"]
+def resolve_backend(config):
+    if config["backend"] or config["api_format"]:
+        return config["backend"] or config["api_format"]
     if not config["base_url"]:
-        return "claude-code"
+        return "codex"
     return "anthropic" if "anthropic" in config["base_url"] else "openai"
+
+
+def configure(config, args):
+    """Resolve selection once, before starting language workers."""
+    config = dict(config)
+    if args.backend:
+        config["backend"] = args.backend
+    if args.base_url:
+        config["base_url"] = args.base_url
+    backend = resolve_backend(config)
+    if backend not in BACKENDS:
+        raise ValueError(f"Unknown backend: {backend}")
+    config["backend"] = backend
+    config["model"] = args.model or config["models"].get(backend)
+    if args.parallel is not None:
+        config["parallel"] = args.parallel
+    for name in ("parallel", "chunk_size", "timeout_seconds"):
+        if type(config[name]) is not int or config[name] < 1:
+            raise ValueError(f"{name} must be a positive integer")
+    if backend not in CLI_BACKENDS:
+        if not config["base_url"] or not config["model"]:
+            raise ValueError("Direct API backends require base_url and a model")
+    return config
 
 
 def resolve_api_key(config):
@@ -262,47 +302,82 @@ def post_json(config, url, headers, body):
             raise RuntimeError(f"Cannot reach {url}: {e}")
 
 
-def call_claude_code(config, system_prompt, user_prompt):
-    """One headless Claude Code invocation; returns (json_text, None).
+def translation_schema(entries):
+    """Require exactly the requested ids, each with a string value."""
+    return {
+        "type": "object",
+        "properties": {entry_id: {"type": "string"} for entry_id in entries},
+        "required": list(entries),
+        "additionalProperties": False,
+    }
 
-    Runs in an empty temp directory so no project context is loaded, and has
-    the model Write its JSON to a file — the file comes out as clean JSON with
-    no chat commentary to strip. ANTHROPIC_API_KEY is removed from the
-    environment so the CLI bills the subscription login, not the API key.
+
+def call_cli(config, system_prompt, user_prompt, schema):
+    """Request structured data; only Python writes the locale files.
+
+    Use a temporary working directory to avoid loading project instructions.
+    Keep saved CLI authentication, but do not inject API keys into CLI runs.
     """
+    backend = resolve_backend(config)
     with tempfile.TemporaryDirectory() as tmp:
         out_path = Path(tmp) / "translations.json"
-        prompt = (
-            f"{system_prompt}\n\n{user_prompt}\n\n"
-            f"Write the JSON object to {out_path} using the Write tool, then stop."
-        )
-        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        if backend == "codex":
+            schema_path = Path(tmp) / "schema.json"
+            schema_path.write_text(json.dumps(schema), encoding="utf-8")
+            command = [
+                "codex", "exec", "--sandbox", "read-only", "--ephemeral",
+                "--skip-git-repo-check", "--output-schema", str(schema_path),
+                "--output-last-message", str(out_path),
+            ]
+            key_vars = ("OPENAI_API_KEY", "CODEX_API_KEY")
+        else:
+            command = [
+                "claude", "-p", "--tools", "", "--disallowedTools", "mcp__*",
+                "--output-format", "json", "--json-schema", json.dumps(schema),
+                "--no-session-persistence",
+            ]
+            key_vars = ("ANTHROPIC_API_KEY",)
+        if config["model"]:
+            command.extend(["--model", config["model"]])
+        if backend == "codex":
+            command.append("-")
+        env = {k: v for k, v in os.environ.items() if k not in key_vars}
         try:
             result = subprocess.run(
-                ["claude", "-p", "--model", config["model"], "--allowedTools", "Write"],
-                input=prompt, cwd=tmp, env=env, capture_output=True, text=True,
+                command, input=f"{system_prompt}\n\n{user_prompt}", cwd=tmp,
+                env=env, capture_output=True, text=True,
                 timeout=config["timeout_seconds"],
             )
-        except FileNotFoundError:
-            raise RuntimeError(
-                "claude CLI not found; install Claude Code or set base_url in locale-config.json"
-            )
-        except subprocess.TimeoutExpired:
-            raise ValueError(f"claude timed out after {config['timeout_seconds']}s")
-        if not out_path.exists():
-            detail = (result.stderr or result.stdout or "").strip()[:300]
-            raise ValueError(f"claude produced no output file (exit {result.returncode}): {detail}")
-        return out_path.read_text(encoding="utf-8"), None
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"{command[0]} CLI not found; install it or select another backend") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(f"{backend} timed out after {config['timeout_seconds']}s") from exc
+        if result.returncode:
+            detail = (result.stderr or result.stdout or "").strip()[:500]
+            raise RuntimeError(f"{backend} failed (exit {result.returncode}): {detail}")
+        if backend == "codex":
+            if not out_path.exists():
+                raise ValueError("codex produced no structured output file")
+            return out_path.read_text(encoding="utf-8"), None
+        envelope = json.loads(result.stdout, object_pairs_hook=unique_json_object)
+        if not isinstance(envelope, dict):
+            raise ValueError("claude returned an invalid result envelope")
+        if envelope.get("is_error") or envelope.get("subtype") != "success":
+            detail = envelope.get("errors") or envelope.get("result") or envelope.get("subtype")
+            raise RuntimeError(f"claude failed: {str(detail)[:500]}")
+        if "structured_output" not in envelope:
+            raise ValueError("claude produced no structured output")
+        return json.dumps(envelope["structured_output"]), None
 
 
-def call_model(config, system_prompt, user_prompt):
+def call_model(config, system_prompt, user_prompt, schema):
     """Send one request; returns (text, finish_reason)."""
-    if resolve_api_format(config) == "claude-code":
-        return call_claude_code(config, system_prompt, user_prompt)
+    if resolve_backend(config) in CLI_BACKENDS:
+        return call_cli(config, system_prompt, user_prompt, schema)
     base = config["base_url"].rstrip("/")
     api_key = resolve_api_key(config)
 
-    if resolve_api_format(config) == "anthropic":
+    if resolve_backend(config) == "anthropic":
         url = f"{base}/v1/messages"
         headers = {"x-api-key": api_key, "anthropic-version": "2023-06-01"}
         body = {
@@ -325,7 +400,7 @@ def call_model(config, system_prompt, user_prompt):
         }
 
     data = post_json(config, url, headers, body)
-    if resolve_api_format(config) == "anthropic":
+    if resolve_backend(config) == "anthropic":
         text = "".join(block.get("text", "") for block in data["content"])
         return text, data.get("stop_reason")
     choice = data["choices"][0]
@@ -334,10 +409,21 @@ def call_model(config, system_prompt, user_prompt):
 
 def extract_json(text):
     """Pull a JSON object out of a model response, tolerating code fences."""
+    if not isinstance(text, str):
+        raise ValueError("Response must contain JSON text")
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end <= start:
         raise ValueError(f"No JSON object in response: {text[:200]}")
-    return json.loads(text[start : end + 1])
+    return json.loads(text[start : end + 1], object_pairs_hook=unique_json_object)
+
+
+def unique_json_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"Duplicate response id: {key}")
+        result[key] = value
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -354,6 +440,8 @@ Rules:
 - The ids are "section/key" paths for your context; translate only the English text given for each.
 - Use the terminology from the official Factorio {lang_name} translation for game terms (quality, module, beacon, assembling machine, etc.).
 - Preserve placeholders like __1__ and __2__ exactly as written.
+- Preserve rich-text tags (including attributes and their order), literal \\n escapes, and URLs exactly. Do not add formatting or line breaks.
+- Return data directly; do not use tools or inspect files.
 - Keep translations concise; these are UI strings.
 - If an entry includes "previous_english" and "previous_translation", the English text was revised. Update the previous translation to match the new English text, keeping its established word choices where they still fit."""
     if context_msg:
@@ -379,8 +467,16 @@ def validate_translation(entry_id, en_value, translated):
         return f"{entry_id}: empty translation"
     en_placeholders = sorted(PLACEHOLDER_RE.findall(en_value))
     tr_placeholders = sorted(PLACEHOLDER_RE.findall(translated))
-    if entry_id != DISCLAIMER_ID and en_placeholders != tr_placeholders:
+    if en_placeholders != tr_placeholders:
         return f"{entry_id}: placeholders {en_placeholders} became {tr_placeholders}"
+    if RICH_TEXT_RE.findall(en_value) != RICH_TEXT_RE.findall(translated):
+        return f"{entry_id}: rich-text tags changed"
+    if en_value.count("\\n") != translated.count("\\n"):
+        return f"{entry_id}: escaped newlines changed"
+    if sorted(URL_RE.findall(en_value)) != sorted(URL_RE.findall(translated)):
+        return f"{entry_id}: URLs changed"
+    if any(ord(char) < 32 or char in "\x85\u2028\u2029" for char in translated):
+        return f"{entry_id}: unexpected control character"
     if entry_id == DISCLAIMER_ID and not all(u in translated for u in DISCLAIMER_URLS):
         return f"{entry_id}: disclaimer must keep both URLs verbatim"
     return None
@@ -397,72 +493,68 @@ def request_translations(config, system_prompt, entries, terminology):
         payload["terminology_examples_english_to_translated"] = terminology
     payload["entries"] = entries
     user_prompt = json.dumps(payload, ensure_ascii=False, indent=1)
-    text, finish_reason = call_model(config, system_prompt, user_prompt)
+    text, finish_reason = call_model(config, system_prompt, user_prompt, translation_schema(entries))
     if finish_reason in ("length", "max_tokens"):
         raise ValueError(f"response truncated (finish_reason={finish_reason})")
-    return extract_json(text)
-
-
-def fallback_value(entry):
-    return entry.get("previous_translation") or entry["english"]
+    if resolve_backend(config) in CLI_BACKENDS:
+        response = json.loads(text, object_pairs_hook=unique_json_object)
+    else:
+        # Retain compatibility with API endpoints without schema support.
+        response = extract_json(text)
+    if not isinstance(response, dict):
+        raise ValueError("Translation response must be a JSON object")
+    extra = response.keys() - entries.keys()
+    if extra:
+        raise ValueError(f"Unexpected response ids: {', '.join(sorted(extra))}")
+    return response
 
 
 def translate_entries(config, lang_name, entries, terminology, context_msg, depth=0):
-    """Translate a batch of entries; returns ({id: value}, [warnings]).
+    """Return validated translations, or raise without writing any locale files.
 
-    A truncated or unparseable response splits the batch in half and retries
-    each half (reasoning-heavy local models choke on large batches). Entries
-    failing per-key validation are retried the same way. After 3 levels of
-    retries, entries fall back to their previous translation (or English) and
-    are reported as warnings.
+    Retry malformed output and invalid entries up to three times, splitting
+    batches to reduce truncation. Single entries also get retries. Operational
+    failures (login, missing CLI, nonzero exit, timeout) fail immediately.
     """
     if not entries:
-        return {}, []
+        return {}
 
-    def recurse_or_fallback(failed, note):
-        if depth < 3 and len(failed) > 1:
-            halves = list(failed.items())
-            mid = (len(halves) + 1) // 2
-            results, warnings = {}, []
-            for half in (dict(halves[:mid]), dict(halves[mid:])):
-                r, w = translate_entries(
-                    config, lang_name, half, terminology, context_msg, depth + 1
-                )
-                results.update(r)
-                warnings.extend(w)
-            return results, warnings
-        return (
-            {entry_id: fallback_value(entry) for entry_id, entry in failed.items()},
-            [f"{entry_id}: kept fallback value ({note})" for entry_id in failed],
-        )
+    def retry(failed, problems):
+        note = "; ".join(problems)
+        if depth >= 3:
+            raise RuntimeError(f"Translation validation failed after retries: {note}")
+        retry_context = f"{context_msg}\nCorrect these validation errors: {note}"
+        items = list(failed.items())
+        size = max(1, (len(items) + 1) // 2)
+        results = {}
+        for half in chunked(items, size):
+            results.update(translate_entries(
+                config, lang_name, half, terminology, retry_context, depth + 1
+            ))
+        return results
 
     system_prompt = build_system_prompt(lang_name, context_msg)
     try:
         response = request_translations(config, system_prompt, entries, terminology)
-    except (ValueError, json.JSONDecodeError) as e:
-        return recurse_or_fallback(entries, str(e))
+    except ValueError as exc:
+        return retry(entries, [str(exc)])
 
-    results, warnings, failed = {}, [], {}
-    last_problem = ""
+    results, failed, problems = {}, {}, []
     for entry_id, entry in entries.items():
         raw = response.get(entry_id)
         if isinstance(raw, str):
             translated = sanitize_value(raw)
             problem = validate_translation(entry_id, entry["english"], translated)
         else:
-            # Models sometimes nest the answer ({"translation": ...}); reject
-            # anything but a plain string rather than guess which field it's in.
             problem = f"{entry_id}: value must be a plain string, got {type(raw).__name__}"
         if problem is None:
             results[entry_id] = translated
         else:
             failed[entry_id] = entry
-            last_problem = problem
+            problems.append(problem)
     if failed:
-        retry_results, retry_warnings = recurse_or_fallback(failed, last_problem)
-        results.update(retry_results)
-        warnings.extend(retry_warnings)
-    return results, warnings
+        results.update(retry(failed, problems))
+    return results
 
 
 def chunked(items, size):
@@ -470,38 +562,29 @@ def chunked(items, size):
     return [dict(items[i : i + size]) for i in range(0, len(items), size)]
 
 
-def harmonize_duplicates(final, translated, en_entries):
-    """Make identical English texts share one translation everywhere.
-
-    When a run produces variants (e.g. "Peu commun" vs "Peu commune" for
-    "Uncommon"), keep the most common one — preferring a translation that
-    predates this run — and apply it to every key translated this run.
-    Returns notes describing what changed.
-    """
+def terminology_advisories(final, translated, en_entries):
+    """Flag possible inconsistencies without changing legitimate grammar."""
     groups = {}
     for entry_id, value in final.items():
         if en_entries[entry_id].strip():
             groups.setdefault(en_entries[entry_id], []).append((entry_id, value))
     notes = []
     for members in groups.values():
-        if len({value for _, value in members}) == 1:
-            continue
-        pre_existing = [v for entry_id, v in members if entry_id not in translated]
-        pool = pre_existing or [value for _, value in members]
-        canonical = max(set(pool), key=pool.count)
-        for entry_id, value in members:
-            if entry_id in translated and value != canonical:
-                final[entry_id] = translated[entry_id] = canonical
-                notes.append(f"{entry_id}: harmonized '{value}' -> '{canonical}'")
+        if len({value for _, value in members}) > 1 and any(
+            entry_id in translated for entry_id, _ in members
+        ):
+            ids = ", ".join(entry_id for entry_id, _ in members)
+            notes.append(f"Identical English text has different translations: {ids}")
+    for entry_id in sorted(find_section_collisions(final, translated, en_entries)):
+        notes.append(f"{entry_id}: shares a translation with different English text in its section")
     return notes
 
 
 def find_section_collisions(final, translated, en_entries):
     """Ids translated this run whose value collides within their section.
 
-    Two keys in one section with different English texts must not share a
-    translation ("Uncommon" and "Rare" both shown as "Rare" would confuse
-    players). Returns only ids we can retranslate, i.e. from this run.
+    Different English texts can legitimately share a translation. Report
+    these only as review advisories for ids translated in this run.
     """
     by_value = {}
     for entry_id, value in final.items():
@@ -566,75 +649,78 @@ def process_language(config, lang_code, args, en_text, en_entries):
 
     terminology = build_terminology_examples(en_entries, existing, set(to_translate))
     translated = {}
-    warnings = []
-    # Claude Code carries per-invocation overhead (CLI spawn plus its own
-    # system prompt), so send everything at once; failures still split.
+    # CLI startup carries overhead, so send each language's delta together.
+    # Malformed/truncated responses still split into smaller requests.
     chunk_size = (
-        len(to_translate)
-        if resolve_api_format(config) == "claude-code"
+        max(1, len(to_translate))
+        if resolve_backend(config) in CLI_BACKENDS
         else config["chunk_size"]
     )
     for chunk in chunked(to_translate.items(), chunk_size):
-        chunk_results, chunk_warnings = translate_entries(
+        translated.update(translate_entries(
             config, lang_name, chunk, terminology, args.context
-        )
-        translated.update(chunk_results)
-        warnings.extend(chunk_warnings)
+        ))
 
     if DISCLAIMER_ID in translated:
         disclaimer = translated.pop(DISCLAIMER_ID)
 
-    # Assemble final values: fresh translation > existing > English fallback
     final = {}
     for entry_id, en_value in en_entries.items():
         if not en_value.strip():
             final[entry_id] = ""
         elif entry_id in translated:
             final[entry_id] = translated[entry_id]
-        elif entry_id in existing:
-            final[entry_id] = existing[entry_id]
         else:
-            final[entry_id] = en_value
-            warnings.append(f"{entry_id}: missing translation, used English")
+            final[entry_id] = existing[entry_id]
 
-    # Deterministic cross-checks for translation consistency
-    notes = harmonize_duplicates(final, translated, en_entries)
-    collisions = find_section_collisions(final, translated, en_entries)
-    if collisions:
-        retry_context = (
-            f"{args.context}\nA previous attempt translated some of these keys "
-            "identically even though their English texts differ. Keys in the same "
-            "section with different English texts need distinguishable translations."
-        ).strip()
-        retry_results, retry_warnings = translate_entries(
-            config, lang_name, {i: to_translate[i] for i in sorted(collisions)},
-            terminology, retry_context,
-        )
-        translated.update(retry_results)
-        final.update(retry_results)
-        warnings.extend(retry_warnings)
-        notes += harmonize_duplicates(final, translated, en_entries)
-        for entry_id in sorted(find_section_collisions(final, translated, en_entries)):
-            warnings.append(f"{entry_id}: still collides with a different English key in its section")
-    for note in notes:
-        log(f"      note [{lang_code}]: {note}")
+    # Validate the entire candidate, including retained translations, before
+    # replacing the file. Invalid old content is reported, never silently fixed.
+    problems = []
+    for entry_id, value in final.items():
+        problem = validate_translation(entry_id, en_entries[entry_id], value)
+        if problem:
+            problems.append(problem)
+    if disclaimer is None:
+        problems.append("Missing translation disclaimer")
+    else:
+        problem = validate_translation(DISCLAIMER_ID, DISCLAIMER_EN, disclaimer)
+        if problem:
+            problems.append(problem)
+    if problems:
+        raise RuntimeError("Locale validation failed; file not written: " + "; ".join(problems))
 
+    warnings = terminology_advisories(final, translated, en_entries)
     rendered = render_locale(en_text, final, disclaimer)
-    if parse_locale(rendered).keys() != en_entries.keys():
-        return {
-            "lang": lang_code,
-            "status": "failed",
-            "warnings": warnings + ["rendered file does not mirror English structure; not written"],
-        }
+    parsed = parse_locale(rendered)
+    if list(parsed) != list(en_entries) or parsed != final:
+        raise RuntimeError("Rendered locale changed structure or values; file not written")
 
     locale_file.parent.mkdir(parents=True, exist_ok=True)
-    locale_file.write_text(rendered, encoding="utf-8")
+    write_locale_atomically(locale_file, rendered)
 
     for warning in warnings:
-        log(f"      warning [{lang_code}]: {warning}")
-    status = "ok" if not warnings else "ok-with-warnings"
+        log(f"      advisory [{lang_code}]: {warning}")
+    status = "ok" if not warnings else "ok-with-advisories"
     log(f"  {lang_code} ({lang_name}): done")
     return {"lang": lang_code, "status": status, "warnings": warnings}
+
+
+def write_locale_atomically(locale_file, rendered):
+    """Keep the original intact if writing or replacing the candidate fails."""
+    candidate = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=locale_file.parent, delete=False,
+            prefix=".locale-", suffix=".tmp",
+        ) as output:
+            candidate = Path(output.name)
+            output.write(rendered)
+        mode = locale_file.stat().st_mode & 0o777 if locale_file.exists() else 0o644
+        candidate.chmod(mode)
+        os.replace(candidate, locale_file)
+    finally:
+        if candidate is not None:
+            candidate.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------
@@ -643,22 +729,22 @@ def process_language(config, lang_code, args, en_text, en_entries):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Update locale translations via a direct LLM API call per language."
+        description="Update locales using Codex (default), Claude Code, or a direct API."
     )
     parser.add_argument("languages", nargs="*", help="Language codes to process (default: all)")
     parser.add_argument("--full", action="store_true", help="Retranslate every key")
     parser.add_argument("--parallel", type=int, default=None)
     parser.add_argument("--context", default="", help="Extra context for the model")
-    parser.add_argument("--model", default=None)
+    parser.add_argument("--backend", choices=BACKENDS, default=None)
+    parser.add_argument("--model", default=None, help="Override the selected backend model")
     parser.add_argument("--base-url", default=None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
-    config = load_config()
-    if args.model:
-        config["model"] = args.model
-    if args.base_url:
-        config["base_url"] = args.base_url
+    try:
+        config = configure(load_config(), args)
+    except (ValueError, TypeError, AttributeError) as exc:
+        parser.error(str(exc))
 
     for code in args.languages:
         if code not in LANGUAGES:
@@ -670,11 +756,12 @@ def main():
     en_text = REFERENCE_FILE.read_text(encoding="utf-8")
     en_entries = parse_locale(en_text)
 
-    endpoint = config["base_url"] or "Claude Code CLI"
-    log(f"Endpoint: {endpoint}  Model: {config['model']}")
+    backend = config["backend"]
+    endpoint = backend if backend in CLI_BACKENDS else config["base_url"]
+    log(f"Backend: {backend}  Endpoint: {endpoint}  Model: {config['model'] or 'CLI default'}")
     log(f"Processing {len(targets)} language(s), {len(en_entries)} English keys\n")
 
-    parallel = args.parallel or config["parallel"]
+    parallel = config["parallel"]
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=parallel) as pool:
         futures = {

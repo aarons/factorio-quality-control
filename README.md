@@ -274,6 +274,38 @@ Copy the generated zip file to the factorio mods folder to test any changes.
 2. Restart Factorio to load the updated mod
 3. Use Ctrl+Shift+Q in-game to inspect entity quality metrics
 
+### Updating translations
+
+The locale updater defaults to Codex CLI. Sign in with `codex login` using
+ChatGPT to use your subscription, or select Claude Code after signing into it.
+
+```bash
+./update-locales.sh --dry-run          # Preview changed keys; no model calls
+./update-locales.sh de fr              # Translate selected languages with Codex
+./update-locales.sh --backend claude-code de fr
+./update-locales.sh --backend codex --model MODEL de
+```
+
+Omit language codes to process all languages. The CLI's configured model is used
+unless overridden. Copy `locale-config.example.json` to `locale-config.json`
+for backend-specific models, concurrency, timeouts, or direct API access.
+Explicit CLI options override configuration. Legacy `api_format` and `model`
+settings remain supported; an old unscoped `sonnet` model stays associated with
+Claude Code when switching to Codex. Direct APIs use separate credentials and
+billing; the updater does not automatically fall back to another backend.
+
+Both CLI backends return schema-constrained JSON. Python checks placeholders,
+rich-text tags, escaped newlines, and URLs before atomically replacing each
+language file. Invalid translations are retried; persistent errors leave that
+language's file unchanged and make the command exit unsuccessfully. Other
+languages can still succeed. Terminology inconsistencies are review advisories
+and do not force rewrites. Direct API endpoints retain their existing JSON
+prompt protocol with the same local validation.
+
+Progress tracking still uses the last commit touching each language file.
+Use `--full` to retranslate all keys or `--context "..."` to explain a change.
+Review `git diff` and run `./validate.sh` after updating translations.
+
 ### Project Structure
 
 ```
