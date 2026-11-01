@@ -3,14 +3,13 @@ Version: 2.5.1
 Date: 31. 10. 2026
   Balancing:
     - The 'Crafting speed affects progression' setting is now disabled by default for new users
-      to help normalize the rate of upgrades on longer playthroughs, to prevent late game
-      level ups compounding in speed.
+      to help normalize the rate of upgrades on longer playthroughs.
     - Reduced the default manufacturing hours required from 3 hours to 1 hour, to complement
-      disabling the 'crafting speed affects progression' setting. Now the upgrade rate should
-      feel slow but more consistent.
+      disabling the 'crafting speed affects progression' setting. Now the default rate should
+      feel slow but consistent.
     - Increased the default chance of success per upgrade attempt from 1% to 3%.
-    - Reduced the default cost increase per quality level from 50% to 0%, so higher quality
-      tiers require the same manufacturing hours by default.
+    - Reduced the default cost increase per quality level from 50% to 0%, so that higher
+      quality tiers upgrade at the same rate.
 ---------------------------------------------------------------------------------------------------
 Version: 2.5.0
 Date: 31. 10. 2026
